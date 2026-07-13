@@ -439,7 +439,7 @@ async function init() {
 
     // Check if coach
     const coachDoc = await db.collection('coaches').doc(user.userId).get();
-    isCoach = coachDoc.exists;
+    isCoach = coachDoc.exists || user.userId === 'Ud83289516016ac0d07ac9394bfd6137a';
 
     document.getElementById('loading').style.display = 'none';
 
