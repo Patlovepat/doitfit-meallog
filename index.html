@@ -31,6 +31,20 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
 .app-header h1{font-size:16px;font-weight:700;color:var(--text)}
 .app-header .user-pic{width:36px;height:36px;border-radius:50%;object-fit:cover;margin-left:auto;border:2px solid var(--border)}
 .coach-badge{background:var(--primary);color:white;font-size:11px;font-weight:600;padding:2px 8px;border-radius:12px;margin-left:auto}
+.streak-pill{background:#FFF7ED;border:1.5px solid #FED7AA;border-radius:20px;padding:4px 10px;font-size:12px;font-weight:700;color:#C2410C;margin-left:auto;display:none;align-items:center;gap:3px;white-space:nowrap}
+.milestone-box{background:#FFF7ED;border:1.5px solid #FED7AA;border-radius:12px;padding:14px;text-align:center;margin-bottom:16px;display:none}
+.milestone-box .mfire{font-size:32px;margin-bottom:4px}
+.milestone-box .mt{font-size:15px;font-weight:700;color:#C2410C}
+.milestone-box .ms{font-size:12px;color:#D97706;margin-top:4px}
+.week-dots{display:flex;gap:4px;padding:12px 0 4px}
+.wd-item{flex:1;text-align:center}
+.wd-name{font-size:10px;color:var(--gray);margin-bottom:4px}
+.wd-dot{width:30px;height:30px;border-radius:50%;margin:0 auto;display:flex;align-items:center;justify-content:center;font-size:13px}
+.wd-dot.done{background:var(--primary);color:white}
+.wd-dot.today-done{background:var(--primary-dark);color:white}
+.wd-dot.today-miss{background:var(--light);border:2px solid var(--primary);color:var(--primary-dark);font-size:10px;font-weight:700}
+.wd-dot.miss{background:#F3F4F6;color:#D1D5DB}
+.wd-kcal{font-size:9px;color:var(--gray);margin-top:3px}
 
 /* STUDENT VIEW */
 #student-view{display:none;padding-bottom:130px}
@@ -243,6 +257,7 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
   <div class="app-header">
     <div class="logo"><span>DO</span></div>
     <h1>Meal Log</h1>
+    <span id="streak-pill" class="streak-pill"></span>
     <img id="user-pic" class="user-pic" src="" alt="">
   </div>
 
@@ -496,6 +511,11 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
   <div class="success-icon">✅</div>
   <h2>ส่งเรียบร้อยแล้วค่ะ!</h2>
   <p>โค้ชจะตรวจสอบและให้ feedback<br>เร็วๆ นี้ค่ะ</p>
+  <div class="milestone-box" id="milestone-box">
+    <div class="mfire">🔥</div>
+    <div class="mt" id="milestone-title"></div>
+    <div class="ms" id="milestone-sub"></div>
+  </div>
   <div class="summary-chips" id="success-chips"></div>
   <button class="btn-again" onclick="resetStudent()">บันทึกมื้อถัดไป</button>
 </div>
@@ -574,6 +594,46 @@ const VIS_FAT_G=5;
 const TH_MONTHS=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
 const TH_DAYS=['อา','จ','อ','พ','พฤ','ศ','ส'];
 const TARGETS={kcal:1600,c:160,p:120,f:55};
+const STREAK_MILESTONES=[3,7,14,21,30];
+
+function calcStreak(subs){
+  const dates=new Set(subs.map(s=>subDate(s)));
+  let streak=0,d=new Date();
+  while(true){
+    const k=d.toISOString().split('T')[0];
+    if(dates.has(k)){streak++;d.setDate(d.getDate()-1);}
+    else break;
+  }
+  return streak;
+}
+
+function getWeekDots(subs){
+  const byDate={};
+  subs.forEach(s=>{const k=subDate(s);if(!byDate[k])byDate[k]=[];byDate[k].push(s);});
+  const today=todayStr();
+  const dots=[];
+  for(let i=6;i>=0;i--){
+    const d=new Date();d.setDate(d.getDate()-i);
+    const k=d.toISOString().split('T')[0];
+    const daySubs=byDate[k]||[];
+    let kcal=0;daySubs.forEach(s=>{kcal+=getSubMacros(s).kcal;});
+    dots.push({date:k,isToday:k===today,hasSub:daySubs.length>0,kcal,day:TH_DAYS[d.getDay()]});
+  }
+  return dots;
+}
+
+async function loadStreak(){
+  try{
+    const snap=await db.collection('submissions').where('userId','==',user.userId).limit(60).get();
+    const subs=snap.docs.map(d=>({id:d.id,...d.data()}));
+    const streak=calcStreak(subs);
+    const pill=document.getElementById('streak-pill');
+    if(streak>0){
+      pill.innerHTML=`🔥 ${streak} วันติด`;
+      pill.style.display='flex';
+    }
+  }catch(e){console.log('streak load err',e);}
+}
 
 // DATE HELPERS
 function todayStr(){return new Date().toISOString().split('T')[0];}
@@ -626,6 +686,7 @@ function startStudent(){
   document.getElementById('user-id-bar').style.display='block';
   document.getElementById('user-id-txt').textContent=user.userId;
   renderFoodList(FOODS);
+  loadStreak();
   updateHint('carb-hint',carbDensity);
   updateHandSummary();
   buildDateStrip();
@@ -831,6 +892,24 @@ function showSuccess(mode,handData,labelData,weighData){
   }
   if(photoBase64)chips+=`<span class="chip">📸 มีรูป</span>`;
   document.getElementById('success-chips').innerHTML=chips;
+  showMilestone();
+}
+
+async function showMilestone(){
+  try{
+    const snap=await db.collection('submissions').where('userId','==',user.userId).limit(60).get();
+    const subs=snap.docs.map(d=>({id:d.id,...d.data()}));
+    const streak=calcStreak(subs);
+    const pill=document.getElementById('streak-pill');
+    if(streak>0){pill.innerHTML=`🔥 ${streak} วันติด`;pill.style.display='flex';}
+    const box=document.getElementById('milestone-box');
+    if(streak>=1){
+      const next=STREAK_MILESTONES.find(m=>m>streak)||null;
+      document.getElementById('milestone-title').textContent=`${streak} วันติดต่อกัน!`;
+      document.getElementById('milestone-sub').textContent=next?`อีก ${next-streak} วัน ครบ ${next} วัน ✨`:`เยี่ยมมาก! ส่งต่อเนื่องมา ${streak} วันแล้ว 💪`;
+      box.style.display='block';
+    }else{box.style.display='none';}
+  }catch(e){document.getElementById('milestone-box').style.display='none';}
 }
 
 // HISTORY
@@ -922,7 +1001,19 @@ function renderDashboard(subs){
       <div class="week-kcal">${lbl}</div>
     </div>`;
   }).join('');
+  const dots=getWeekDots(subs);
+  const dotsHtml=dots.map(d=>{
+    let cls='miss',icon='–';
+    if(d.hasSub&&d.isToday){cls='today-done';icon='✓';}
+    else if(d.hasSub){cls='done';icon='✓';}
+    else if(d.isToday){cls='today-miss';icon='วันนี้';}
+    return`<div class="wd-item"><div class="wd-name">${d.day}</div><div class="wd-dot ${cls}">${icon}</div><div class="wd-kcal">${d.kcal?Math.round(d.kcal/100*10)/10+'k':''}</div></div>`;
+  }).join('');
   document.getElementById('dashboard-content').innerHTML=`
+    <div style="background:white;margin:12px 12px 0;border-radius:14px;padding:14px;border:1px solid #E5E7EB">
+      <div style="font-size:12px;font-weight:600;color:var(--gray);margin-bottom:2px">สัปดาห์นี้</div>
+      <div class="week-dots">${dotsHtml}</div>
+    </div>
     <div style="background:white;margin:12px 12px 0;border-radius:14px;padding:14px;border:1px solid #E5E7EB">
       <div style="font-size:13px;font-weight:600;margin-bottom:12px">📅 ${formatDateTH(today)} · ${todaySubs.length} มื้อ</div>
       <div class="dash-stat-grid">
