@@ -838,8 +838,9 @@ async function loadHistory(){
   const list=document.getElementById('history-list');
   list.innerHTML='<div style="padding:32px;text-align:center;color:var(--gray)"><div style="font-size:32px;margin-bottom:8px">⏳</div>กำลังโหลด...</div>';
   try{
-    const snap=await db.collection('submissions').where('userId','==',user.userId).orderBy('createdAt','desc').limit(30).get();
-    const subs=snap.docs.map(d=>({id:d.id,...d.data()}));
+    const snap=await db.collection('submissions').where('userId','==',user.userId).limit(30).get();
+    const subs=snap.docs.map(d=>({id:d.id,...d.data()}))
+      .sort((a,b)=>{const ta=a.createdAt?.toDate?.()?.getTime?.()||0,tb=b.createdAt?.toDate?.()?.getTime?.()||0;return tb-ta;});
     if(!subs.length){list.innerHTML='<div class="hist-empty"><div class="he-icon">📭</div><p>ยังไม่มีประวัติการส่งค่ะ<br>ลองบันทึกมื้อแรกเลย!</p></div>';return;}
     list.innerHTML=subs.map(s=>buildHistCard(s)).join('');
   }catch(e){list.innerHTML='<div style="padding:24px;text-align:center;color:#EF4444">โหลดไม่ได้: '+e.message+'</div>';}
@@ -891,7 +892,7 @@ async function loadDashboard(){
   const content=document.getElementById('dashboard-content');
   content.innerHTML='<div style="padding:32px;text-align:center;color:var(--gray)"><div style="font-size:32px;margin-bottom:8px">⏳</div>กำลังโหลด...</div>';
   try{
-    const snap=await db.collection('submissions').where('userId','==',user.userId).orderBy('createdAt','desc').limit(50).get();
+    const snap=await db.collection('submissions').where('userId','==',user.userId).limit(50).get();
     const subs=snap.docs.map(d=>({id:d.id,...d.data()}));
     renderDashboard(subs);
   }catch(e){content.innerHTML='<div style="padding:24px;text-align:center;color:#EF4444">โหลดไม่ได้: '+e.message+'</div>';}
