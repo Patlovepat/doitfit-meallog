@@ -444,7 +444,8 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
     <div id="panel-weigh" style="display:none">
       <div class="section-card">
         <div class="section-title">ค้นหาอาหาร</div>
-        <input type="text" class="food-search" id="food-search" placeholder="พิมพ์ชื่ออาหาร เช่น ข้าว, ไก่..." oninput="filterFoods()">
+        <input type="text" class="food-search" id="food-search" placeholder="พิมพ์ชื่ออาหาร เช่น ข้าว, chicken, salmon..." oninput="filterFoods()">
+        <div id="usda-status" style="font-size:11px;color:var(--gray);padding:4px 0;display:none"></div>
         <div class="food-list" id="food-list"></div>
         <div id="gram-area" style="display:none">
           <div class="gram-row"><label>น้ำหนัก (กรัม):</label><input type="number" id="grams-in" min="1" step="1" placeholder="100" oninput="calcWeigh()"></div>
@@ -552,17 +553,54 @@ firebase.initializeApp({
 });
 const db = firebase.firestore();
 
-const FOODS = [
-  {name:'ข้าวขาวสุก',c:28,p:2.7,f:0.3},{name:'ข้าวกล้องสุก',c:23,p:2.5,f:1.0},
-  {name:'อกไก่ต้ม/นึ่ง',c:0,p:31,f:3.6},{name:'ปลาทับทิมนึ่ง',c:0,p:19,f:3.5},
-  {name:'ไข่ต้ม/ไข่ดาว',c:0.6,p:12,f:9},{name:'เต้าหู้ขาว',c:1.9,p:8,f:4.2},
-  {name:'ผักบุ้งผัดน้ำมัน',c:3,p:2,f:4},{name:'บรอกโคลีต้ม',c:7,p:2.8,f:0.4},
-  {name:'แตงกวา',c:3.6,p:0.7,f:0.1},{name:'มะเขือเทศ',c:3.9,p:0.9,f:0.2},
-  {name:'กล้วยหอม',c:23,p:1.1,f:0.3},{name:'ส้มสายน้ำผึ้ง',c:11,p:0.8,f:0.2},
-  {name:'นมวัวไขมันต่ำ',c:5,p:3.4,f:1},{name:'โยเกิร์ตรสธรรมชาติ',c:6,p:3.5,f:0.4},
-  {name:'ถั่วเขียวต้ม',c:19,p:7,f:0.4},{name:'ข้าวโอ๊ตสุก',c:12,p:2.4,f:1.4},
-  {name:'มันหวานต้ม',c:20,p:1.6,f:0.1},{name:'หมูสันในย่าง',c:0,p:22,f:6},
-  {name:'ปลาทูนึ่ง',c:0,p:23,f:5},{name:'เต้าหู้แข็ง',c:2,p:13,f:6}
+const USDA_KEY='DEMO_KEY';
+const TH_FOODS=[
+  {name:'ข้าวขาวสุก',c:28,p:2.7,f:0.3,src:'th'},{name:'ข้าวกล้องสุก',c:23,p:2.5,f:1.0,src:'th'},
+  {name:'ข้าวเหนียวสุก',c:30,p:2.3,f:0.2,src:'th'},{name:'ข้าวต้ม',c:14,p:1.5,f:0.2,src:'th'},
+  {name:'โจก',c:12,p:1.2,f:0.1,src:'th'},{name:'ข้าวโอ๊ตสุก',c:12,p:2.4,f:1.4,src:'th'},
+  {name:'ขนมปังขาว',c:49,p:8,f:3,src:'th'},{name:'ขนมปังโฮลวีท',c:43,p:8.5,f:3.5,src:'th'},
+  {name:'เส้นก๋วยเตี๋ยวเส้นเล็กสุก',c:26,p:2,f:0.2,src:'th'},{name:'เส้นบะหมี่สุก',c:25,p:4,f:0.5,src:'th'},
+  {name:'วุ้นเส้นสุก',c:19,p:0.1,f:0,src:'th'},{name:'เส้นหมี่สุก',c:25,p:2,f:0.3,src:'th'},
+  {name:'มันหวานต้ม',c:20,p:1.6,f:0.1,src:'th'},{name:'มันฝรั่งต้ม',c:17,p:2,f:0.1,src:'th'},
+  {name:'เผือกต้ม',c:18.7,p:1.5,f:0.1,src:'th'},
+  {name:'อกไก่ต้ม/นึ่ง',c:0,p:31,f:3.6,src:'th'},{name:'ขาไก่ต้ม',c:0,p:27,f:8,src:'th'},
+  {name:'ปลาทับทิมนึ่ง',c:0,p:19,f:3.5,src:'th'},{name:'ปลาทูนึ่ง',c:0,p:23,f:5,src:'th'},
+  {name:'ปลาแซลมอนย่าง',c:0,p:25,f:13,src:'th'},{name:'ปลาหมึกต้ม',c:3,p:18,f:1.4,src:'th'},
+  {name:'กุ้งต้ม',c:0.9,p:24,f:1.1,src:'th'},{name:'หมูสันในย่าง',c:0,p:22,f:6,src:'th'},
+  {name:'หมูสับ',c:0,p:19,f:14,src:'th'},{name:'เนื้อวัวไม่ติดมัน',c:0,p:26,f:7,src:'th'},
+  {name:'ไข่ต้ม/ไข่ดาว',c:0.6,p:12,f:9,src:'th'},{name:'ไข่ขาวสุก',c:0.7,p:11,f:0.2,src:'th'},
+  {name:'ทูน่ากระป๋องในน้ำ',c:0,p:26,f:1,src:'th'},{name:'ลูกชิ้นปลา',c:10,p:14,f:2,src:'th'},
+  {name:'ลูกชิ้นหมู',c:8,p:12,f:8,src:'th'},{name:'หอยแมลงภู่ต้ม',c:3.7,p:12,f:2.2,src:'th'},
+  {name:'เต้าหู้ขาว',c:1.9,p:8,f:4.2,src:'th'},{name:'เต้าหู้แข็ง',c:2,p:13,f:6,src:'th'},
+  {name:'เต้าหู้ไข่',c:2.5,p:7,f:5,src:'th'},{name:'เต้าหู้ยี้',c:4,p:5,f:3,src:'th'},
+  {name:'บร็อคโคลีต้ม',c:7,p:2.8,f:0.4,src:'th'},{name:'แตงกวา',c:3.6,p:0.7,f:0.1,src:'th'},
+  {name:'มะเขือเทศ',c:3.9,p:0.9,f:0.2,src:'th'},{name:'ผักบุ้งต้ม',c:3,p:2,f:0.3,src:'th'},
+  {name:'คะน้าต้ม',c:4,p:2.5,f:0.2,src:'th'},{name:'ผักกาดขาวต้ม',c:2,p:1.5,f:0.1,src:'th'},
+  {name:'ถั่วฝักยาว',c:7,p:2.5,f:0.2,src:'th'},{name:'ถั่วงอก',c:5.9,p:3.1,f:0.2,src:'th'},
+  {name:'แครอท',c:9.6,p:0.9,f:0.2,src:'th'},{name:'ข้าวโพดต้ม',c:19,p:3.3,f:1.5,src:'th'},
+  {name:'ฟักทองต้ม',c:6.5,p:1.1,f:0.1,src:'th'},{name:'มะเขือยาว',c:5.9,p:1,f:0.2,src:'th'},
+  {name:'เห็ดนางฟ้า',c:6,p:2.5,f:0.4,src:'th'},{name:'เห็ดหูหนู',c:7,p:1.5,f:0.1,src:'th'},
+  {name:'ผักโขม',c:3.6,p:2.9,f:0.4,src:'th'},{name:'หน่อไม้ฝรั่ง',c:3.9,p:2.2,f:0.1,src:'th'},
+  {name:'กล้วยหอม',c:23,p:1.1,f:0.3,src:'th'},{name:'ส้มสายน้ำผึ้ง',c:11,p:0.8,f:0.2,src:'th'},
+  {name:'มะม่วงสุก',c:15,p:0.8,f:0.4,src:'th'},{name:'มะละกอสุก',c:10.8,p:0.5,f:0.3,src:'th'},
+  {name:'ฝรั่ง',c:14.3,p:0.9,f:0.5,src:'th'},{name:'แตงโม',c:7.6,p:0.6,f:0.1,src:'th'},
+  {name:'แอปเปิ้ล',c:14,p:0.3,f:0.2,src:'th'},{name:'สับปะรด',c:13.1,p:0.5,f:0.1,src:'th'},
+  {name:'มังคุด',c:18,p:0.6,f:0.6,src:'th'},{name:'ลำไย',c:15,p:1.3,f:0.1,src:'th'},
+  {name:'ลิ้นจี่',c:16.5,p:0.9,f:0.2,src:'th'},{name:'สตรอว์เบอร์รี',c:7.7,p:0.7,f:0.3,src:'th'},
+  {name:'นมวัวไขมันต่ำ',c:5,p:3.4,f:1,src:'th'},{name:'นมวัวไขมันเต็ม',c:4.8,p:3.2,f:3.5,src:'th'},
+  {name:'โยเกิร์ตรสธรรมชาติ',c:6,p:3.5,f:0.4,src:'th'},{name:'โยเกิร์ตกรีก',c:5,p:9,f:0.4,src:'th'},
+  {name:'ชีสเชดดาร์',c:1.3,p:25,f:33,src:'th'},
+  {name:'ถั่วเขียวต้ม',c:19,p:7,f:0.4,src:'th'},{name:'ถั่วแดงต้ม',c:22,p:8.7,f:0.5,src:'th'},
+  {name:'ถั่วเหลืองต้ม',c:9.9,p:16.6,f:9,src:'th'},{name:'อัลมอนด์',c:22,p:21,f:49,src:'th'},
+  {name:'เมล็ดฟักทอง',c:54,p:19,f:19,src:'th'},
+  {name:'น้ำมันมะกอก',c:0,p:0,f:100,src:'th'},{name:'น้ำมันพืช',c:0,p:0,f:100,src:'th'},
+  {name:'เนย',c:0,p:0.5,f:81,src:'th'},{name:'เนยถั่ว',c:20,p:25,f:50,src:'th'},
+  {name:'อะโวคาโด',c:8.5,p:2,f:15,src:'th'},
+  {name:'ไข่เจียว',c:0.5,p:12,f:16,src:'th'},{name:'ไก่ผัดกะเพรา',c:4,p:20,f:10,src:'th'},
+  {name:'ต้มยำกุ้ง',c:4,p:7,f:3,src:'th'},{name:'แกงเขียวหวานไก่',c:5,p:14,f:13,src:'th'},
+  {name:'ต้มข่าไก่',c:4,p:12,f:10,src:'th'},{name:'ส้มตำ',c:12,p:2.5,f:0.3,src:'th'},
+  {name:'ผัดไทย',c:32,p:9,f:7,src:'th'},{name:'ข้าวผัดหมู',c:26,p:7,f:7,src:'th'},
+  {name:'ยำทะเล',c:5,p:12,f:2,src:'th'}
 ];
 
 // STATE
@@ -685,7 +723,7 @@ function startStudent(){
   if(user.pictureUrl){pic.src=user.pictureUrl;}else{pic.style.display='none';}
   document.getElementById('user-id-bar').style.display='block';
   document.getElementById('user-id-txt').textContent=user.userId;
-  renderFoodList(FOODS);
+  renderFoodList(TH_FOODS.slice(0,20));
   loadStreak();
   updateHint('carb-hint',carbDensity);
   updateHandSummary();
@@ -796,9 +834,44 @@ function getLabelData(){
 }
 
 // WEIGH
-function filterFoods(){const q=document.getElementById('food-search').value.toLowerCase();renderFoodList(q?FOODS.filter(f=>f.name.toLowerCase().includes(q)):FOODS);}
-function renderFoodList(list){document.getElementById('food-list').innerHTML=list.map(f=>`<div class="food-item${selFood&&selFood.name===f.name?' selected':''}" onclick="pickFood(${FOODS.indexOf(f)})">${f.name}<div class="food-macros">คาร์บ ${f.c}g · โปรตีน ${f.p}g · ไขมัน ${f.f}g (ต่อ 100g)</div></div>`).join('');}
-function pickFood(idx){selFood=FOODS[idx];document.getElementById('gram-area').style.display='block';document.getElementById('grams-in').focus();filterFoods();calcWeigh();}
+let _usdaTimer=null;
+function filterFoods(){
+  const q=document.getElementById('food-search').value.trim();
+  const local=q?TH_FOODS.filter(f=>f.name.toLowerCase().includes(q.toLowerCase())):TH_FOODS.slice(0,20);
+  renderFoodList(local);
+  clearTimeout(_usdaTimer);
+  const status=document.getElementById('usda-status');
+  if(q.length>=2){
+    status.style.display='block';status.textContent='🔍 กำลังค้นใน USDA...';
+    _usdaTimer=setTimeout(async()=>{
+      const usdaResults=await searchUSDA(q);
+      const names=new Set(local.map(f=>f.name.toLowerCase()));
+      const merged=local.concat(usdaResults.filter(f=>!names.has(f.name.toLowerCase())));
+      renderFoodList(merged);
+      status.textContent=usdaResults.length?`🌐 พบ ${usdaResults.length} รายการเพิ่มจาก USDA`:'';
+    },700);
+  }else{status.style.display='none';}
+}
+async function searchUSDA(q){
+  try{
+    const url=`https://api.nal.usda.gov/fdc/v1/foods/search?query=${encodeURIComponent(q)}&dataType=Foundation,SR%20Legacy&pageSize=6&api_key=${USDA_KEY}`;
+    const res=await fetch(url);if(!res.ok)return[];
+    const data=await res.json();
+    return(data.foods||[]).map(f=>{
+      const get=(id)=>{const n=(f.foodNutrients||[]).find(n=>n.nutrientId===id||n.nutrientNumber==id);return n?Math.round((n.value||0)*10)/10:0;};
+      return{name:f.description,c:get(205),p:get(203),f:get(204),src:'usda'};
+    });
+  }catch(e){return[];}
+}
+function renderFoodList(list){
+  document.getElementById('food-list').innerHTML=list.length
+    ?list.map(f=>{
+        const badge=f.src==='usda'?'<span style="font-size:9px;background:#EFF6FF;color:#1D4ED8;border-radius:4px;padding:1px 5px;margin-left:4px">USDA</span>':'<span style="font-size:9px;background:#FEF9EC;color:#D4891A;border-radius:4px;padding:1px 5px;margin-left:4px">🇹🇭</span>';
+        return`<div class="food-item${selFood&&selFood.name===f.name?' selected':''}" onclick='pickFood(${JSON.stringify(f)})'>${f.name}${badge}<div class="food-macros">คาร์บ ${f.c}g · โปรตีน ${f.p}g · ไขมัน ${f.f}g (ต่อ 100g)</div></div>`;
+      }).join('')
+    :'<div style="padding:14px;text-align:center;color:var(--gray);font-size:13px">ไม่พบรายการค่ะ</div>';
+}
+function pickFood(f){selFood=typeof f==='string'?JSON.parse(f):f;document.getElementById('gram-area').style.display='block';document.getElementById('grams-in').focus();calcWeigh();}
 function calcWeigh(){
   if(!selFood)return;const g=parseFloat(document.getElementById('grams-in').value)||0;
   if(g>0){const r=g/100;document.getElementById('wv-carb').textContent=(selFood.c*r).toFixed(1);document.getElementById('wv-prot').textContent=(selFood.p*r).toFixed(1);document.getElementById('wv-fat').textContent=(selFood.f*r).toFixed(1);document.getElementById('weigh-result').style.display='flex';}
@@ -1073,7 +1146,7 @@ function resetStudent(){
   document.getElementById('grams-in').value='';
   document.getElementById('gram-area').style.display='none';
   document.getElementById('weigh-result').style.display='none';
-  renderFoodList(FOODS);
+  renderFoodList(TH_FOODS.slice(0,20));
   document.getElementById('success-screen').style.display='none';
   document.getElementById('student-view').style.display='block';
   document.querySelectorAll('.mode-tab')[0].click();
