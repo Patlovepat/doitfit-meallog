@@ -1839,7 +1839,14 @@ async function openStudentDetail(userId){
   document.getElementById('sd-content').innerHTML='<div style="padding:24px;text-align:center;color:var(--gray)">⏳ กำลังโหลด...</div>';
   // load targets
   let targets={kcal:1600,c:160,p:120,f:55};
-  try{const td=await db.collection('students').doc(userId).get();if(td.exists&&td.data().targets)targets=td.data().targets;}catch(e){}
+  try{
+    const td=await db.collection('students').doc(userId).get();
+    if(td.exists){
+      const d=td.data();
+      if(d.targets)targets=d.targets;
+      if(d.coachNotes)targets.coachNotes=d.coachNotes;
+    }
+  }catch(e){}
   // load health logs
   let healthLogs={};
   try{
@@ -1875,8 +1882,24 @@ function renderStudentDetail(u, targets, healthLogs, weeklySummaries={}, weeklyC
   const byDate={};
   u.subs.forEach(s=>{const k=subDate(s);if(!byDate[k])byDate[k]=[];byDate[k].push(s);});
 
-  // --- TARGETS ---
+  // --- COACH NOTES ---
   const uid=u.userId;
+  const notesHtml=`<div class="sd-section">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div class="sd-section-title" style="margin-bottom:0">📋 โน้ตเกี่ยวกับนักเรียน</div>
+      <span style="font-size:10px;color:var(--gray)">เฉพาะโค้ชเห็น</span>
+    </div>
+    <textarea id="cn-note-${uid}" rows="3"
+      style="width:100%;border:1.5px solid var(--border);border-radius:10px;padding:10px;font-size:13px;font-family:'Prompt',sans-serif;color:var(--text);resize:none;background:white;line-height:1.7"
+      placeholder="เช่น แพ้อาหารทะเล / เข่าบาดเจ็บ / ทำงานกะดึก / ชอบอาหารไทย..."
+    >${escHtml(targets.coachNotes||'')}</textarea>
+    <button onclick="saveCoachNotes('${uid}')"
+      style="width:100%;margin-top:6px;padding:8px;background:var(--light);border:1.5px solid var(--border);border-radius:9px;font-size:12px;font-weight:600;font-family:'Prompt',sans-serif;color:var(--primary-dark);cursor:pointer">
+      💾 บันทึกโน้ต
+    </button>
+  </div>`;
+
+  // --- TARGETS ---
   const targHtml=`<div class="sd-section">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
       <div class="sd-section-title" style="margin-bottom:0">🎯 เป้าหมายรายสัปดาห์</div>
@@ -1945,7 +1968,7 @@ function renderStudentDetail(u, targets, healthLogs, weeklySummaries={}, weeklyC
   const weeklyHtml=buildWeeklySummaryAccordion(u, byDate, targets, healthLogs, weeklySummaries);
 
   const progressHtml=buildProgressSection(weeklyChecks, u.userId);
-  document.getElementById('sd-content').innerHTML=targHtml+macro7Html+progressHtml+zigzagHtml+lifestyleHtml+weeklyHtml;
+  document.getElementById('sd-content').innerHTML=notesHtml+targHtml+macro7Html+progressHtml+zigzagHtml+lifestyleHtml+weeklyHtml;
 }
 
 // ===== LIFESTYLE 7 วัน (bar charts) =====
@@ -2340,6 +2363,17 @@ function toggleWeekAcc(hdr){
 // ===== MISSED DAY HANDLING =====
 // Auto-mark missed days when coach opens student detail
 // (ใช้ client-side check — production ควรใช้ Cloud Function trigger ตี midnight)
+// ===== COACH NOTES =====
+async function saveCoachNotes(userId){
+  const ta=document.getElementById(`cn-note-${userId}`);
+  if(!ta)return;
+  try{
+    await db.collection('students').doc(userId).set({coachNotes:ta.value.trim()},{merge:true});
+    const btn=ta.nextElementSibling;
+    if(btn){const orig=btn.textContent;btn.textContent='✅ บันทึกแล้ว';setTimeout(()=>{btn.textContent=orig;},1500);}
+  }catch(e){alert('บันทึกไม่ได้: '+e.message);}
+}
+
 // ===== EDIT TARGETS =====
 function toggleTargetEdit(userId){
   const view=document.getElementById(`tg-view-${userId}`);
