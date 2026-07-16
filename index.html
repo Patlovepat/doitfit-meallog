@@ -876,6 +876,20 @@ function startStudent(){
   updateHint('carb-hint',carbDensity);
   updateHandSummary();
   buildDateStrip();
+  loadStudentTargets(); // โหลด target จริงจาก Firestore
+}
+
+async function loadStudentTargets(){
+  try{
+    const doc=await db.collection('students').doc(user.userId).get();
+    if(doc.exists&&doc.data().targets){
+      const t=doc.data().targets;
+      if(t.kcal)TARGETS.kcal=t.kcal;
+      if(t.c)TARGETS.c=t.c;
+      if(t.p)TARGETS.p=t.p;
+      if(t.f)TARGETS.f=t.f;
+    }
+  }catch(e){console.log('target load err',e);}
 }
 
 // STUDENT NAV
@@ -1497,6 +1511,7 @@ async function submitMeal(){
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
     showSuccess(curMode,handData,labelData,weighData);
+    sendFeedbackCard(); // LINE Flex Message feedback
   }catch(e){console.error(e);alert('เกิดข้อผิดพลาด: '+e.message);btn.disabled=false;btn.textContent='ส่งให้โค้ชตรวจ ✓';}
 }
 
@@ -2420,6 +2435,136 @@ async function autoMarkMissedDays(userId, byDate){
       }
     }catch(e){console.log('missed mark err',e);}
   }
+}
+
+// ===== LINE FEEDBACK CARD =====
+async function sendFeedbackCard(){
+  try{
+    // ดึง submissions วันนี้ทั้งหมด
+    const snap=await db.collection('submissions')
+      .where('userId','==',user.userId)
+      .where('mealDate','==',selectedDate)
+      .get();
+    const subs=snap.docs.map(d=>d.data());
+    let totC=0,totP=0,totF=0,totKcal=0;
+    subs.forEach(s=>{const m=getSubMacros(s);totC+=m.c;totP+=m.p;totF+=m.f;totKcal+=m.kcal;});
+    totC=Math.round(totC);totP=Math.round(totP);totF=Math.round(totF);totKcal=Math.round(totKcal);
+
+    const flex=buildFeedbackFlex(subs.length,totC,totP,totF,totKcal);
+    if(typeof liff!=='undefined'&&liff.isInClient()){
+      await liff.sendMessages([flex]);
+    }
+  }catch(e){console.log('feedback card err',e);}
+}
+
+function calcSmartMsg(totC,totP,totF,totKcal){
+  const pctC=Math.round(totC/TARGETS.c*100);
+  const pctP=Math.round(totP/TARGETS.p*100);
+  const pctF=Math.round(totF/TARGETS.f*100);
+  const surplus=totKcal-TARGETS.kcal;
+
+  if(pctP>=100&&pctC>=100&&pctF>=100&&Math.abs(surplus)<=200)
+    return'🎉 วันนี้ทำได้ครบทุก macro เลยค่ะ ดีมาก!';
+  if(surplus>200)
+    return`⚡ วันนี้เกิน ${surplus} kcal แล้ว พรุ่งนี้ปรับ Zigzag นิดนึงนะคะ`;
+  if(pctP>=90&&pctC<70)
+    return`💪 Protein ดีมากเลย! มื้อถัดไปเพิ่ม Carb อีก ${TARGETS.c-totC}g นะคะ`;
+  if(pctP<60)
+    return`⚠️ ยังขาด Protein อีก ${TARGETS.p-totP}g อย่าลืมมื้อถัดไปนะคะ`;
+  if(pctC>=90&&pctP>=90)
+    return`✨ Carb และ Protein ดีมาก! Fat ยังเหลืออีก ${TARGETS.f-totF}g ค่ะ`;
+  const lacking=[];
+  if(TARGETS.c-totC>10)lacking.push(`Carb ${TARGETS.c-totC}g`);
+  if(TARGETS.p-totP>5)lacking.push(`Protein ${TARGETS.p-totP}g`);
+  if(lacking.length)return`ยังขาดอีก ${lacking.join(', ')} ในมื้อถัดไปนะคะ 💙`;
+  return`ดีมากเลยค่ะ วันนี้ใกล้ target แล้ว 💪`;
+}
+
+function flexProgressBar(pct, color){
+  const fill=Math.min(Math.round(pct),100);
+  const empty=100-fill;
+  const parts=[{flex:fill,bg:color}];
+  if(empty>0)parts.push({flex:empty,bg:'#E5E7EB'});
+  return{
+    type:'box',layout:'horizontal',height:'6px',margin:'sm',cornerRadius:'3px',
+    contents:parts.map(p=>({
+      type:'box',layout:'vertical',flex:p.flex,
+      backgroundColor:p.bg,cornerRadius:'3px',
+      contents:[{type:'filler'}]
+    }))
+  };
+}
+
+function flexMacroRow(name, val, target, color){
+  const pct=Math.round(val/target*100);
+  const status=pct>=100?'✅':pct>=70?'🔶':'⬜';
+  return{
+    type:'box',layout:'vertical',margin:'md',
+    contents:[
+      {type:'box',layout:'horizontal',contents:[
+        {type:'text',text:`${status} ${name}`,size:'sm',color:'#555555',flex:1},
+        {type:'text',text:`${val}/${target}g`,size:'sm',color:'#333333',weight:'bold',align:'end'}
+      ]},
+      flexProgressBar(pct,color)
+    ]
+  };
+}
+
+function buildFeedbackFlex(mealCount, totC, totP, totF, totKcal){
+  const pctKcal=Math.round(totKcal/TARGETS.kcal*100);
+  const smartMsg=calcSmartMsg(totC,totP,totF,totKcal);
+  const surplus=totKcal-TARGETS.kcal;
+  const kcalColor=surplus>200?'#EF4444':surplus<-200?'#3B82F6':'#D4891A';
+
+  return{
+    type:'flex',
+    altText:`📊 Macro วันนี้ ${totKcal}/${TARGETS.kcal} kcal`,
+    contents:{
+      type:'bubble',
+      size:'kilo',
+      header:{
+        type:'box',layout:'vertical',
+        backgroundColor:'#F5A623',paddingAll:'16px',
+        contents:[
+          {type:'text',text:'✅ ส่ง log แล้ว!',color:'#FFFFFF',weight:'bold',size:'lg'},
+          {type:'text',text:`วันนี้รวม ${mealCount} มื้อ`,color:'#FFFFFF',size:'sm',margin:'xs'}
+        ]
+      },
+      body:{
+        type:'box',layout:'vertical',paddingAll:'16px',
+        contents:[
+          flexMacroRow('Carb',  totC, TARGETS.c, '#F5A623'),
+          flexMacroRow('Protein',totP,TARGETS.p,'#3B82F6'),
+          flexMacroRow('Fat',   totF, TARGETS.f, '#8B5CF6'),
+          {type:'separator',margin:'lg'},
+          {
+            type:'box',layout:'horizontal',margin:'lg',
+            backgroundColor:'#FEF9EE',cornerRadius:'8px',paddingAll:'12px',
+            contents:[
+              {type:'box',layout:'vertical',flex:1,contents:[
+                {type:'text',text:`${totKcal.toLocaleString()}`,size:'xl',weight:'bold',color:kcalColor},
+                {type:'text',text:'kcal วันนี้',size:'xs',color:'#999999'}
+              ]},
+              {type:'box',layout:'vertical',flex:1,alignItems:'flex-end',contents:[
+                {type:'text',text:`/ ${TARGETS.kcal.toLocaleString()}`,size:'sm',color:'#999999'},
+                {type:'text',text:`${pctKcal}% ของเป้า`,size:'xs',color:kcalColor,weight:'bold'}
+              ]}
+            ]
+          },
+          {type:'separator',margin:'lg'},
+          {
+            type:'box',layout:'vertical',margin:'lg',
+            backgroundColor:'#F0FDF4',cornerRadius:'8px',paddingAll:'12px',
+            contents:[{type:'text',text:smartMsg,size:'sm',color:'#166534',wrap:true}]
+          }
+        ]
+      },
+      footer:{
+        type:'box',layout:'vertical',paddingAll:'10px',
+        contents:[{type:'text',text:'DO IT FIT · ส่งอัตโนมัติหลังบันทึก log',size:'xxs',color:'#aaaaaa',align:'center'}]
+      }
+    }
+  };
 }
 
 window.addEventListener('load',init);
