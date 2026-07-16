@@ -242,6 +242,109 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
 .empty-state{text-align:center;padding:60px 20px;color:var(--gray)}
 .empty-state .es-icon{font-size:48px;margin-bottom:12px}
 .empty-state p{font-size:14px}
+
+/* HEALTH LOG */
+#panel-health{padding:12px;display:none}
+.hl-card{background:white;border-radius:14px;border:1px solid #E5E7EB;padding:14px;margin-bottom:10px}
+.hl-title{font-size:14px;font-weight:600;color:var(--text);margin-bottom:12px}
+.hl-stepper{display:flex;align-items:center;gap:10px}
+.hl-stepper button{width:38px;height:38px;border-radius:50%;border:none;background:var(--light);color:var(--primary-dark);font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0}
+.hl-input{width:72px;border:1.5px solid #E5E7EB;border-radius:8px;padding:8px 4px;font-size:16px;font-family:'Prompt',sans-serif;text-align:center;color:var(--text);font-weight:700}
+.hl-input:focus{outline:none;border-color:var(--primary)}
+.hl-unit{font-size:13px;color:var(--gray)}
+.stress-row{display:flex;gap:5px}
+.stress-btn{flex:1;border:2px solid #E5E7EB;border-radius:10px;padding:8px 3px;text-align:center;cursor:pointer;background:#F9FAFB;transition:.15s;font-family:'Prompt',sans-serif}
+.stress-btn.active{border-color:var(--primary);background:var(--light)}
+.stress-btn .sb-em{font-size:22px;line-height:1}
+.stress-btn .sb-lbl{font-size:9px;color:var(--gray);line-height:1.3;display:block;margin-top:4px}
+.muscle-grid-hl{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px}
+.muscle-btn{background:#F9FAFB;border:2px solid #E5E7EB;border-radius:10px;padding:8px 4px;text-align:center;cursor:pointer;font-size:11px;color:var(--text);line-height:1.4;font-family:'Prompt',sans-serif;transition:.15s}
+.muscle-btn.active{border-color:var(--primary);background:var(--light);color:var(--primary-dark);font-weight:600}
+.muscle-btn .mi{font-size:18px;display:block;margin-bottom:3px}
+.hl-saved-msg{background:#D1FAE5;border:1px solid #6EE7B7;border-radius:10px;padding:10px;text-align:center;font-size:13px;color:#065F46;font-weight:600;margin-top:8px}
+.hl-hint{font-size:10px;color:var(--gray);margin-top:4px}
+
+/* STUDENT CARDS (นักเรียน tab) */
+.stu-card{background:white;border-radius:14px;border:1px solid #E5E7EB;margin-bottom:10px;padding:13px 14px;cursor:pointer;transition:.15s}
+.stu-card:active{background:var(--light)}
+.stu-card-top{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.stu-avatar{width:40px;height:40px;border-radius:50%;background:var(--light);border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;overflow:hidden}
+.stu-avatar img{width:100%;height:100%;object-fit:cover}
+.stu-name{font-size:14px;font-weight:600;color:var(--text)}
+.stu-streak{font-size:11px;color:#C2410C;background:#FFF7ED;border:1px solid #FED7AA;border-radius:12px;padding:2px 7px;font-weight:600;margin-left:auto}
+.stu-week-row{display:flex;gap:4px;align-items:center;margin-bottom:8px}
+.stu-dot{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600}
+.stu-dot.done{background:var(--primary);color:white}
+.stu-dot.miss{background:#F3F4F6;color:#D1D5DB}
+.stu-dot.auto{background:#FEF3C7;color:#D97706}
+.stu-dot-lbl{font-size:9px;color:var(--gray);text-align:center;margin-top:2px}
+.stu-day-col{text-align:center}
+.stu-stat-chips{display:flex;gap:6px;flex-wrap:wrap}
+.stu-chip{font-size:11px;background:var(--light-gray);border-radius:8px;padding:3px 8px;color:var(--gray)}
+.stat-row-4{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px}
+.stat-box{background:var(--light-gray);border-radius:10px;padding:8px 4px;text-align:center}
+.stat-val{font-size:15px;font-weight:700;color:var(--primary-dark)}
+.stat-lbl{font-size:10px;color:var(--gray);margin-top:2px}
+.stat-box.highlight{background:var(--light);border:1.5px solid var(--border)}
+
+/* STUDENT DETAIL OVERLAY */
+#student-detail{display:none;position:fixed;inset:0;background:#F9FAFB;z-index:20;overflow-y:auto;padding-bottom:40px}
+.sd-header{background:white;padding:12px 16px;border-bottom:1px solid #E5E7EB;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:5}
+.sd-back{color:var(--primary);font-size:22px;font-weight:700;cursor:pointer;background:none;border:none;padding:0;line-height:1}
+.sd-name{font-size:15px;font-weight:700;color:var(--text)}
+.sd-section{background:white;margin:10px 12px 0;border-radius:14px;padding:14px;border:1px solid #E5E7EB}
+.sd-section-title{font-size:13px;font-weight:600;color:var(--gray);margin-bottom:10px;text-transform:uppercase;letter-spacing:.4px}
+.target-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.tg-box{background:var(--light);border:1.5px solid var(--border);border-radius:10px;padding:8px 4px;text-align:center}
+.tg-val{font-size:16px;font-weight:700;color:var(--primary-dark)}
+.tg-lbl{font-size:10px;color:var(--gray);margin-top:2px}
+.macro7-day-row{margin-bottom:8px}
+.m7-date{font-size:11px;font-weight:600;color:var(--text);margin-bottom:5px;display:flex;justify-content:space-between;align-items:center}
+.m7-bars{display:flex;flex-direction:column;gap:3px}
+.m7-bar-row{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--gray)}
+.m7-bar-track{flex:1;height:7px;background:#F3F4F6;border-radius:4px;overflow:hidden}
+.m7-bar-fill{height:100%;border-radius:4px}
+.m7-val{min-width:28px;text-align:right;font-size:10px;color:var(--text);font-weight:600}
+
+/* LIFESTYLE CHARTS */
+.ls-chart-card{background:white;border:1px solid #E5E7EB;border-radius:12px;padding:11px 13px;margin-bottom:10px}
+.ls-ch{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.ls-ctitle{font-size:13px;font-weight:700;color:var(--text)}
+.ls-cavg{font-size:10px;color:var(--gray);background:var(--light-gray);border-radius:20px;padding:2px 9px}
+.ls-bars{display:flex;gap:7px}
+.ls-bc{flex:1;display:flex;flex-direction:column;align-items:center}
+.ls-blabel{font-size:10px;color:var(--gray);margin-top:5px}
+.ls-bar-area{width:100%;height:120px;display:flex;flex-direction:column;justify-content:flex-end;align-items:center}
+.ls-bval{font-size:9px;color:var(--gray);margin-bottom:2px;text-align:center;min-height:12px;line-height:1.2}
+.ls-bicon{font-size:14px;margin-bottom:1px;min-height:18px;text-align:center;line-height:1}
+.ls-bar{width:100%;border-radius:5px 5px 0 0}
+.ls-miss-line{width:100%;height:3px;background:#E5E7EB;border-radius:3px}
+.ls-miss-lbl{font-size:9px;color:#D1D5DB;padding-bottom:4px}
+.ls-scale-lbl{font-size:9px;color:#D1D5DB;text-align:right;margin-top:3px}
+.ls-stress-legend{display:flex;gap:4px;margin-top:8px;flex-wrap:wrap}
+.ls-sl{display:flex;align-items:center;gap:3px;font-size:9px;color:var(--gray)}
+.ls-sd{width:9px;height:9px;border-radius:2px;flex-shrink:0}
+.ls-avg-row{display:flex;gap:6px;margin-top:4px}
+.ls-avg-box{flex:1;background:var(--light-gray);border-radius:8px;padding:6px 4px;text-align:center}
+.ls-avg-num{font-size:14px;font-weight:700;color:var(--primary-dark)}
+.ls-avg-lbl{font-size:9px;color:var(--gray);margin-top:1px}
+
+/* ZIGZAG BOX */
+.zz-box{background:#FFF7ED;border:1.5px solid #FED7AA;border-radius:12px;padding:13px;margin-bottom:10px}
+.zz-title{font-size:13px;font-weight:700;color:#C2410C;margin-bottom:10px}
+.zz-target-row{display:flex;gap:6px;margin-bottom:10px}
+.zz-t-box{flex:1;background:white;border:1px solid #FED7AA;border-radius:8px;padding:6px 4px;text-align:center}
+.zz-t-val{font-size:14px;font-weight:700;color:#C2410C}
+.zz-t-lbl{font-size:9px;color:var(--gray);margin-top:2px}
+.zz-verdict{background:white;border-radius:8px;padding:10px;font-size:12px;color:var(--text);line-height:1.7;border:1px solid #FDE68A;margin-top:8px}
+
+/* WEEKLY SUMMARY ACCORDION */
+.week-acc{border:1px solid var(--border);border-radius:10px;margin-bottom:8px;overflow:hidden;background:white}
+.week-acc-hd{padding:10px 13px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;background:var(--light)}
+.week-acc-title{font-size:12px;font-weight:700;color:var(--primary-dark)}
+.week-acc-sub{font-size:10px;color:var(--primary-dark)}
+.week-acc-body{padding:10px 13px;border-top:1px solid var(--border);display:none}
+.week-acc-body.open{display:block}
 </style>
 </head>
 <body>
@@ -483,6 +586,11 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
     <div id="history-list" style="padding-top:4px"></div>
   </div>
 
+  <!-- HEALTH LOG PANEL -->
+  <div id="panel-health">
+    <div id="health-log-content" style="padding-top:4px"></div>
+  </div>
+
   <!-- DASHBOARD PANEL -->
   <div id="panel-dashboard">
     <div id="dashboard-content" style="padding-top:4px"></div>
@@ -496,13 +604,16 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
   <!-- STUDENT BOTTOM NAV -->
   <div class="student-nav">
     <button class="nav-tab active" onclick="selStudentTab('log',this)">
-      <span class="nav-icon">✏️</span>บันทึก
+      <span class="nav-icon">🍽️</span>Food log
+    </button>
+    <button class="nav-tab" onclick="selStudentTab('health',this)">
+      <span class="nav-icon">💪</span>Health log
     </button>
     <button class="nav-tab" onclick="selStudentTab('history',this)">
       <span class="nav-icon">🕐</span>ประวัติ
     </button>
     <button class="nav-tab" onclick="selStudentTab('dashboard',this)">
-      <span class="nav-icon">📊</span>สรุป
+      <span class="nav-icon">📊</span>Dashboard
     </button>
   </div>
 </div>
@@ -533,10 +644,23 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
       รออนุมัติ <span class="badge-count" id="pending-count" style="display:none">0</span>
     </div>
     <div class="coach-tab" data-tab="done" onclick="selCoachTab(this)">อนุมัติแล้ว</div>
+    <div class="coach-tab" data-tab="students" onclick="selCoachTab(this)">นักเรียน</div>
   </div>
   <div class="cards-container" id="cards-container">
     <div class="empty-state"><div class="es-icon">📭</div><p>ยังไม่มีรายการ</p></div>
   </div>
+</div>
+
+<!-- STUDENT DETAIL OVERLAY -->
+<div id="student-detail">
+  <div class="sd-header">
+    <button class="sd-back" onclick="closeStudentDetail()">←</button>
+    <div>
+      <div class="sd-name" id="sd-name">นักเรียน</div>
+      <div style="font-size:11px;color:var(--gray)" id="sd-sub"></div>
+    </div>
+  </div>
+  <div id="sd-content"></div>
 </div>
 
 <div id="user-id-bar">LINE ID: <span id="user-id-txt"></span></div>
@@ -608,6 +732,9 @@ let user=null, isCoach=false, curMeal='เช้า', curMode='hand', studentTab
 let photoBase64=null, selFood=null, coachTab='pending', allSubs=[], cState={};
 let _photoProcessing=false;
 let selectedDate=todayStr();
+
+// HEALTH LOG STATE
+let hlSleep=7.0, hlStress=2, hlSteps=8000, hlCardio=0, hlMuscle='none', hlWeightMin=30;
 
 // HAND STATE
 let carbDensity='normal', carbQty=1.5;
@@ -738,10 +865,133 @@ function selStudentTab(tab, el){
   document.getElementById('log-panels').style.display=tab==='log'?'block':'none';
   document.getElementById('date-strip').style.display=tab==='log'?'flex':'none';
   document.getElementById('panel-history').style.display=tab==='history'?'block':'none';
+  document.getElementById('panel-health').style.display=tab==='health'?'block':'none';
   document.getElementById('panel-dashboard').style.display=tab==='dashboard'?'block':'none';
   document.getElementById('submit-wrap').style.display=tab==='log'?'block':'none';
   if(tab==='history')loadHistory();
   if(tab==='dashboard')loadDashboard();
+  if(tab==='health')renderHealthLog();
+}
+
+// ===== HEALTH LOG =====
+const MUSCLE_OPTIONS=[
+  {key:'full',   icon:'🏋️', label:'เต็มตัว'},
+  {key:'legs',   icon:'🦵', label:'ขา'},
+  {key:'chest',  icon:'💪', label:'อก'},
+  {key:'back',   icon:'🔙', label:'หลัง'},
+  {key:'shoulder',icon:'🦾',label:'บ่า'},
+  {key:'arms',   icon:'💪', label:'แขน'},
+  {key:'core',   icon:'🔥', label:'Core'},
+  {key:'none',   icon:'🚫', label:'ไม่ได้เล่น'},
+];
+
+function renderHealthLog(){
+  const el=document.getElementById('health-log-content');
+  el.innerHTML=`
+    <div style="padding:8px 12px 0;display:flex;align-items:center;justify-content:space-between">
+      <div style="font-size:13px;font-weight:600;color:var(--text)">📅 ${formatDateTH(selectedDate)}</div>
+      <div id="hl-saved-msg" class="hl-saved-msg" style="display:none">✅ บันทึกแล้ว!</div>
+    </div>
+
+    <!-- SLEEP -->
+    <div class="hl-card">
+      <div class="hl-title">😴 ชั่วโมงนอน</div>
+      <div class="hl-stepper">
+        <button onclick="adjHL('sleep',-0.5)">−</button>
+        <input class="hl-input" id="hl-sleep" type="number" value="${hlSleep}" step="0.5" min="0" max="24" oninput="hlSleep=parseFloat(this.value)||0">
+        <span class="hl-unit">ชั่วโมง</span>
+        <button onclick="adjHL('sleep',0.5)">+</button>
+      </div>
+      <div class="hl-hint">ปรับทีละ 0.5 ชม. หรือพิมพ์เองได้</div>
+    </div>
+
+    <!-- STRESS -->
+    <div class="hl-card">
+      <div class="hl-title">🧠 ระดับความเครียดวันนี้</div>
+      <div class="stress-row" id="stress-row">
+        ${[{l:1,e:'😌',t:'แทบไม่มี'},{l:2,e:'🙂',t:'นิดหน่อย'},{l:3,e:'😐',t:'ปานกลาง'},{l:4,e:'😟',t:'ค่อนข้างมาก'},{l:5,e:'😤',t:'เครียดมาก'}]
+          .map(s=>`<div class="stress-btn${hlStress===s.l?' active':''}" onclick="setStress(${s.l})">
+            <div class="sb-em">${s.e}</div><span class="sb-lbl">${s.t}</span>
+          </div>`).join('')}
+      </div>
+    </div>
+
+    <!-- STEPS -->
+    <div class="hl-card">
+      <div class="hl-title">👟 จำนวนก้าววันนี้</div>
+      <div class="hl-stepper">
+        <button onclick="adjHL('steps',-500)">−</button>
+        <input class="hl-input" id="hl-steps" type="number" value="${hlSteps}" step="500" min="0" oninput="hlSteps=parseInt(this.value)||0" style="width:84px">
+        <span class="hl-unit">ก้าว</span>
+        <button onclick="adjHL('steps',500)">+</button>
+      </div>
+      <div class="hl-hint">ปรับทีละ 500 ก้าว หรือพิมพ์เองได้</div>
+    </div>
+
+    <!-- CARDIO -->
+    <div class="hl-card">
+      <div class="hl-title">🏃 คาร์ดิโอ</div>
+      <div class="hl-stepper">
+        <button onclick="adjHL('cardio',-5)">−</button>
+        <input class="hl-input" id="hl-cardio" type="number" value="${hlCardio}" step="5" min="0" oninput="hlCardio=parseInt(this.value)||0">
+        <span class="hl-unit">นาที</span>
+        <button onclick="adjHL('cardio',5)">+</button>
+      </div>
+      <div class="hl-hint">ปรับทีละ 5 นาที หรือพิมพ์เองได้</div>
+    </div>
+
+    <!-- WEIGHT TRAINING -->
+    <div class="hl-card">
+      <div class="hl-title">🏋️ เวทเทรนนิ่ง</div>
+      <div class="muscle-grid-hl">
+        ${MUSCLE_OPTIONS.map(m=>`<div class="muscle-btn${hlMuscle===m.key?' active':''}" onclick="setMuscle('${m.key}')">
+          <span class="mi">${m.icon}</span>${m.label}
+        </div>`).join('')}
+      </div>
+      <div id="hl-weight-stepper" style="${hlMuscle==='none'?'display:none':''}">
+        <div class="hl-stepper">
+          <button onclick="adjHL('weight',-5)">−</button>
+          <input class="hl-input" id="hl-weight" type="number" value="${hlWeightMin}" step="5" min="0" oninput="hlWeightMin=parseInt(this.value)||0">
+          <span class="hl-unit">นาที</span>
+          <button onclick="adjHL('weight',5)">+</button>
+        </div>
+        <div class="hl-hint">ปรับทีละ 5 นาที หรือพิมพ์เองได้</div>
+      </div>
+    </div>
+
+    <div style="padding:0 12px 16px">
+      <button onclick="saveHealthLog()" style="width:100%;padding:13px;background:var(--primary);color:white;border:none;border-radius:12px;font-size:15px;font-weight:700;font-family:'Prompt',sans-serif;cursor:pointer">💾 บันทึกข้อมูลสุขภาพวันนี้</button>
+    </div>
+  `;
+}
+
+function setStress(level){
+  hlStress=level;
+  document.querySelectorAll('.stress-btn').forEach((b,i)=>b.classList.toggle('active',i+1===level));
+}
+function setMuscle(key){
+  hlMuscle=key;
+  document.querySelectorAll('.muscle-btn').forEach(b=>b.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+  const sw=document.getElementById('hl-weight-stepper');
+  if(sw) sw.style.display=key==='none'?'none':'block';
+}
+function adjHL(key,delta){
+  if(key==='sleep'){hlSleep=Math.max(0,Math.round((hlSleep+delta)*10)/10);const el=document.getElementById('hl-sleep');if(el)el.value=hlSleep;}
+  else if(key==='steps'){hlSteps=Math.max(0,hlSteps+delta);const el=document.getElementById('hl-steps');if(el)el.value=hlSteps;}
+  else if(key==='cardio'){hlCardio=Math.max(0,hlCardio+delta);const el=document.getElementById('hl-cardio');if(el)el.value=hlCardio;}
+  else if(key==='weight'){hlWeightMin=Math.max(0,hlWeightMin+delta);const el=document.getElementById('hl-weight');if(el)el.value=hlWeightMin;}
+}
+async function saveHealthLog(){
+  try{
+    await db.collection('healthLogs').doc(user.userId).collection('days').doc(selectedDate).set({
+      sleep:hlSleep, stress:hlStress, steps:hlSteps, cardio:hlCardio,
+      muscleGroup:hlMuscle, weightMin:hlMuscle==='none'?0:hlWeightMin,
+      updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    const msg=document.getElementById('hl-saved-msg');
+    if(msg){msg.style.display='inline-block';setTimeout(()=>{msg.style.display='none';},2500);}
+  }catch(e){alert('บันทึกไม่ได้: '+e.message);}
 }
 
 // DATE STRIP
@@ -1160,14 +1410,315 @@ function startCoach(){
   db.collection('submissions').orderBy('createdAt','desc')
     .onSnapshot(snap=>{allSubs=snap.docs.map(d=>({id:d.id,...d.data()}));renderCoach();},err=>console.error(err));
 }
-function selCoachTab(tab){document.querySelectorAll('.coach-tab').forEach(t=>t.classList.remove('active'));tab.classList.add('active');coachTab=tab.dataset.tab;renderCoach();}
+function selCoachTab(tab){
+  document.querySelectorAll('.coach-tab').forEach(t=>t.classList.remove('active'));
+  tab.classList.add('active');
+  coachTab=tab.dataset.tab;
+  renderCoach();
+  if(coachTab==='students')loadStudentList();
+}
 function renderCoach(){
   const pending=allSubs.filter(s=>s.status==='pending'),done=allSubs.filter(s=>s.status!=='pending');
   const badge=document.getElementById('pending-count');
   if(pending.length>0){badge.style.display='inline-block';badge.textContent=pending.length;}else{badge.style.display='none';}
-  const list=coachTab==='pending'?pending:done,container=document.getElementById('cards-container');
+  const container=document.getElementById('cards-container');
+  if(coachTab==='students'){container.innerHTML='<div style="padding:20px;text-align:center;color:var(--gray)">⏳ กำลังโหลด...</div>';return;}
+  const list=coachTab==='pending'?pending:done;
   if(!list.length){container.innerHTML='<div class="empty-state"><div class="es-icon">'+(coachTab==='pending'?'🎉':'📭')+'</div><p>'+(coachTab==='pending'?'ไม่มีรายการรอค่ะ':'ยังไม่มีประวัติ')+'</p></div>';return;}
   container.innerHTML=list.map(s=>buildCard(s)).join('');
+}
+
+// ===== STUDENT LIST (นักเรียน tab) =====
+async function loadStudentList(){
+  const container=document.getElementById('cards-container');
+  try{
+    // group submissions by userId
+    const byUser={};
+    allSubs.forEach(s=>{
+      if(!byUser[s.userId])byUser[s.userId]={userId:s.userId,displayName:s.displayName,pictureUrl:s.pictureUrl,subs:[]};
+      byUser[s.userId].subs.push(s);
+    });
+    const users=Object.values(byUser);
+    if(!users.length){container.innerHTML='<div class="empty-state"><div class="es-icon">👤</div><p>ยังไม่มีนักเรียนค่ะ</p></div>';return;}
+
+    // build summary row stats
+    const totalStudents=users.length;
+    const today=todayStr();
+    const submittedToday=users.filter(u=>u.subs.some(s=>subDate(s)===today)).length;
+    const pending=users.filter(u=>u.subs.some(s=>s.status==='pending')).length;
+    const notSubmitted=totalStudents-submittedToday;
+
+    container.innerHTML=`
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px">
+        <div class="stat-box"><div class="stat-val">${totalStudents}</div><div class="stat-lbl">ทั้งหมด</div></div>
+        <div class="stat-box highlight"><div class="stat-val">${submittedToday}</div><div class="stat-lbl">ส่งแล้ว</div></div>
+        <div class="stat-box" style="background:#FEF3C7;border:1.5px solid #FDE68A"><div class="stat-val" style="color:#92400E">${pending}</div><div class="stat-lbl">รออนุมัติ</div></div>
+        <div class="stat-box" style="background:#FEF2F2;border:1.5px solid #FECACA"><div class="stat-val" style="color:#B91C1C">${notSubmitted}</div><div class="stat-lbl">ไม่ส่ง</div></div>
+      </div>
+      ${users.map(u=>buildStudentCard(u)).join('')}
+    `;
+  }catch(e){container.innerHTML='<div style="padding:24px;text-align:center;color:#EF4444">โหลดไม่ได้: '+e.message+'</div>';}
+}
+
+function buildStudentCard(u){
+  const MON=getMonWeekDates(); // จ-ส ของสัปดาห์นี้
+  const byDate={};
+  u.subs.forEach(s=>{const k=subDate(s);if(!byDate[k])byDate[k]=[];byDate[k].push(s);});
+  const streak=calcStreak(u.subs);
+  // week dots จ-ส
+  const TH_SHORT=['จ','อ','พ','พฤ','ศ','ส'];
+  const dotsHtml=MON.map((d,i)=>{
+    const hasSub=!!(byDate[d]&&byDate[d].length);
+    return`<div class="stu-day-col">
+      <div class="stu-dot ${hasSub?'done':'miss'}">${hasSub?'✓':'–'}</div>
+      <div style="font-size:9px;color:var(--gray);text-align:center;margin-top:2px">${TH_SHORT[i]}</div>
+    </div>`;
+  }).join('');
+  // avg kcal (exclude days with no sub)
+  const daysWithSub=MON.filter(d=>byDate[d]&&byDate[d].length);
+  let avgKcal=0;
+  if(daysWithSub.length){
+    const total=daysWithSub.reduce((acc,d)=>{let k=0;byDate[d].forEach(s=>{k+=getSubMacros(s).kcal;});return acc+k;},0);
+    avgKcal=Math.round(total/daysWithSub.length);
+  }
+  const avatarHtml=u.pictureUrl?`<img src="${u.pictureUrl}" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display='none'">`:'👤';
+  return`<div class="stu-card" onclick="openStudentDetail('${u.userId}')">
+    <div class="stu-card-top">
+      <div class="stu-avatar">${avatarHtml}</div>
+      <div style="flex:1">
+        <div style="display:flex;align-items:center;gap:6px">
+          <div class="stu-name">${escHtml(u.displayName||'นักเรียน')}</div>
+          ${streak>0?`<span class="stu-streak">🔥 ${streak} วัน</span>`:''}
+        </div>
+        <div style="font-size:11px;color:var(--gray);margin-top:2px">avg ${avgKcal} kcal/วัน</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:5px;margin-bottom:8px">${dotsHtml}</div>
+    <div style="font-size:11px;color:var(--primary);font-weight:600;text-align:right">ดูประวัติ →</div>
+  </div>`;
+}
+
+function getMonWeekDates(){
+  // ส่งคืน array ของวันจันทร์ - เสาร์ของสัปดาห์นี้ (YYYY-MM-DD)
+  const today=new Date();
+  const dow=today.getDay(); // 0=อา 1=จ ... 6=ส
+  const mondayOffset=dow===0?-6:1-dow; // shift to monday
+  const monday=new Date(today);
+  monday.setDate(today.getDate()+mondayOffset);
+  const dates=[];
+  for(let i=0;i<6;i++){
+    const d=new Date(monday);
+    d.setDate(monday.getDate()+i);
+    dates.push(d.toISOString().split('T')[0]);
+  }
+  return dates;
+}
+
+// ===== STUDENT DETAIL =====
+let currentStudentData=null;
+
+async function openStudentDetail(userId){
+  const overlay=document.getElementById('student-detail');
+  overlay.style.display='block';
+  overlay.scrollTop=0;
+  const u=Object.values(
+    allSubs.reduce((acc,s)=>{if(!acc[s.userId])acc[s.userId]={userId:s.userId,displayName:s.displayName,pictureUrl:s.pictureUrl,subs:[]};acc[s.userId].subs.push(s);return acc;},{})
+  ).find(u=>u.userId===userId);
+  if(!u){return;}
+  currentStudentData=u;
+  document.getElementById('sd-name').textContent=u.displayName||'นักเรียน';
+  const streak=calcStreak(u.subs);
+  document.getElementById('sd-sub').textContent=streak>0?`🔥 ${streak} วันติดต่อกัน`:'';
+  document.getElementById('sd-content').innerHTML='<div style="padding:24px;text-align:center;color:var(--gray)">⏳ กำลังโหลด...</div>';
+  // load targets
+  let targets={kcal:1600,c:160,p:120,f:55};
+  try{const td=await db.collection('students').doc(userId).get();if(td.exists&&td.data().targets)targets=td.data().targets;}catch(e){}
+  // load health logs
+  let healthLogs={};
+  try{
+    const hs=await db.collection('healthLogs').doc(userId).collection('days').limit(14).get();
+    hs.docs.forEach(d=>{healthLogs[d.id]=d.data();});
+  }catch(e){}
+  // load weekly summaries
+  let weeklySummaries={};
+  try{
+    const ws=await db.collection('students').doc(userId).collection('weeklySummaries').orderBy('weekStart','desc').limit(8).get();
+    ws.docs.forEach(d=>{weeklySummaries[d.id]=d.data();});
+  }catch(e){}
+  // auto-mark missed days (client-side, non-blocking)
+  const byDateTmp={};u.subs.forEach(s=>{const k=subDate(s);if(!byDateTmp[k])byDateTmp[k]=[];byDateTmp[k].push(s);});
+  autoMarkMissedDays(userId,byDateTmp).catch(()=>{});
+  renderStudentDetail(u,targets,healthLogs,weeklySummaries);
+}
+
+function closeStudentDetail(){
+  document.getElementById('student-detail').style.display='none';
+  currentStudentData=null;
+}
+
+function renderStudentDetail(u, targets, healthLogs, weeklySummaries={}){
+  const MON=getMonWeekDates();
+  const TH_SHORT=['จ','อ','พ','พฤ','ศ','ส'];
+  const byDate={};
+  u.subs.forEach(s=>{const k=subDate(s);if(!byDate[k])byDate[k]=[];byDate[k].push(s);});
+
+  // --- TARGETS ---
+  const targHtml=`<div class="sd-section">
+    <div class="sd-section-title">🎯 เป้าหมายรายสัปดาห์</div>
+    <div class="target-grid">
+      <div class="tg-box"><div class="tg-val">${targets.kcal}</div><div class="tg-lbl">kcal</div></div>
+      <div class="tg-box"><div class="tg-val">${targets.c}g</div><div class="tg-lbl">Carb</div></div>
+      <div class="tg-box"><div class="tg-val">${targets.p}g</div><div class="tg-lbl">Protein</div></div>
+      <div class="tg-box"><div class="tg-val">${targets.f}g</div><div class="tg-lbl">Fat</div></div>
+    </div>
+  </div>`;
+
+  // --- MACRO 7 วัน ---
+  const macro7Rows=MON.map((d,i)=>{
+    const daySubs=byDate[d]||[];
+    if(!daySubs.length)return`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #F3F4F6">
+      <span style="font-size:11px;color:var(--gray)">${TH_SHORT[i]} ${formatDateShort(d)}</span>
+      <span style="font-size:10px;color:#D1D5DB">ไม่ส่ง</span>
+    </div>`;
+    let tc=0,tp=0,tf=0;
+    daySubs.forEach(s=>{const m=getSubMacros(s);tc+=m.c;tp+=m.p;tf+=m.f;});
+    const kcal=Math.round(tc*4+tp*4+tf*9);
+    const pBar=(val,max,col)=>`<div class="m7-bar-track"><div class="m7-bar-fill" style="width:${Math.min(100,Math.round(val/max*100))}%;background:${col}"></div></div>`;
+    const chipColor=kcal>targets.kcal+200?'color:#EF4444':kcal<targets.kcal-200?'color:#3B82F6':'color:#22C55E';
+    return`<div style="padding:7px 0;border-bottom:1px solid #F3F4F6">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
+        <span style="font-size:11px;font-weight:600;color:var(--text)">${TH_SHORT[i]} ${formatDateShort(d)}</span>
+        <span style="font-size:12px;font-weight:700;${chipColor}">${kcal} kcal</span>
+      </div>
+      <div class="m7-bars">
+        <div class="m7-bar-row"><span style="width:14px">🟠</span>${pBar(tc,targets.c,'#F5A623')}<span class="m7-val">${Math.round(tc)}g</span></div>
+        <div class="m7-bar-row"><span style="width:14px">🔵</span>${pBar(tp,targets.p,'#3B82F6')}<span class="m7-val">${Math.round(tp)}g</span></div>
+        <div class="m7-bar-row"><span style="width:14px">🟣</span>${pBar(tf,targets.f,'#A855F7')}<span class="m7-val">${Math.round(tf)}g</span></div>
+      </div>
+    </div>`;
+  }).join('');
+
+  const macro7Html=`<div class="sd-section" style="margin-top:10px">
+    <div class="sd-section-title">📊 Macro 7 วันล่าสุด</div>
+    ${macro7Rows}
+  </div>`;
+
+  // --- ZIGZAG CALORIES ---
+  const zigzagHtml=buildZigzagSection(MON, TH_SHORT, byDate, targets, u.userId);
+
+  // --- LIFESTYLE 7 วัน ---
+  const lifestyleHtml=buildLifestyleSection(MON, TH_SHORT, healthLogs);
+
+  // --- WEEKLY SUMMARY ACCORDION ---
+  const weeklyHtml=buildWeeklySummaryAccordion(u, byDate, targets, healthLogs, weeklySummaries);
+
+  document.getElementById('sd-content').innerHTML=targHtml+macro7Html+zigzagHtml+lifestyleHtml+weeklyHtml;
+}
+
+// ===== LIFESTYLE 7 วัน (bar charts) =====
+function buildLifestyleSection(MON, TH_SHORT, healthLogs){
+  const BAR_H=120;
+  const STRESS_COLORS=['','#22C55E','#86EFAC','#FCD34D','#F97316','#EF4444'];
+  const MUSCLE_EMOJI={full:'🏋️',legs:'🦵',chest:'💪',back:'🔙',shoulder:'🦾',arms:'💪',core:'🔥',none:''};
+
+  // gather data arrays for each metric (null = no data)
+  const sleepArr=MON.map(d=>healthLogs[d]?.sleep??null);
+  const stressArr=MON.map(d=>healthLogs[d]?.stress??null);
+  const stepsArr=MON.map(d=>healthLogs[d]?.steps??null);
+  const cardioArr=MON.map(d=>healthLogs[d]?.cardio??null);
+  const weightArr=MON.map(d=>healthLogs[d]?.muscleGroup==='none'?0:(healthLogs[d]?.weightMin??null));
+  const weightGrpArr=MON.map(d=>healthLogs[d]?.muscleGroup||null);
+
+  function numAvg(arr){const v=arr.filter(x=>x!==null&&x>0);return v.length?v.reduce((a,b)=>a+b,0)/v.length:0;}
+  function calcBarH(val,min,max){if(val===null)return 0;const r=Math.max(0,Math.min(1,(val-min)/(max-min)));return Math.max(4,r*BAR_H);}
+
+  function barCol(d,i,type){
+    const bar=document.createElement('div');
+  }
+
+  function makeBars(vals, opts){
+    return MON.map((d,i)=>{
+      const v=vals[i];
+      const isMiss=v===null;
+      const bH=isMiss?0:calcBarH(v,opts.min,opts.max);
+      const color=opts.colorFn?opts.colorFn(v):opts.color;
+      const icon=opts.iconFn?opts.iconFn(i):'';
+      const valStr=isMiss?'':opts.fmtFn(v);
+      return`<div class="ls-bc">
+        <div class="ls-bar-area">
+          <div class="ls-bicon">${icon}</div>
+          <div class="ls-bval">${valStr}</div>
+          ${isMiss
+            ?`<div class="ls-miss-lbl">—</div><div class="ls-miss-line"></div>`
+            :`<div class="ls-bar" style="height:${bH}px;background:${color}"></div>`
+          }
+        </div>
+        <div class="ls-blabel">${TH_SHORT[i]}</div>
+      </div>`;
+    }).join('');
+  }
+
+  const sleepBars=makeBars(sleepArr,{min:0,max:10,color:'linear-gradient(to top,#6D28D9,#8B5CF6)',iconFn:()=>'',fmtFn:v=>v+'h'});
+  const stressBars=makeBars(stressArr,{min:0,max:5,color:'',colorFn:v=>STRESS_COLORS[v]||'#D1D5DB',iconFn:()=>'',fmtFn:v=>['','😌','🙂','😐','😟','😤'][v]||v});
+  const stepsBars=makeBars(stepsArr,{min:0,max:15000,color:'linear-gradient(to top,#1D4ED8,#60A5FA)',iconFn:()=>'',fmtFn:v=>v>=1000?(v/1000).toFixed(1)+'k':v});
+  const cardioBars=makeBars(cardioArr,{min:0,max:60,color:'linear-gradient(to top,#B45309,#FCD34D)',iconFn:()=>'',fmtFn:v=>v===0?'—':v+'m'});
+  const weightBars=makeBars(weightArr,{min:0,max:60,color:'linear-gradient(to top,#D4891A,#F5A623)',
+    iconFn:i=>weightGrpArr[i]&&weightGrpArr[i]!=='none'?(MUSCLE_EMOJI[weightGrpArr[i]]||'🏋️'):'',
+    fmtFn:v=>v===0?'—':v+'m'
+  });
+
+  const avgSleep=numAvg(sleepArr).toFixed(1);
+  const avgSteps=numAvg(stepsArr)>=1000?(numAvg(stepsArr)/1000).toFixed(1)+'k':Math.round(numAvg(stepsArr));
+  const avgCardio=Math.round(numAvg(cardioArr));
+
+  return`<div class="sd-section" style="margin-top:10px">
+    <div class="sd-section-title">🏃 Lifestyle 7 วันล่าสุด</div>
+
+    <div class="ls-chart-card">
+      <div class="ls-ch"><span class="ls-ctitle">😴 เวลานอน</span><span class="ls-cavg">avg ${avgSleep} ชม.</span></div>
+      <div class="ls-bars">${sleepBars}</div>
+      <div class="ls-scale-lbl">สเกล 0–10 ชม.</div>
+    </div>
+
+    <div class="ls-chart-card">
+      <div class="ls-ch"><span class="ls-ctitle">🧠 ความเครียด</span><span class="ls-cavg">avg ระดับ ${numAvg(stressArr).toFixed(1)}</span></div>
+      <div class="ls-bars">${stressBars}</div>
+      <div class="ls-stress-legend">
+        <div class="ls-sl"><div class="ls-sd" style="background:#22C55E"></div>1 แทบไม่มี</div>
+        <div class="ls-sl"><div class="ls-sd" style="background:#86EFAC"></div>2 นิดหน่อย</div>
+        <div class="ls-sl"><div class="ls-sd" style="background:#FCD34D"></div>3 ปานกลาง</div>
+        <div class="ls-sl"><div class="ls-sd" style="background:#F97316"></div>4 ค่อนข้างมาก</div>
+        <div class="ls-sl"><div class="ls-sd" style="background:#EF4444"></div>5 เครียดมาก</div>
+      </div>
+    </div>
+
+    <div class="ls-chart-card">
+      <div class="ls-ch"><span class="ls-ctitle">👟 จำนวนก้าว</span><span class="ls-cavg">avg ${avgSteps}</span></div>
+      <div class="ls-bars">${stepsBars}</div>
+      <div class="ls-scale-lbl">สเกล 0–15,000 ก้าว</div>
+    </div>
+
+    <div class="ls-chart-card">
+      <div class="ls-ch"><span class="ls-ctitle">🏃 คาร์ดิโอ</span><span class="ls-cavg">avg ${avgCardio} นาที</span></div>
+      <div class="ls-bars">${cardioBars}</div>
+      <div class="ls-scale-lbl">สเกล 0–60 นาที</div>
+    </div>
+
+    <div class="ls-chart-card">
+      <div class="ls-ch"><span class="ls-ctitle">🏋️ เวทเทรนนิ่ง</span><span class="ls-cavg">สเกล 0–60 นาที</span></div>
+      <div class="ls-bars">${weightBars}</div>
+      <div style="font-size:9px;color:#9CA3AF;margin-top:7px">🦵 ขา · 💪 อก/แขน · 🔙 หลัง · 🦾 บ่า · 🔥 Core · 🏋️ เต็มตัว</div>
+    </div>
+
+    <div style="background:var(--light);border:1.5px solid var(--border);border-radius:12px;padding:11px 13px">
+      <div style="font-size:11px;font-weight:700;color:var(--primary-dark);margin-bottom:8px">สรุปค่าเฉลี่ยสัปดาห์นี้</div>
+      <div class="ls-avg-row">
+        <div class="ls-avg-box"><div class="ls-avg-num">${avgSleep}</div><div class="ls-avg-lbl">😴 นอน ชม.</div></div>
+        <div class="ls-avg-box"><div class="ls-avg-num">${avgSteps}</div><div class="ls-avg-lbl">👟 ก้าว</div></div>
+        <div class="ls-avg-box"><div class="ls-avg-num">${avgCardio}</div><div class="ls-avg-lbl">🏃 คาร์ดิโอ</div></div>
+      </div>
+    </div>
+  </div>`;
 }
 
 function buildCard(s){
@@ -1235,6 +1786,243 @@ function formatTime(date){
   return date.toLocaleDateString('th-TH',{day:'numeric',month:'short'});
 }
 function escHtml(str){if(!str)return'';return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+// ===== ZIGZAG CALORIES =====
+const ZIGZAG_TEXTS={
+  none:'ยังถัวกันดีมากอยู่ค่ะ ถ้าขาด เกิน นิดหน่อย ทานได้ตาม target ปกติพรุ่งนี้เลยนะคะ เด่วปลายสัปดาห์เรามีดูอีกทียังมี deficit อยู่ไหมนะคะ 💪',
+  oneDay:(surplus,adjKcal,dC,dF)=>`วันนี้กินเกินเป้า +${surplus} kcal นะคะ พรุ่งนี้เราปรับเป้าลงเหลือ ${adjKcal} kcal แทน โดยลด Carb ลง ${dC}g${dF>0?' และ Fat ลง '+dF+'g':''} เพื่อให้แคลรายสัปดาห์สมดุลค่ะ`,
+  twoDay:(surplus,adjKcal,dC,dF)=>`วันนี้กินเกินเป้าค่อนข้างมาก +${surplus} kcal นะคะ เราจะแบ่งชดเชยใน 2 วัน วันละ ${Math.round(surplus/2)} kcal เพื่อไม่ให้หนักเกินไปนะคะ แค่ค่อยๆ ปรับ ไม่ต้องกังวลค่ะ 🙂`,
+  complied:'เยี่ยมมากค่ะ! ทำตาม Zigzag เมื่อวานได้ครบแล้ว กลับมาทานตาม target ปกติได้เลยนะคะ 🎉',
+  failed:'เมื่อวานยังเกินเป้า Zigzag อยู่นะคะ ไม่เป็นไร วันนี้ลองปรับให้ใกล้เคียงกว่านี้หน่อยนะคะ 💙'
+};
+
+function calcZigzag(actual, target){
+  const surplus=Math.round(actual.kcal-target.kcal);
+  if(surplus<=200)return{type:'none',surplus};
+  const dC=Math.max(Math.round(actual.c-target.c),0);
+  const dF=Math.max(Math.round(actual.f-target.f),0);
+  if(surplus<=400){
+    const adjC=target.c-dC, adjF=target.f-dF;
+    const adjKcal=Math.round(adjC*4+target.p*4+adjF*9);
+    return{type:'1day',surplus,adjC:Math.max(adjC,0),adjF:Math.max(adjF,0),adjKcal,dC,dF};
+  }else{
+    const adjC=target.c-Math.round(dC/2), adjF=target.f-Math.round(dF/2);
+    const adjKcal=Math.round(adjC*4+target.p*4+adjF*9);
+    return{type:'2day',surplus,adjC:Math.max(adjC,0),adjF:Math.max(adjF,0),adjKcal,dC:Math.round(dC/2),dF:Math.round(dF/2)};
+  }
+}
+
+function buildZigzagSection(MON, TH_SHORT, byDate, targets, userId){
+  // yesterday's macros
+  const yesterday=new Date();yesterday.setDate(yesterday.getDate()-1);
+  const yStr=yesterday.toISOString().split('T')[0];
+  const ySubs=byDate[yStr]||[];
+  let yActual={kcal:0,c:0,p:0,f:0};
+  ySubs.forEach(s=>{const m=getSubMacros(s);yActual.kcal+=m.kcal;yActual.c+=m.c;yActual.p+=m.p;yActual.f+=m.f;});
+  yActual.kcal=Math.round(yActual.kcal);yActual.c=Math.round(yActual.c);yActual.p=Math.round(yActual.p);yActual.f=Math.round(yActual.f);
+
+  const zz=calcZigzag(yActual,targets);
+
+  // Net 7-day chart (จ-ส vs target)
+  const maxKcal=Math.max(...MON.map(d=>{let k=0;(byDate[d]||[]).forEach(s=>{k+=getSubMacros(s).kcal;});return k;}),targets.kcal*1.3,1);
+  const netBars=MON.map((d,i)=>{
+    const hasSub=(byDate[d]||[]).length>0;
+    let kcal=0;(byDate[d]||[]).forEach(s=>{kcal+=getSubMacros(s).kcal;});kcal=Math.round(kcal);
+    const h=hasSub?Math.max(4,Math.round(kcal/maxKcal*60)):0;
+    const tH=Math.round(targets.kcal/maxKcal*60);
+    const color=!hasSub?'#E5E7EB':kcal>targets.kcal+200?'#EF4444':kcal<targets.kcal-200?'#3B82F6':'#22C55E';
+    const lbl=hasSub?(kcal>=1000?(kcal/1000).toFixed(1)+'k':kcal):'—';
+    return`<div style="flex:1;text-align:center">
+      <div style="font-size:9px;color:var(--gray);margin-bottom:2px">${lbl}</div>
+      <div style="height:60px;display:flex;align-items:flex-end;justify-content:center;position:relative">
+        <div style="position:absolute;bottom:${tH}px;left:0;right:0;height:1.5px;background:#FED7AA;border-radius:1px"></div>
+        <div style="width:100%;height:${h}px;background:${color};border-radius:4px 4px 0 0"></div>
+      </div>
+      <div style="font-size:9px;color:var(--gray);margin-top:3px">${TH_SHORT[i]}</div>
+    </div>`;
+  }).join('');
+
+  // Zigzag target boxes
+  let zzTargetHtml='', verdictText='', bgColor='#FFF7ED', borderColor='#FED7AA';
+  if(zz.type==='none'){
+    verdictText=ZIGZAG_TEXTS.none;
+    bgColor='#F0FDF4';borderColor='#86EFAC';
+    zzTargetHtml=`<div style="background:#D1FAE5;border-radius:8px;padding:8px;text-align:center;font-size:12px;color:#065F46;font-weight:600;margin-bottom:10px">✅ ทาน Target ปกติพรุ่งนี้ได้เลย</div>`;
+  }else{
+    const days=zz.type==='1day'?1:2;
+    verdictText=zz.type==='1day'
+      ?ZIGZAG_TEXTS.oneDay(zz.surplus,zz.adjKcal,zz.dC,zz.dF)
+      :ZIGZAG_TEXTS.twoDay(zz.surplus,zz.adjKcal,zz.dC,zz.dF);
+    zzTargetHtml=`
+      <div style="font-size:11px;color:#92400E;font-weight:600;margin-bottom:6px">⚡ Zigzag Target ${days} วัน (ลด ${zz.surplus} kcal ${days===2?'÷2':''})</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-bottom:10px">
+        <div class="zz-t-box"><div class="zz-t-val">${zz.adjKcal}</div><div class="zz-t-lbl">kcal</div></div>
+        <div class="zz-t-box"><div class="zz-t-val">${zz.adjC}g</div><div class="zz-t-lbl">Carb${zz.dC>0?' -'+zz.dC:''}</div></div>
+        <div class="zz-t-box" style="background:#FEF9C3"><div class="zz-t-val">${targets.p}g</div><div class="zz-t-lbl">Protein ✓</div></div>
+        <div class="zz-t-box"><div class="zz-t-val">${zz.adjF}g</div><div class="zz-t-lbl">Fat${zz.dF>0?' -'+zz.dF:''}</div></div>
+      </div>`;
+  }
+
+  return`<div class="sd-section" style="margin-top:10px">
+    <div class="sd-section-title">⚡ Zigzag Calories</div>
+
+    <div style="background:white;border:1px solid #E5E7EB;border-radius:10px;padding:11px 12px;margin-bottom:10px">
+      <div style="font-size:11px;color:var(--gray);margin-bottom:8px;font-weight:600">Net 7 วัน (จ–ส) vs เป้า</div>
+      <div style="display:flex;gap:5px;align-items:flex-end">${netBars}</div>
+      <div style="display:flex;gap:10px;margin-top:6px;font-size:9px;color:var(--gray)">
+        <span>🟢 ในเป้า</span><span style="color:#EF4444">🔴 เกิน</span><span style="color:#3B82F6">🔵 ขาด</span>
+        <span style="margin-left:4px">— เส้นส้ม = ${targets.kcal} kcal</span>
+      </div>
+    </div>
+
+    <div style="background:${bgColor};border:1.5px solid ${borderColor};border-radius:12px;padding:13px">
+      ${zzTargetHtml}
+      <div style="font-size:11px;font-weight:600;color:#92400E;margin-bottom:5px">💬 Verdict ส่งให้นักเรียน</div>
+      <textarea id="zz-verdict-${userId}" rows="4"
+        style="width:100%;border:1px solid ${borderColor};border-radius:8px;padding:8px;font-size:12px;font-family:'Prompt',sans-serif;resize:none;background:white;line-height:1.7;color:var(--text)"
+      >${escHtml(verdictText)}</textarea>
+      <button onclick="sendZigzagVerdict('${userId}')"
+        style="width:100%;margin-top:8px;padding:9px;background:var(--primary);color:white;border:none;border-radius:9px;font-size:13px;font-weight:700;font-family:'Prompt',sans-serif;cursor:pointer">
+        ส่ง Verdict → นักเรียน ✓
+      </button>
+    </div>
+  </div>`;
+}
+
+async function sendZigzagVerdict(userId){
+  const ta=document.getElementById(`zz-verdict-${userId}`);
+  if(!ta)return;
+  const text=ta.value.trim();
+  try{
+    await db.collection('students').doc(userId).set({zigzagVerdict:{text,sentAt:firebase.firestore.FieldValue.serverTimestamp()}},{merge:true});
+    ta.style.background='#D1FAE5';
+    setTimeout(()=>{ta.style.background='white';},1500);
+  }catch(e){alert('ส่งไม่ได้: '+e.message);}
+}
+
+// ===== WEEKLY SUMMARY ACCORDION =====
+function buildWeeklySummaryAccordion(u, byDate, targets, healthLogs, weeklySummaries){
+  // Build weeks from all submissions — group by Mon-Sat week
+  const weekMap={};
+  u.subs.forEach(s=>{
+    const d=subDate(s);
+    const weekId=getWeekId(d);
+    if(!weekMap[weekId]){weekMap[weekId]={weekId,dates:[],subs:[]};}
+    if(!weekMap[weekId].dates.includes(d))weekMap[weekId].dates.push(d);
+    weekMap[weekId].subs.push(s);
+  });
+  const weeks=Object.values(weekMap).sort((a,b)=>b.weekId.localeCompare(a.weekId));
+  if(!weeks.length)return'';
+
+  const rows=weeks.map((wk,idx)=>{
+    const {weekId,subs}=wk;
+    const saved=weeklySummaries[weekId]||{};
+    // date range label
+    const mon=weekId; // YYYY-MM-DD of Monday
+    const sat=new Date(mon+'T00:00:00');sat.setDate(sat.getDate()+5);
+    const satStr=sat.toISOString().split('T')[0];
+    const rangeLabel=formatDateShort(mon)+' – '+formatDateShort(satStr);
+    // calc stats (skip days with no subs)
+    const datesWithSub=[...new Set(subs.map(s=>subDate(s)))];
+    let totKcal=0,totC=0,totP=0,totF=0;
+    datesWithSub.forEach(d=>{
+      (byDate[d]||[]).forEach(s=>{const m=getSubMacros(s);totKcal+=m.kcal;totC+=m.c;totP+=m.p;totF+=m.f;});
+    });
+    const n=datesWithSub.length||1;
+    const avgKcal=Math.round(totKcal/n),avgC=Math.round(totC/n),avgP=Math.round(totP/n),avgF=Math.round(totF/n);
+    // health log avg for the week
+    const hlDates=Object.keys(healthLogs).filter(d=>d>=mon&&d<=satStr);
+    const hlAvgSleep=hlDates.length?Math.round(hlDates.reduce((a,d)=>a+(healthLogs[d].sleep||0),0)/hlDates.length*10)/10:null;
+    const hlAvgSteps=hlDates.length?Math.round(hlDates.reduce((a,d)=>a+(healthLogs[d].steps||0),0)/hlDates.length):null;
+    const hlAvgCardio=hlDates.length?Math.round(hlDates.reduce((a,d)=>a+(healthLogs[d].cardio||0),0)/hlDates.length):null;
+    const wkNum=weeks.length-idx;
+    const isOpen=idx===0; // latest week open by default
+    return`<div class="week-acc">
+      <div class="week-acc-hd" onclick="toggleWeekAcc(this)">
+        <div>
+          <div class="week-acc-title">สัปดาห์ที่ ${wkNum}</div>
+          <div class="week-acc-sub">${rangeLabel} · ${datesWithSub.length} วันที่ส่ง</div>
+        </div>
+        <span style="font-size:13px;color:var(--primary-dark)">${isOpen?'▾':'▸'}</span>
+      </div>
+      <div class="week-acc-body${isOpen?' open':''}">
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-bottom:8px">
+          <div class="stat-box"><div class="stat-val" style="font-size:13px">${avgKcal}</div><div class="stat-lbl">avg kcal</div></div>
+          <div class="stat-box"><div class="stat-val" style="font-size:13px">${avgC}g</div><div class="stat-lbl">avg Carb</div></div>
+          <div class="stat-box"><div class="stat-val" style="font-size:13px">${avgP}g</div><div class="stat-lbl">avg Protein</div></div>
+          <div class="stat-box"><div class="stat-val" style="font-size:13px">${avgF}g</div><div class="stat-lbl">avg Fat</div></div>
+        </div>
+        ${hlAvgSleep!==null?`<div style="display:flex;gap:5px;margin-bottom:8px;flex-wrap:wrap">
+          <span class="stu-chip">😴 นอน avg ${hlAvgSleep} ชม.</span>
+          <span class="stu-chip">👟 ก้าว avg ${hlAvgSteps>=1000?(hlAvgSteps/1000).toFixed(1)+'k':hlAvgSteps}</span>
+          <span class="stu-chip">🏃 คาร์ดิโอ avg ${hlAvgCardio} นาที</span>
+        </div>`:''}
+        <div style="font-size:11px;font-weight:600;color:var(--gray);margin-bottom:4px">📝 โน้ตโค้ช</div>
+        <textarea id="wnote-${weekId}" rows="2"
+          style="width:100%;border:1.5px solid #E5E7EB;border-radius:8px;padding:8px;font-size:12px;font-family:'Prompt',sans-serif;resize:none;color:var(--text)"
+          placeholder="เพิ่มโน้ตสำหรับสัปดาห์นี้...">${escHtml(saved.coachNote||'')}</textarea>
+        <button onclick="saveWeeklyNote('${u.userId}','${weekId}')"
+          style="width:100%;margin-top:6px;padding:8px;background:var(--primary);color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;font-family:'Prompt',sans-serif;cursor:pointer">
+          บันทึกโน้ต ✓
+        </button>
+      </div>
+    </div>`;
+  }).join('');
+
+  return`<div class="sd-section" style="margin-top:10px;margin-bottom:16px">
+    <div class="sd-section-title">📋 สรุปผลรายสัปดาห์</div>
+    ${rows}
+  </div>`;
+}
+
+function getWeekId(dateStr){
+  // ส่งคืน YYYY-MM-DD ของวันจันทร์ของสัปดาห์นั้น
+  const d=new Date(dateStr+'T00:00:00');
+  const dow=d.getDay(); // 0=อา
+  const offset=dow===0?-6:1-dow;
+  d.setDate(d.getDate()+offset);
+  return d.toISOString().split('T')[0];
+}
+
+async function saveWeeklyNote(userId,weekId){
+  const ta=document.getElementById(`wnote-${weekId}`);
+  if(!ta)return;
+  try{
+    await db.collection('students').doc(userId).collection('weeklySummaries').doc(weekId).set({
+      weekId,weekStart:weekId,coachNote:ta.value.trim(),updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+    },{merge:true});
+    ta.style.background='#D1FAE5';
+    setTimeout(()=>{ta.style.background='white';},1200);
+  }catch(e){alert('บันทึกไม่ได้: '+e.message);}
+}
+
+function toggleWeekAcc(hdr){
+  const body=hdr.nextElementSibling;
+  const open=body.classList.contains('open');
+  body.classList.toggle('open',!open);
+  const arr=hdr.querySelector('span');
+  if(arr)arr.textContent=open?'▸':'▾';
+}
+
+// ===== MISSED DAY HANDLING =====
+// Auto-mark missed days when coach opens student detail
+// (ใช้ client-side check — production ควรใช้ Cloud Function trigger ตี midnight)
+async function autoMarkMissedDays(userId, byDate){
+  const MON=getMonWeekDates();
+  const today=todayStr();
+  for(const d of MON){
+    if(d>=today)continue; // ข้ามวันนี้และอนาคต
+    if(byDate[d]&&byDate[d].length)continue; // มีส่งแล้ว
+    // check if already marked
+    try{
+      const ref=db.collection('students').doc(userId).collection('missedDays').doc(d);
+      const snap=await ref.get();
+      if(!snap.exists){
+        await ref.set({date:d,autoMarked:true,coachNote:'',createdAt:firebase.firestore.FieldValue.serverTimestamp()});
+      }
+    }catch(e){console.log('missed mark err',e);}
+  }
+}
 
 window.addEventListener('load',init);
 </script>
