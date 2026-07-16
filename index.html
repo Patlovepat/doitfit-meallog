@@ -298,6 +298,7 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
 .tg-box{background:var(--light);border:1.5px solid var(--border);border-radius:10px;padding:8px 4px;text-align:center}
 .tg-val{font-size:16px;font-weight:700;color:var(--primary-dark)}
 .tg-lbl{font-size:10px;color:var(--gray);margin-top:2px}
+.tg-input{width:100%;border:none;background:transparent;text-align:center;font-size:16px;font-weight:700;color:var(--primary-dark);font-family:'Prompt',sans-serif;outline:none;border-bottom:2px solid var(--primary);padding-bottom:2px}
 .macro7-day-row{margin-bottom:8px}
 .m7-date{font-size:11px;font-weight:600;color:var(--text);margin-bottom:5px;display:flex;justify-content:space-between;align-items:center}
 .m7-bars{display:flex;flex-direction:column;gap:3px}
@@ -1563,13 +1564,32 @@ function renderStudentDetail(u, targets, healthLogs, weeklySummaries={}){
   u.subs.forEach(s=>{const k=subDate(s);if(!byDate[k])byDate[k]=[];byDate[k].push(s);});
 
   // --- TARGETS ---
+  const uid=u.userId;
   const targHtml=`<div class="sd-section">
-    <div class="sd-section-title">🎯 เป้าหมายรายสัปดาห์</div>
-    <div class="target-grid">
-      <div class="tg-box"><div class="tg-val">${targets.kcal}</div><div class="tg-lbl">kcal</div></div>
-      <div class="tg-box"><div class="tg-val">${targets.c}g</div><div class="tg-lbl">Carb</div></div>
-      <div class="tg-box"><div class="tg-val">${targets.p}g</div><div class="tg-lbl">Protein</div></div>
-      <div class="tg-box"><div class="tg-val">${targets.f}g</div><div class="tg-lbl">Fat</div></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div class="sd-section-title" style="margin-bottom:0">🎯 เป้าหมายรายสัปดาห์</div>
+      <button id="tg-edit-btn-${uid}" onclick="toggleTargetEdit('${uid}')"
+        style="font-size:11px;padding:4px 10px;background:var(--light);border:1.5px solid var(--border);border-radius:8px;color:var(--primary-dark);font-weight:600;font-family:'Prompt',sans-serif;cursor:pointer">
+        ✏️ แก้ไข
+      </button>
+    </div>
+    <div id="tg-view-${uid}" class="target-grid">
+      <div class="tg-box"><div class="tg-val" id="tv-kcal-${uid}">${targets.kcal}</div><div class="tg-lbl">kcal</div></div>
+      <div class="tg-box"><div class="tg-val" id="tv-c-${uid}">${targets.c}g</div><div class="tg-lbl">Carb</div></div>
+      <div class="tg-box"><div class="tg-val" id="tv-p-${uid}">${targets.p}g</div><div class="tg-lbl">Protein</div></div>
+      <div class="tg-box"><div class="tg-val" id="tv-f-${uid}">${targets.f}g</div><div class="tg-lbl">Fat</div></div>
+    </div>
+    <div id="tg-edit-${uid}" style="display:none">
+      <div class="target-grid" style="margin-bottom:8px">
+        <div class="tg-box"><input id="ti-kcal-${uid}" type="number" value="${targets.kcal}" class="tg-input"><div class="tg-lbl">kcal</div></div>
+        <div class="tg-box"><input id="ti-c-${uid}" type="number" value="${targets.c}" class="tg-input"><div class="tg-lbl">Carb (g)</div></div>
+        <div class="tg-box"><input id="ti-p-${uid}" type="number" value="${targets.p}" class="tg-input"><div class="tg-lbl">Protein (g)</div></div>
+        <div class="tg-box"><input id="ti-f-${uid}" type="number" value="${targets.f}" class="tg-input"><div class="tg-lbl">Fat (g)</div></div>
+      </div>
+      <button onclick="saveTargets('${uid}')"
+        style="width:100%;padding:9px;background:var(--primary);color:white;border:none;border-radius:9px;font-size:13px;font-weight:700;font-family:'Prompt',sans-serif;cursor:pointer">
+        💾 บันทึกเป้าหมาย
+      </button>
     </div>
   </div>`;
 
@@ -2007,6 +2027,37 @@ function toggleWeekAcc(hdr){
 // ===== MISSED DAY HANDLING =====
 // Auto-mark missed days when coach opens student detail
 // (ใช้ client-side check — production ควรใช้ Cloud Function trigger ตี midnight)
+// ===== EDIT TARGETS =====
+function toggleTargetEdit(userId){
+  const view=document.getElementById(`tg-view-${userId}`);
+  const edit=document.getElementById(`tg-edit-${userId}`);
+  const btn=document.getElementById(`tg-edit-btn-${userId}`);
+  const isEditing=edit.style.display!=='none';
+  view.style.display=isEditing?'grid':'none';
+  edit.style.display=isEditing?'none':'block';
+  btn.textContent=isEditing?'✏️ แก้ไข':'✕ ยกเลิก';
+}
+
+async function saveTargets(userId){
+  const kcal=parseInt(document.getElementById(`ti-kcal-${userId}`).value)||0;
+  const c=parseInt(document.getElementById(`ti-c-${userId}`).value)||0;
+  const p=parseInt(document.getElementById(`ti-p-${userId}`).value)||0;
+  const f=parseInt(document.getElementById(`ti-f-${userId}`).value)||0;
+  try{
+    await db.collection('students').doc(userId).set({targets:{kcal,c,p,f}},{merge:true});
+    // update display
+    document.getElementById(`tv-kcal-${userId}`).textContent=kcal;
+    document.getElementById(`tv-c-${userId}`).textContent=c+'g';
+    document.getElementById(`tv-p-${userId}`).textContent=p+'g';
+    document.getElementById(`tv-f-${userId}`).textContent=f+'g';
+    toggleTargetEdit(userId);
+    // flash success
+    const view=document.getElementById(`tg-view-${userId}`);
+    view.style.outline='2px solid #22C55E';
+    setTimeout(()=>{view.style.outline='none';},1200);
+  }catch(e){alert('บันทึกไม่ได้: '+e.message);}
+}
+
 async function autoMarkMissedDays(userId, byDate){
   const MON=getMonWeekDates();
   const today=todayStr();
