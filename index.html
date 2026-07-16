@@ -1616,36 +1616,48 @@ async function loadDashboard(){
   const content=document.getElementById('dashboard-content');
   content.innerHTML='<div style="padding:32px;text-align:center;color:var(--gray)"><div style="font-size:32px;margin-bottom:8px">⏳</div>กำลังโหลด...</div>';
   try{
+    // submissions
     const snap=await db.collection('submissions').where('userId','==',user.userId).limit(50).get();
     const subs=snap.docs.map(d=>({id:d.id,...d.data()}));
-    renderDashboard(subs);
+    // student doc: targets + coachNotes
+    let targets={kcal:TARGETS.kcal,c:TARGETS.c,p:TARGETS.p,f:TARGETS.f};
+    let coachNotes='';
+    try{
+      const td=await db.collection('students').doc(user.userId).get();
+      if(td.exists){
+        const d=td.data();
+        if(d.targets)targets={...targets,...d.targets};
+        if(d.coachNotes)coachNotes=d.coachNotes;
+      }
+    }catch(e){}
+    // health logs
+    let healthLogs={};
+    try{
+      const hs=await db.collection('healthLogs').doc(user.userId).collection('days').limit(14).get();
+      hs.docs.forEach(d=>{healthLogs[d.id]=d.data();});
+    }catch(e){}
+    // weekly checks
+    let weeklyChecks=[];
+    try{
+      const wc=await db.collection('weeklyChecks').doc(user.userId).collection('entries').orderBy('date','asc').limit(20).get();
+      wc.docs.forEach(d=>{weeklyChecks.push({id:d.id,...d.data()});});
+    }catch(e){}
+    renderStudentDashboard(subs,targets,coachNotes,healthLogs,weeklyChecks);
   }catch(e){content.innerHTML='<div style="padding:24px;text-align:center;color:#EF4444">โหลดไม่ได้: '+e.message+'</div>';}
 }
 
-function renderDashboard(subs){
+function renderStudentDashboard(subs, targets, coachNotes, healthLogs, weeklyChecks){
+  const MON=getMonWeekDates();
+  const TH_SHORT=['จ','อ','พ','พฤ','ศ','ส'];
   const byDate={};
   subs.forEach(s=>{const k=subDate(s);if(!byDate[k])byDate[k]=[];byDate[k].push(s);});
-  const days7=[];
-  for(let i=6;i>=0;i--){const d=new Date();d.setDate(d.getDate()-i);days7.push(d.toISOString().split('T')[0]);}
   const today=todayStr();
   const todaySubs=byDate[today]||[];
-  let totals={kcal:0,c:0,p:0,f:0};
-  todaySubs.forEach(s=>{const m=getSubMacros(s);totals.kcal+=m.kcal;totals.c+=m.c;totals.p+=m.p;totals.f+=m.f;});
-  const dayData=days7.map(d=>{let kcal=0;(byDate[d]||[]).forEach(s=>{kcal+=getSubMacros(s).kcal;});return{date:d,kcal};});
-  const maxKcal=Math.max(...dayData.map(d=>d.kcal),TARGETS.kcal,1);
+  let tot={kcal:0,c:0,p:0,f:0};
+  todaySubs.forEach(s=>{const m=getSubMacros(s);tot.kcal+=m.kcal;tot.c+=m.c;tot.p+=m.p;tot.f+=m.f;});
   const pBar=(val,max,color)=>{const pct=Math.min(100,Math.round(val/max*100));return`<div class="macro-bar-track"><div class="macro-bar-fill" style="width:${pct}%;background:${color}"></div></div>`;};
-  const bars=dayData.map(d=>{
-    const date=new Date(d.date+'T00:00:00');
-    const h=d.kcal?Math.max(4,Math.round(d.kcal/maxKcal*48)):0;
-    const isToday=d.date===today;
-    const color=d.kcal>TARGETS.kcal?'#EF4444':isToday?'#F5A623':'#D1D5DB';
-    const lbl=d.kcal?Math.round(d.kcal/100)+'k':'–';
-    return`<div class="week-day">
-      <div class="week-day-name">${TH_DAYS[date.getDay()]}</div>
-      <div class="week-bar-wrap"><div class="week-bar" style="height:${h}px;background:${color}"></div></div>
-      <div class="week-kcal">${lbl}</div>
-    </div>`;
-  }).join('');
+
+  // week dots
   const dots=getWeekDots(subs);
   const dotsHtml=dots.map(d=>{
     let cls='miss',icon='–';
@@ -1654,36 +1666,59 @@ function renderDashboard(subs){
     else if(d.isToday){cls='today-miss';icon='วันนี้';}
     return`<div class="wd-item"><div class="wd-name">${d.day}</div><div class="wd-dot ${cls}">${icon}</div><div class="wd-kcal">${d.kcal?Math.round(d.kcal/100*10)/10+'k':''}</div></div>`;
   }).join('');
+
+  // coach notes (read-only)
+  const notesHtml=coachNotes?`
+    <div style="background:#FFFBEB;border:1.5px solid #FDE68A;border-radius:12px;padding:14px;margin-bottom:10px">
+      <div style="font-size:12px;font-weight:700;color:#92400E;margin-bottom:6px">📋 Note จากโค้ช</div>
+      <div style="font-size:13px;color:#78350F;line-height:1.8;white-space:pre-wrap">${escHtml(coachNotes)}</div>
+    </div>`:'';
+
+  // targets read-only
+  const targHtml=`
+    <div style="background:white;border:1px solid var(--border);border-radius:12px;padding:13px;margin-bottom:10px">
+      <div style="font-size:12px;font-weight:700;color:var(--primary-dark);margin-bottom:10px">🎯 เป้าหมายของฉัน</div>
+      <div class="target-grid">
+        <div class="tg-box"><div class="tg-val">${targets.kcal}</div><div class="tg-lbl">kcal</div></div>
+        <div class="tg-box"><div class="tg-val">${targets.c}g</div><div class="tg-lbl">Carb</div></div>
+        <div class="tg-box"><div class="tg-val">${targets.p}g</div><div class="tg-lbl">Protein</div></div>
+        <div class="tg-box"><div class="tg-val">${targets.f}g</div><div class="tg-lbl">Fat</div></div>
+      </div>
+    </div>`;
+
+  // today summary
+  const todayHtml=`
+    <div style="background:white;border:1px solid var(--border);border-radius:12px;padding:13px;margin-bottom:10px">
+      <div style="font-size:13px;font-weight:700;margin-bottom:10px">📅 ${formatDateTH(today)} · ${todaySubs.length} มื้อ</div>
+      <div class="dash-stat-grid">
+        <div class="dash-stat"><div class="dsv">${Math.round(tot.kcal)}</div><div class="dsl">kcal วันนี้</div></div>
+        <div class="dash-stat"><div class="dsv" style="color:#22C55E">${targets.kcal}</div><div class="dsl">เป้าหมาย</div></div>
+      </div>
+      <div class="macro-bar-row"><div class="macro-bar-label"><span style="color:var(--gray)">🟠 Carb</span><span style="font-weight:600">${Math.round(tot.c)}g / ${targets.c}g</span></div>${pBar(tot.c,targets.c,'#F5A623')}</div>
+      <div class="macro-bar-row"><div class="macro-bar-label"><span style="color:var(--gray)">🔵 Protein</span><span style="font-weight:600">${Math.round(tot.p)}g / ${targets.p}g</span></div>${pBar(tot.p,targets.p,'#3B82F6')}</div>
+      <div class="macro-bar-row" style="margin-bottom:0"><div class="macro-bar-label"><span style="color:var(--gray)">🟣 Fat</span><span style="font-weight:600">${Math.round(tot.f)}g / ${targets.f}g</span></div>${pBar(tot.f,targets.f,'#A855F7')}</div>
+    </div>`;
+
+  const macro7Html=buildMacro7Html(MON,TH_SHORT,byDate,targets);
+  const zigzagHtml=buildStudentZigzagSection(MON,TH_SHORT,byDate,targets);
+  const lifestyleHtml=buildLifestyleSection(MON,TH_SHORT,healthLogs);
+  const progressHtml=buildProgressSection(weeklyChecks,user.userId);
+
   document.getElementById('dashboard-content').innerHTML=`
     <div style="background:white;margin:12px 12px 0;border-radius:14px;padding:14px;border:1px solid #E5E7EB">
-      <div style="font-size:12px;font-weight:600;color:var(--gray);margin-bottom:2px">สัปดาห์นี้</div>
+      <div style="font-size:12px;font-weight:600;color:var(--gray);margin-bottom:4px">สัปดาห์นี้</div>
       <div class="week-dots">${dotsHtml}</div>
     </div>
-    <div style="background:white;margin:12px 12px 0;border-radius:14px;padding:14px;border:1px solid #E5E7EB">
-      <div style="font-size:13px;font-weight:600;margin-bottom:12px">📅 ${formatDateTH(today)} · ${todaySubs.length} มื้อ</div>
-      <div class="dash-stat-grid">
-        <div class="dash-stat"><div class="dsv">${Math.round(totals.kcal)}</div><div class="dsl">kcal วันนี้</div></div>
-        <div class="dash-stat"><div class="dsv" style="color:#22C55E">${TARGETS.kcal}</div><div class="dsl">เป้าหมาย</div></div>
-      </div>
-      <div class="macro-bar-row">
-        <div class="macro-bar-label"><span style="color:var(--gray)">🟠 คาร์บ</span><span style="font-weight:600">${Math.round(totals.c)}g / ${TARGETS.c}g</span></div>
-        ${pBar(totals.c,TARGETS.c,'#F5A623')}
-      </div>
-      <div class="macro-bar-row">
-        <div class="macro-bar-label"><span style="color:var(--gray)">🔵 โปรตีน</span><span style="font-weight:600">${Math.round(totals.p)}g / ${TARGETS.p}g</span></div>
-        ${pBar(totals.p,TARGETS.p,'#3B82F6')}
-      </div>
-      <div class="macro-bar-row" style="margin-bottom:0">
-        <div class="macro-bar-label"><span style="color:var(--gray)">🟣 ไขมัน</span><span style="font-weight:600">${Math.round(totals.f)}g / ${TARGETS.f}g</span></div>
-        ${pBar(totals.f,TARGETS.f,'#A855F7')}
-      </div>
+    <div style="padding:12px 12px 0">
+      ${notesHtml}
+      ${targHtml}
+      ${todayHtml}
     </div>
-    <div style="background:white;margin:12px 12px 0;border-radius:14px;padding:14px;border:1px solid #E5E7EB">
-      <div style="font-size:12px;font-weight:600;color:var(--gray);margin-bottom:10px">7 วันล่าสุด (kcal)</div>
-      <div class="week-chart">${bars}</div>
-      <div style="display:flex;gap:12px;margin-top:8px;font-size:10px;color:var(--gray)">
-        <span>🟠 วันนี้</span><span style="color:#EF4444">🔴 เกินเป้า</span>
-      </div>
+    <div style="padding:0 12px 12px">
+      ${macro7Html}
+      ${progressHtml}
+      ${zigzagHtml}
+      ${lifestyleHtml}
     </div>`;
 }
 
@@ -1891,6 +1926,36 @@ function closeStudentDetail(){
   currentStudentData=null;
 }
 
+function buildMacro7Html(MON, TH_SHORT, byDate, targets){
+  const macro7Rows=MON.map((d,i)=>{
+    const daySubs=byDate[d]||[];
+    if(!daySubs.length)return`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #F3F4F6">
+      <span style="font-size:11px;color:var(--gray)">${TH_SHORT[i]} ${formatDateShort(d)}</span>
+      <span style="font-size:10px;color:#D1D5DB">ไม่ส่ง</span>
+    </div>`;
+    let tc=0,tp=0,tf=0;
+    daySubs.forEach(s=>{const m=getSubMacros(s);tc+=m.c;tp+=m.p;tf+=m.f;});
+    const kcal=Math.round(tc*4+tp*4+tf*9);
+    const pBar=(val,max,col)=>`<div class="m7-bar-track"><div class="m7-bar-fill" style="width:${Math.min(100,Math.round(val/max*100))}%;background:${col}"></div></div>`;
+    const chipColor=kcal>targets.kcal+200?'color:#EF4444':kcal<targets.kcal-200?'color:#3B82F6':'color:#22C55E';
+    return`<div style="padding:7px 0;border-bottom:1px solid #F3F4F6">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
+        <span style="font-size:11px;font-weight:600;color:var(--text)">${TH_SHORT[i]} ${formatDateShort(d)}</span>
+        <span style="font-size:12px;font-weight:700;${chipColor}">${kcal} kcal</span>
+      </div>
+      <div class="m7-bars">
+        <div class="m7-bar-row"><span style="width:14px">🟠</span>${pBar(tc,targets.c,'#F5A623')}<span class="m7-val">${Math.round(tc)}g</span></div>
+        <div class="m7-bar-row"><span style="width:14px">🔵</span>${pBar(tp,targets.p,'#3B82F6')}<span class="m7-val">${Math.round(tp)}g</span></div>
+        <div class="m7-bar-row"><span style="width:14px">🟣</span>${pBar(tf,targets.f,'#A855F7')}<span class="m7-val">${Math.round(tf)}g</span></div>
+      </div>
+    </div>`;
+  }).join('');
+  return`<div class="sd-section" style="margin-top:10px">
+    <div class="sd-section-title">📊 Macro 7 วันล่าสุด</div>
+    ${macro7Rows}
+  </div>`;
+}
+
 function renderStudentDetail(u, targets, healthLogs, weeklySummaries={}, weeklyChecks=[]){
   const MON=getMonWeekDates();
   const TH_SHORT=['จ','อ','พ','พฤ','ศ','ส'];
@@ -1944,34 +2009,7 @@ function renderStudentDetail(u, targets, healthLogs, weeklySummaries={}, weeklyC
   </div>`;
 
   // --- MACRO 7 วัน ---
-  const macro7Rows=MON.map((d,i)=>{
-    const daySubs=byDate[d]||[];
-    if(!daySubs.length)return`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #F3F4F6">
-      <span style="font-size:11px;color:var(--gray)">${TH_SHORT[i]} ${formatDateShort(d)}</span>
-      <span style="font-size:10px;color:#D1D5DB">ไม่ส่ง</span>
-    </div>`;
-    let tc=0,tp=0,tf=0;
-    daySubs.forEach(s=>{const m=getSubMacros(s);tc+=m.c;tp+=m.p;tf+=m.f;});
-    const kcal=Math.round(tc*4+tp*4+tf*9);
-    const pBar=(val,max,col)=>`<div class="m7-bar-track"><div class="m7-bar-fill" style="width:${Math.min(100,Math.round(val/max*100))}%;background:${col}"></div></div>`;
-    const chipColor=kcal>targets.kcal+200?'color:#EF4444':kcal<targets.kcal-200?'color:#3B82F6':'color:#22C55E';
-    return`<div style="padding:7px 0;border-bottom:1px solid #F3F4F6">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
-        <span style="font-size:11px;font-weight:600;color:var(--text)">${TH_SHORT[i]} ${formatDateShort(d)}</span>
-        <span style="font-size:12px;font-weight:700;${chipColor}">${kcal} kcal</span>
-      </div>
-      <div class="m7-bars">
-        <div class="m7-bar-row"><span style="width:14px">🟠</span>${pBar(tc,targets.c,'#F5A623')}<span class="m7-val">${Math.round(tc)}g</span></div>
-        <div class="m7-bar-row"><span style="width:14px">🔵</span>${pBar(tp,targets.p,'#3B82F6')}<span class="m7-val">${Math.round(tp)}g</span></div>
-        <div class="m7-bar-row"><span style="width:14px">🟣</span>${pBar(tf,targets.f,'#A855F7')}<span class="m7-val">${Math.round(tf)}g</span></div>
-      </div>
-    </div>`;
-  }).join('');
-
-  const macro7Html=`<div class="sd-section" style="margin-top:10px">
-    <div class="sd-section-title">📊 Macro 7 วันล่าสุด</div>
-    ${macro7Rows}
-  </div>`;
+  const macro7Html=buildMacro7Html(MON, TH_SHORT, byDate, targets);
 
   // --- ZIGZAG CALORIES ---
   const zigzagHtml=buildZigzagSection(MON, TH_SHORT, byDate, targets, u.userId);
@@ -2256,6 +2294,70 @@ function buildZigzagSection(MON, TH_SHORT, byDate, targets, userId){
         style="width:100%;margin-top:8px;padding:9px;background:var(--primary);color:white;border:none;border-radius:9px;font-size:13px;font-weight:700;font-family:'Prompt',sans-serif;cursor:pointer">
         ส่ง Verdict → นักเรียน ✓
       </button>
+    </div>
+  </div>`;
+}
+
+function buildStudentZigzagSection(MON, TH_SHORT, byDate, targets){
+  const yesterday=new Date();yesterday.setDate(yesterday.getDate()-1);
+  const yStr=yesterday.toISOString().split('T')[0];
+  const ySubs=byDate[yStr]||[];
+  let yActual={kcal:0,c:0,p:0,f:0};
+  ySubs.forEach(s=>{const m=getSubMacros(s);yActual.kcal+=m.kcal;yActual.c+=m.c;yActual.p+=m.p;yActual.f+=m.f;});
+  yActual.kcal=Math.round(yActual.kcal);yActual.c=Math.round(yActual.c);yActual.p=Math.round(yActual.p);yActual.f=Math.round(yActual.f);
+  const zz=calcZigzag(yActual,targets);
+
+  const maxKcal=Math.max(...MON.map(d=>{let k=0;(byDate[d]||[]).forEach(s=>{k+=getSubMacros(s).kcal;});return k;}),targets.kcal*1.3,1);
+  const netBars=MON.map((d,i)=>{
+    const hasSub=(byDate[d]||[]).length>0;
+    let kcal=0;(byDate[d]||[]).forEach(s=>{kcal+=getSubMacros(s).kcal;});kcal=Math.round(kcal);
+    const h=hasSub?Math.max(4,Math.round(kcal/maxKcal*60)):0;
+    const tH=Math.round(targets.kcal/maxKcal*60);
+    const color=!hasSub?'#E5E7EB':kcal>targets.kcal+200?'#EF4444':kcal<targets.kcal-200?'#3B82F6':'#22C55E';
+    const lbl=hasSub?(kcal>=1000?(kcal/1000).toFixed(1)+'k':kcal):'—';
+    return`<div style="flex:1;text-align:center">
+      <div style="font-size:9px;color:var(--gray);margin-bottom:2px">${lbl}</div>
+      <div style="height:60px;display:flex;align-items:flex-end;justify-content:center;position:relative">
+        <div style="position:absolute;bottom:${tH}px;left:0;right:0;height:1.5px;background:#FED7AA;border-radius:1px"></div>
+        <div style="width:100%;height:${h}px;background:${color};border-radius:4px 4px 0 0"></div>
+      </div>
+      <div style="font-size:9px;color:var(--gray);margin-top:3px">${TH_SHORT[i]}</div>
+    </div>`;
+  }).join('');
+
+  let zzTargetHtml='', verdictText='', bgColor='#F0FDF4', borderColor='#86EFAC';
+  if(zz.type==='none'){
+    verdictText=ZIGZAG_TEXTS.none;
+    zzTargetHtml=`<div style="background:#D1FAE5;border-radius:8px;padding:8px;text-align:center;font-size:12px;color:#065F46;font-weight:600;margin-bottom:10px">✅ ทาน Target ปกติพรุ่งนี้ได้เลย</div>`;
+  }else{
+    bgColor='#FFF7ED';borderColor='#FED7AA';
+    const days=zz.type==='1day'?1:2;
+    verdictText=zz.type==='1day'
+      ?ZIGZAG_TEXTS.oneDay(zz.surplus,zz.adjKcal,zz.dC,zz.dF)
+      :ZIGZAG_TEXTS.twoDay(zz.surplus,zz.adjKcal,zz.dC,zz.dF);
+    zzTargetHtml=`
+      <div style="font-size:11px;color:#92400E;font-weight:600;margin-bottom:6px">⚡ Zigzag Target ${days} วัน (ลด ${zz.surplus} kcal ${days===2?'÷2':''})</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-bottom:10px">
+        <div class="zz-t-box"><div class="zz-t-val">${zz.adjKcal}</div><div class="zz-t-lbl">kcal</div></div>
+        <div class="zz-t-box"><div class="zz-t-val">${zz.adjC}g</div><div class="zz-t-lbl">Carb</div></div>
+        <div class="zz-t-box" style="background:#FEF9C3"><div class="zz-t-val">${targets.p}g</div><div class="zz-t-lbl">Protein ✓</div></div>
+        <div class="zz-t-box"><div class="zz-t-val">${zz.adjF}g</div><div class="zz-t-lbl">Fat</div></div>
+      </div>`;
+  }
+
+  return`<div class="sd-section" style="margin-top:10px">
+    <div class="sd-section-title">⚡ Zigzag Calories</div>
+    <div style="background:white;border:1px solid #E5E7EB;border-radius:10px;padding:11px 12px;margin-bottom:10px">
+      <div style="font-size:11px;color:var(--gray);margin-bottom:8px;font-weight:600">Net 7 วัน (จ–ส) vs เป้า</div>
+      <div style="display:flex;gap:5px;align-items:flex-end">${netBars}</div>
+      <div style="display:flex;gap:10px;margin-top:6px;font-size:9px;color:var(--gray)">
+        <span>🟢 ในเป้า</span><span style="color:#EF4444">🔴 เกิน</span><span style="color:#3B82F6">🔵 ขาด</span>
+        <span style="margin-left:4px">— เส้นส้ม = ${targets.kcal} kcal</span>
+      </div>
+    </div>
+    <div style="background:${bgColor};border:1.5px solid ${borderColor};border-radius:12px;padding:13px">
+      ${zzTargetHtml}
+      <div style="font-size:12px;line-height:1.7;color:#92400E;white-space:pre-wrap">${escHtml(verdictText)}</div>
     </div>
   </div>`;
 }
