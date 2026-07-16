@@ -334,6 +334,26 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
 .zz-box{background:#FFF7ED;border:1.5px solid #FED7AA;border-radius:12px;padding:13px;margin-bottom:10px}
 .zz-title{font-size:13px;font-weight:700;color:#C2410C;margin-bottom:10px}
 .zz-target-row{display:flex;gap:6px;margin-bottom:10px}
+/* WEEKLY CHECK */
+.wc-card{background:white;border:1px solid var(--border);border-radius:12px;padding:13px;margin-bottom:10px}
+.wc-title{font-size:12px;font-weight:600;color:var(--gray);margin-bottom:10px}
+.wc-field-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.wc-label{font-size:12px;color:var(--text);width:90px;flex-shrink:0}
+.wc-input{flex:1;border:1.5px solid var(--border);border-radius:8px;padding:7px 10px;font-size:14px;font-family:'Prompt',sans-serif;color:var(--text);outline:none;text-align:right}
+.wc-input:focus{border-color:var(--primary)}
+.wc-unit{font-size:11px;color:var(--gray);width:24px;flex-shrink:0}
+.wc-pair{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px}
+.wc-pair-label{font-size:11px;color:var(--gray);margin-bottom:3px}
+.wc-pair-input{border:1.5px solid var(--border);border-radius:8px;padding:6px 8px;font-size:13px;font-family:'Prompt',sans-serif;color:var(--text);outline:none;text-align:right;width:100%}
+.wc-pair-input:focus{border-color:var(--primary)}
+/* PROGRESS (coach) */
+.prog-spark-row{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #F3F4F6}
+.prog-spark-row:last-child{border-bottom:none}
+.prog-spark-lbl{font-size:11px;color:var(--text);width:64px;flex-shrink:0}
+.prog-spark-vals{font-size:10px;color:var(--gray);white-space:nowrap;width:80px;text-align:right}
+.prog-chg-pos{font-size:10px;color:#059669;font-weight:600;width:36px;text-align:right}
+.prog-chg-neg{font-size:10px;color:#DC2626;font-weight:600;width:36px;text-align:right}
+.prog-chg-neu{font-size:10px;color:var(--gray);font-weight:600;width:36px;text-align:right}
 .zz-t-box{flex:1;background:white;border:1px solid #FED7AA;border-radius:8px;padding:6px 4px;text-align:center}
 .zz-t-val{font-size:14px;font-weight:700;color:#C2410C}
 .zz-t-lbl{font-size:9px;color:var(--gray);margin-top:2px}
@@ -963,7 +983,98 @@ function renderHealthLog(){
     <div style="padding:0 12px 16px">
       <button onclick="saveHealthLog()" style="width:100%;padding:13px;background:var(--primary);color:white;border:none;border-radius:12px;font-size:15px;font-weight:700;font-family:'Prompt',sans-serif;cursor:pointer">💾 บันทึกข้อมูลสุขภาพวันนี้</button>
     </div>
+
+    <!-- WEEKLY CHECK SECTION -->
+    <div style="padding:0 12px">
+      <div style="border-top:2px dashed var(--border);margin-bottom:14px"></div>
+      <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:4px">📏 วัดผลร่างกาย</div>
+      <div style="font-size:11px;color:var(--gray);margin-bottom:12px">แนะนำวัดน้ำหนักสัปดาห์ละครั้ง สัดส่วนทุก 2 สัปดาห์ — ไม่ต้องกรอกครบก็บันทึกได้</div>
+    </div>
+
+    <div class="wc-card" style="margin:0 12px 8px">
+      <div class="wc-title">⚖️ น้ำหนัก <span style="color:var(--red);font-size:10px">* กรอกอย่างน้อยช่องนี้</span></div>
+      <div class="wc-field-row">
+        <input class="wc-input" id="wc-weight" type="number" step="0.1" min="20" max="250" placeholder="เช่น 65.5">
+        <span class="wc-unit">kg</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div>
+          <div class="wc-pair-label">%ไขมัน (optional)</div>
+          <div style="display:flex;align-items:center;gap:4px">
+            <input class="wc-pair-input" id="wc-bf" type="number" step="0.1" min="0" max="60" placeholder="—">
+            <span style="font-size:10px;color:var(--gray)">%</span>
+          </div>
+        </div>
+        <div>
+          <div class="wc-pair-label">มวลกล้ามเนื้อ (optional)</div>
+          <div style="display:flex;align-items:center;gap:4px">
+            <input class="wc-pair-input" id="wc-mm" type="number" step="0.1" min="0" max="100" placeholder="—">
+            <span style="font-size:10px;color:var(--gray)">kg</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="wc-card" style="margin:0 12px 8px">
+      <div class="wc-title">📐 สัดส่วนร่างกาย <span style="color:var(--gray);font-size:10px;font-weight:400">(optional ทั้งหมด)</span></div>
+      <div class="wc-field-row">
+        <span class="wc-label">รอบเอว</span>
+        <input class="wc-input" id="wc-waist" type="number" step="0.5" placeholder="—">
+        <span class="wc-unit">cm</span>
+      </div>
+      <div class="wc-field-row">
+        <span class="wc-label">สะโพก</span>
+        <input class="wc-input" id="wc-hip" type="number" step="0.5" placeholder="—">
+        <span class="wc-unit">cm</span>
+      </div>
+      <div class="wc-field-row">
+        <span class="wc-label">รอบอก</span>
+        <input class="wc-input" id="wc-chest" type="number" step="0.5" placeholder="—">
+        <span class="wc-unit">cm</span>
+      </div>
+      <div style="font-size:11px;color:var(--gray);margin-bottom:5px;margin-top:4px">ต้นแขน</div>
+      <div class="wc-pair" style="margin-bottom:10px">
+        <div>
+          <div class="wc-pair-label">ซ้าย</div>
+          <div style="display:flex;align-items:center;gap:4px">
+            <input class="wc-pair-input" id="wc-arm-l" type="number" step="0.5" placeholder="—">
+            <span style="font-size:10px;color:var(--gray)">cm</span>
+          </div>
+        </div>
+        <div>
+          <div class="wc-pair-label">ขวา</div>
+          <div style="display:flex;align-items:center;gap:4px">
+            <input class="wc-pair-input" id="wc-arm-r" type="number" step="0.5" placeholder="—">
+            <span style="font-size:10px;color:var(--gray)">cm</span>
+          </div>
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--gray);margin-bottom:5px">ต้นขา</div>
+      <div class="wc-pair">
+        <div>
+          <div class="wc-pair-label">ซ้าย</div>
+          <div style="display:flex;align-items:center;gap:4px">
+            <input class="wc-pair-input" id="wc-thigh-l" type="number" step="0.5" placeholder="—">
+            <span style="font-size:10px;color:var(--gray)">cm</span>
+          </div>
+        </div>
+        <div>
+          <div class="wc-pair-label">ขวา</div>
+          <div style="display:flex;align-items:center;gap:4px">
+            <input class="wc-pair-input" id="wc-thigh-r" type="number" step="0.5" placeholder="—">
+            <span style="font-size:10px;color:var(--gray)">cm</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="padding:0 12px 24px">
+      <div id="wc-saved-msg" style="display:none;text-align:center;color:#059669;font-size:13px;margin-bottom:6px">✅ บันทึกผลการวัดแล้ว!</div>
+      <button onclick="saveWeeklyCheck()" style="width:100%;padding:13px;background:#059669;color:white;border:none;border-radius:12px;font-size:15px;font-weight:700;font-family:'Prompt',sans-serif;cursor:pointer">📏 บันทึกผลการวัด</button>
+    </div>
   `;
+  // load & render student's own progress below form
+  loadMyProgress();
 }
 
 function setStress(level){
@@ -993,6 +1104,201 @@ async function saveHealthLog(){
     const msg=document.getElementById('hl-saved-msg');
     if(msg){msg.style.display='inline-block';setTimeout(()=>{msg.style.display='none';},2500);}
   }catch(e){alert('บันทึกไม่ได้: '+e.message);}
+}
+
+// ===== WEEKLY CHECK (Student) =====
+async function saveWeeklyCheck(){
+  const weight=parseFloat(document.getElementById('wc-weight').value);
+  if(!weight||isNaN(weight)){alert('กรุณากรอกน้ำหนักอย่างน้อยหนึ่งช่องค่ะ');return;}
+  const getV=id=>{const v=parseFloat(document.getElementById(id).value);return isNaN(v)?null:v;};
+  const entry={
+    date:todayStr(), weight_kg:weight,
+    bodyFat_pct:getV('wc-bf'), muscle_mass_kg:getV('wc-mm'),
+    waist_cm:getV('wc-waist'), hip_cm:getV('wc-hip'), chest_cm:getV('wc-chest'),
+    arm_left_cm:getV('wc-arm-l'), arm_right_cm:getV('wc-arm-r'),
+    thigh_left_cm:getV('wc-thigh-l'), thigh_right_cm:getV('wc-thigh-r'),
+    submittedAt:firebase.firestore.FieldValue.serverTimestamp()
+  };
+  // remove null fields
+  Object.keys(entry).forEach(k=>{if(entry[k]===null)delete entry[k];});
+  try{
+    await db.collection('weeklyChecks').doc(user.userId).collection('entries').doc(todayStr()).set(entry,{merge:true});
+    const msg=document.getElementById('wc-saved-msg');
+    if(msg){msg.style.display='block';setTimeout(()=>{msg.style.display='none';},2500);}
+    loadMyProgress(); // refresh chart
+  }catch(e){alert('บันทึกไม่ได้: '+e.message);}
+}
+
+async function loadMyProgress(){
+  const el=document.getElementById('health-log-content');
+  if(!el)return;
+  let existing=document.getElementById('my-progress-section');
+  if(existing)existing.remove();
+  try{
+    const snap=await db.collection('weeklyChecks').doc(user.userId).collection('entries').orderBy('date','asc').limit(20).get();
+    const entries=snap.docs.map(d=>({id:d.id,...d.data()}));
+    if(!entries.length)return;
+    const html=buildMyProgressHtml(entries);
+    const wrap=document.createElement('div');
+    wrap.id='my-progress-section';
+    wrap.style.padding='0 12px 24px';
+    wrap.innerHTML=html;
+    el.appendChild(wrap);
+  }catch(e){}
+}
+
+function buildMyProgressHtml(entries){
+  if(!entries.length)return'';
+  const first=entries[0], last=entries[entries.length-1];
+  const pct=(first,last)=>first&&last?Math.round((last-first)/first*100*10)/10:null;
+  const chgLabel=(v,reverse=false)=>{
+    if(v===null)return'';
+    const good=reverse?v>0:v<0;
+    const arrow=v<0?'▼':'▲';
+    const cls=good?'color:#059669':'color:#DC2626';
+    return`<span style="${cls};font-size:10px;font-weight:600">${arrow}${Math.abs(v)}%</span>`;
+  };
+
+  // weight sparkline
+  const wVals=entries.map(e=>e.weight_kg).filter(Boolean);
+  const wSpark=buildSpark(wVals,'#2563EB',false); // false = down is bad for weight loss (actually down is GOOD)
+  const wChg=pct(first.weight_kg,last.weight_kg);
+
+  // measurement sparklines
+  const measFields=[
+    {key:'waist_cm',label:'รอบเอว'},
+    {key:'hip_cm',label:'สะโพก'},
+    {key:'chest_cm',label:'อก'},
+    {key:'arm_left_cm',label:'แขนซ้าย'},
+    {key:'arm_right_cm',label:'แขนขวา'},
+    {key:'thigh_left_cm',label:'ขาซ้าย'},
+    {key:'thigh_right_cm',label:'ขาขวา'},
+  ];
+  const measRows=measFields.map(({key,label})=>{
+    const vals=entries.map(e=>e[key]).filter(v=>v!=null);
+    if(vals.length<2)return'';
+    const spark=buildSpark(vals,'#7C3AED',false);
+    const chg=pct(vals[0],vals[vals.length-1]);
+    return`<div style="display:flex;align-items:center;gap:7px;padding:5px 0;border-bottom:1px solid #F3F4F6">
+      <span style="font-size:11px;color:var(--text);width:60px;flex-shrink:0">${label}</span>
+      <svg viewBox="0 0 70 18" width="70" height="18" style="flex-shrink:0">${spark}</svg>
+      <span style="font-size:10px;color:var(--gray);flex:1">${vals[0]}→${vals[vals.length-1]} cm</span>
+      ${chgLabel(chg)}
+    </div>`;
+  }).join('');
+
+  return`<div style="border-top:2px dashed var(--border);margin-bottom:14px;margin-top:8px"></div>
+    <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:12px">📉 ผลลัพธ์ของฉัน</div>
+    <div class="wc-card" style="margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <div style="font-size:12px;font-weight:600;color:var(--gray)">⚖️ น้ำหนัก</div>
+        ${chgLabel(wChg)}
+      </div>
+      <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px">${first.weight_kg} → ${last.weight_kg} kg</div>
+      <svg viewBox="0 0 240 36" width="100%" height="36" style="display:block">${wSpark}</svg>
+    </div>
+    ${measRows?`<div class="wc-card">${measRows}</div>`:''}`;
+}
+
+function buildSpark(vals, color, bigIsGood=false, w=240, h=30){
+  if(vals.length<2)return'';
+  const mn=Math.min(...vals), mx=Math.max(...vals);
+  const range=mx-mn||1;
+  const pad=3;
+  const pts=vals.map((v,i)=>{
+    const x=Math.round(i/(vals.length-1)*(w-pad*2))+pad;
+    // down = smaller value = higher y (in SVG y is inverted)
+    // we want lower value = lower on chart (higher y) since for weight/measurements, going down is progress
+    const y=Math.round(pad+(mx-v)/range*(h-pad*2));
+    return`${x},${y}`;
+  });
+  const circles=vals.map((v,i)=>{
+    const x=Math.round(i/(vals.length-1)*(w-pad*2))+pad;
+    const y=Math.round(pad+(mx-v)/range*(h-pad*2));
+    const r=i===0||i===vals.length-1?2.5:1.8;
+    const op=i===0||i===vals.length-1?1:0.55;
+    return`<circle cx="${x}" cy="${y}" r="${r}" fill="${color}" opacity="${op}"/>`;
+  }).join('');
+  return`<polyline points="${pts.join(' ')}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>${circles}`;
+}
+
+// ===== PROGRESS SECTION (Coach) =====
+function buildProgressSection(weeklyChecks, userId){
+  if(!weeklyChecks||!weeklyChecks.length)return`<div class="sd-section">
+    <div class="sd-section-title">📉 Progress</div>
+    <div style="background:white;border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center;color:var(--gray);font-size:12px">ยังไม่มีข้อมูลการวัดผลค่ะ</div>
+  </div>`;
+
+  const entries=weeklyChecks;
+  const first=entries[0], last=entries[entries.length-1];
+  const pct=(a,b)=>a&&b?Math.round((b-a)/a*1000)/10:null;
+
+  // stall check: last 2 weights same or increasing
+  const wVals=entries.map(e=>e.weight_kg).filter(Boolean);
+  const isStall=wVals.length>=3&&wVals[wVals.length-1]>=wVals[wVals.length-3];
+  const wChg=pct(first.weight_kg,last.weight_kg);
+  const wSpark=buildSpark(wVals,'#2563EB',false,200,28);
+
+  // measurement rows
+  const measFields=[
+    {key:'waist_cm',label:'รอบเอว'},
+    {key:'hip_cm',label:'สะโพก'},
+    {key:'chest_cm',label:'อก'},
+    {key:'arm_left_cm',label:'แขนซ้าย',paired:'arm_right_cm',pairedLabel:'ขวา'},
+    {key:'arm_right_cm',label:'แขนขวา',skip:true},
+    {key:'thigh_left_cm',label:'ขาซ้าย',paired:'thigh_right_cm',pairedLabel:'ขวา'},
+    {key:'thigh_right_cm',label:'ขาขวา',skip:true},
+  ];
+
+  const measRows=measFields.filter(f=>!f.skip).map(({key,label,paired,pairedLabel})=>{
+    const vals=entries.map(e=>e[key]).filter(v=>v!=null);
+    if(!vals.length)return'';
+    const spark=buildSpark(vals,'#7C3AED',false,70,16);
+    const chg=pct(vals[0],vals[vals.length-1]);
+    const chgHtml=chg===null?'':`<span style="font-size:10px;font-weight:600;color:${chg<0?'#059669':'#DC2626'}">${chg<0?'▼':'▲'}${Math.abs(chg)}%</span>`;
+
+    let pairedHtml='';
+    if(paired){
+      const pVals=entries.map(e=>e[paired]).filter(v=>v!=null);
+      if(pVals.length){
+        const pSpark=buildSpark(pVals,'#9333EA',false,70,16);
+        pairedHtml=`<div style="display:flex;align-items:center;gap:7px;padding:5px 0;border-bottom:1px solid #F3F4F6">
+          <span style="font-size:11px;color:var(--gray);width:64px;flex-shrink:0">${pairedLabel}</span>
+          <svg viewBox="0 0 70 16" width="70" height="16" style="flex-shrink:0">${pSpark}</svg>
+          <span style="font-size:10px;color:var(--gray);flex:1">${pVals[0]}→${pVals[pVals.length-1]} cm</span>
+        </div>`;
+      }
+    }
+
+    return`<div style="display:flex;align-items:center;gap:7px;padding:5px 0;border-bottom:1px solid #F3F4F6">
+      <span style="font-size:11px;color:var(--text);width:64px;flex-shrink:0">${label}</span>
+      <svg viewBox="0 0 70 16" width="70" height="16" style="flex-shrink:0">${spark}</svg>
+      <span style="font-size:10px;color:var(--gray);flex:1">${vals[0]}→${vals[vals.length-1]} cm</span>
+      ${chgHtml}
+    </div>${pairedHtml}`;
+  }).join('');
+
+  const stallBadge=isStall
+    ?`<span style="background:#FEF2F2;color:#DC2626;border-radius:6px;padding:3px 8px;font-size:10px;font-weight:600">⚠ Stall 2+ สัปดาห์</span>`
+    :`<span style="background:#ECFDF5;color:#059669;border-radius:6px;padding:3px 8px;font-size:10px;font-weight:600">✓ ลดดี</span>`;
+
+  return`<div class="sd-section" style="margin-top:10px">
+    <div class="sd-section-title">📉 Progress (${entries.length} ครั้ง)</div>
+    <div style="background:white;border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <div>
+          <div style="font-size:13px;font-weight:600;color:var(--text)">${first.weight_kg} → ${last.weight_kg} kg</div>
+          ${wChg!==null?`<div style="font-size:11px;color:${wChg<0?'#059669':'#DC2626'};font-weight:600">${wChg<0?'▼':'▲'} ${Math.abs(wChg)}% จากครั้งแรก</div>`:''}
+        </div>
+        ${stallBadge}
+      </div>
+      <svg viewBox="0 0 200 28" width="100%" height="28" style="display:block;margin-top:4px">${wSpark}</svg>
+    </div>
+    ${measRows?`<div style="background:white;border:1px solid var(--border);border-radius:10px;padding:12px">
+      <div style="font-size:11px;font-weight:600;color:var(--gray);margin-bottom:4px">📐 สัดส่วน</div>
+      ${measRows}
+    </div>`:''}
+  </div>`;
 }
 
 // DATE STRIP
@@ -1546,10 +1852,16 @@ async function openStudentDetail(userId){
     const ws=await db.collection('students').doc(userId).collection('weeklySummaries').orderBy('weekStart','desc').limit(8).get();
     ws.docs.forEach(d=>{weeklySummaries[d.id]=d.data();});
   }catch(e){}
+  // load weekly checks (body measurements)
+  let weeklyChecks=[];
+  try{
+    const wc=await db.collection('weeklyChecks').doc(userId).collection('entries').orderBy('date','asc').limit(20).get();
+    wc.docs.forEach(d=>{weeklyChecks.push({id:d.id,...d.data()});});
+  }catch(e){}
   // auto-mark missed days (client-side, non-blocking)
   const byDateTmp={};u.subs.forEach(s=>{const k=subDate(s);if(!byDateTmp[k])byDateTmp[k]=[];byDateTmp[k].push(s);});
   autoMarkMissedDays(userId,byDateTmp).catch(()=>{});
-  renderStudentDetail(u,targets,healthLogs,weeklySummaries);
+  renderStudentDetail(u,targets,healthLogs,weeklySummaries,weeklyChecks);
 }
 
 function closeStudentDetail(){
@@ -1557,7 +1869,7 @@ function closeStudentDetail(){
   currentStudentData=null;
 }
 
-function renderStudentDetail(u, targets, healthLogs, weeklySummaries={}){
+function renderStudentDetail(u, targets, healthLogs, weeklySummaries={}, weeklyChecks=[]){
   const MON=getMonWeekDates();
   const TH_SHORT=['จ','อ','พ','พฤ','ศ','ส'];
   const byDate={};
@@ -1632,7 +1944,8 @@ function renderStudentDetail(u, targets, healthLogs, weeklySummaries={}){
   // --- WEEKLY SUMMARY ACCORDION ---
   const weeklyHtml=buildWeeklySummaryAccordion(u, byDate, targets, healthLogs, weeklySummaries);
 
-  document.getElementById('sd-content').innerHTML=targHtml+macro7Html+zigzagHtml+lifestyleHtml+weeklyHtml;
+  const progressHtml=buildProgressSection(weeklyChecks, u.userId);
+  document.getElementById('sd-content').innerHTML=targHtml+macro7Html+progressHtml+zigzagHtml+lifestyleHtml+weeklyHtml;
 }
 
 // ===== LIFESTYLE 7 วัน (bar charts) =====
