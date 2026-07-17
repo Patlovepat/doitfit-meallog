@@ -272,6 +272,7 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
 .stu-avatar img{width:100%;height:100%;object-fit:cover}
 .stu-name{font-size:14px;font-weight:600;color:var(--text)}
 .stu-streak{font-size:11px;color:#C2410C;background:#FFF7ED;border:1px solid #FED7AA;border-radius:12px;padding:2px 7px;font-weight:600;margin-left:auto}
+.stu-testimonial-badge{font-size:11px;color:#7C3AED;background:#F5F3FF;border:1px solid #DDD6FE;border-radius:12px;padding:2px 7px;font-weight:600}
 .stu-week-row{display:flex;gap:4px;align-items:center;margin-bottom:8px}
 .stu-dot{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600}
 .stu-dot.done{background:var(--primary);color:white}
@@ -1642,11 +1643,19 @@ async function loadDashboard(){
       const wc=await db.collection('weeklyChecks').doc(user.userId).collection('entries').orderBy('date','asc').limit(20).get();
       wc.docs.forEach(d=>{weeklyChecks.push({id:d.id,...d.data()});});
     }catch(e){}
-    renderStudentDashboard(subs,targets,coachNotes,healthLogs,weeklyChecks);
+    // weekly summaries (coach notes per week)
+    let weeklySummaries={};
+    try{
+      const ws=await db.collection('students').doc(user.userId).collection('weeklySummaries').orderBy('weekStart','desc').limit(8).get();
+      ws.docs.forEach(d=>{weeklySummaries[d.id]=d.data();});
+    }catch(e){}
+    // check testimonial eligibility (non-blocking)
+    checkTestimonialEligibility(weeklyChecks).catch(()=>{});
+    renderStudentDashboard(subs,targets,coachNotes,healthLogs,weeklyChecks,weeklySummaries);
   }catch(e){content.innerHTML='<div style="padding:24px;text-align:center;color:#EF4444">โหลดไม่ได้: '+e.message+'</div>';}
 }
 
-function renderStudentDashboard(subs, targets, coachNotes, healthLogs, weeklyChecks){
+function renderStudentDashboard(subs, targets, coachNotes, healthLogs, weeklyChecks, weeklySummaries={}){
   const MON=getMonWeekDates();
   const TH_SHORT=['จ','อ','พ','พฤ','ศ','ส'];
   const byDate={};
@@ -1703,6 +1712,7 @@ function renderStudentDashboard(subs, targets, coachNotes, healthLogs, weeklyChe
   const zigzagHtml=buildStudentZigzagSection(MON,TH_SHORT,byDate,targets);
   const lifestyleHtml=buildLifestyleSection(MON,TH_SHORT,healthLogs);
   const progressHtml=buildProgressSection(weeklyChecks,user.userId);
+  const weeklyHtml=buildStudentWeeklySummary(subs,byDate,healthLogs,weeklySummaries);
 
   document.getElementById('dashboard-content').innerHTML=`
     <div style="background:white;margin:12px 12px 0;border-radius:14px;padding:14px;border:1px solid #E5E7EB">
@@ -1719,6 +1729,7 @@ function renderStudentDashboard(subs, targets, coachNotes, healthLogs, weeklyChe
       ${progressHtml}
       ${zigzagHtml}
       ${lifestyleHtml}
+      ${weeklyHtml}
     </div>`;
 }
 
@@ -1838,16 +1849,20 @@ function buildStudentCard(u){
     const total=daysWithSub.reduce((acc,d)=>{let k=0;byDate[d].forEach(s=>{k+=getSubMacros(s).kcal;});return acc+k;},0);
     avgKcal=Math.round(total/daysWithSub.length);
   }
+  // testimonial badge: streak ≥14 หรือ log ≥20 วัน
+  const uniqueDays=new Set(u.subs.map(s=>subDate(s))).size;
+  const showTestiBadge=streak>=14||uniqueDays>=20;
   const avatarHtml=u.pictureUrl?`<img src="${u.pictureUrl}" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display='none'">`:'👤';
   return`<div class="stu-card" onclick="openStudentDetail('${u.userId}')">
     <div class="stu-card-top">
       <div class="stu-avatar">${avatarHtml}</div>
       <div style="flex:1">
-        <div style="display:flex;align-items:center;gap:6px">
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
           <div class="stu-name">${escHtml(u.displayName||'นักเรียน')}</div>
           ${streak>0?`<span class="stu-streak">🔥 ${streak} วัน</span>`:''}
+          ${showTestiBadge?`<span class="stu-testimonial-badge">⭐ ขอ Review</span>`:''}
         </div>
-        <div style="font-size:11px;color:var(--gray);margin-top:2px">avg ${avgKcal} kcal/วัน</div>
+        <div style="font-size:11px;color:var(--gray);margin-top:2px">avg ${avgKcal} kcal/วัน · log ${uniqueDays} วัน</div>
       </div>
     </div>
     <div style="display:flex;gap:5px;margin-bottom:8px">${dotsHtml}</div>
@@ -2374,6 +2389,79 @@ async function sendZigzagVerdict(userId){
 }
 
 // ===== WEEKLY SUMMARY ACCORDION =====
+function buildStudentWeeklySummary(subs, byDate, healthLogs, weeklySummaries){
+  if(!subs||!subs.length)return'';
+  // group subs by week
+  const weekMap={};
+  subs.forEach(s=>{
+    const d=subDate(s);
+    const weekId=getWeekId(d);
+    if(!weekMap[weekId]){weekMap[weekId]={weekId,dates:[],subs:[]};}
+    if(!weekMap[weekId].dates.includes(d))weekMap[weekId].dates.push(d);
+    weekMap[weekId].subs.push(s);
+  });
+  const weeks=Object.values(weekMap).sort((a,b)=>b.weekId.localeCompare(a.weekId));
+  if(!weeks.length)return'';
+
+  const rows=weeks.map((wk,idx)=>{
+    const{weekId,subs:wSubs}=wk;
+    const saved=weeklySummaries[weekId]||{};
+    const mon=weekId;
+    const sat=new Date(mon+'T00:00:00');sat.setDate(sat.getDate()+5);
+    const satStr=sat.toISOString().split('T')[0];
+    const rangeLabel=formatDateShort(mon)+' – '+formatDateShort(satStr);
+    const datesWithSub=[...new Set(wSubs.map(s=>subDate(s)))];
+    let totKcal=0,totC=0,totP=0,totF=0;
+    datesWithSub.forEach(d=>{
+      (byDate[d]||[]).forEach(s=>{const m=getSubMacros(s);totKcal+=m.kcal;totC+=m.c;totP+=m.p;totF+=m.f;});
+    });
+    const n=datesWithSub.length||1;
+    const avgKcal=Math.round(totKcal/n),avgC=Math.round(totC/n),avgP=Math.round(totP/n),avgF=Math.round(totF/n);
+    const hlDates=Object.keys(healthLogs).filter(d=>d>=mon&&d<=satStr);
+    const hlAvgSleep=hlDates.length?Math.round(hlDates.reduce((a,d)=>a+(healthLogs[d].sleep||0),0)/hlDates.length*10)/10:null;
+    const hlAvgSteps=hlDates.length?Math.round(hlDates.reduce((a,d)=>a+(healthLogs[d].steps||0),0)/hlDates.length):null;
+    const hlAvgCardio=hlDates.length?Math.round(hlDates.reduce((a,d)=>a+(healthLogs[d].cardio||0),0)/hlDates.length):null;
+    const wkNum=weeks.length-idx;
+    const isOpen=idx===0;
+    const coachNote=saved.coachNote||'';
+
+    return`<div class="week-acc">
+      <div class="week-acc-hd" onclick="toggleWeekAcc(this)">
+        <div>
+          <div class="week-acc-title">สัปดาห์ที่ ${wkNum}</div>
+          <div class="week-acc-sub">${rangeLabel} · ${datesWithSub.length} วันที่ส่ง</div>
+        </div>
+        <span style="font-size:13px;color:var(--primary-dark)">${isOpen?'▾':'▸'}</span>
+      </div>
+      <div class="week-acc-body${isOpen?' open':''}">
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-bottom:8px">
+          <div class="stat-box"><div class="stat-val" style="font-size:13px">${avgKcal}</div><div class="stat-lbl">avg kcal</div></div>
+          <div class="stat-box"><div class="stat-val" style="font-size:13px">${avgC}g</div><div class="stat-lbl">avg Carb</div></div>
+          <div class="stat-box"><div class="stat-val" style="font-size:13px">${avgP}g</div><div class="stat-lbl">avg Protein</div></div>
+          <div class="stat-box"><div class="stat-val" style="font-size:13px">${avgF}g</div><div class="stat-lbl">avg Fat</div></div>
+        </div>
+        ${hlAvgSleep!==null?`<div style="display:flex;gap:5px;margin-bottom:8px;flex-wrap:wrap">
+          <span class="stu-chip">😴 นอน avg ${hlAvgSleep} ชม.</span>
+          <span class="stu-chip">👟 ก้าว avg ${hlAvgSteps>=1000?(hlAvgSteps/1000).toFixed(1)+'k':hlAvgSteps}</span>
+          <span class="stu-chip">🏃 คาร์ดิโอ avg ${hlAvgCardio} นาที</span>
+        </div>`:''}
+        ${coachNote
+          ?`<div style="background:#FFFBEB;border:1.5px solid #FDE68A;border-radius:10px;padding:11px;margin-top:4px">
+              <div style="font-size:11px;font-weight:700;color:#92400E;margin-bottom:5px">💬 Feedback จากโค้ช</div>
+              <div style="font-size:12px;color:#78350F;line-height:1.8;white-space:pre-wrap">${escHtml(coachNote)}</div>
+            </div>`
+          :`<div style="font-size:11px;color:var(--gray);text-align:center;padding:8px">ยังไม่มี feedback จากโค้ชสัปดาห์นี้</div>`
+        }
+      </div>
+    </div>`;
+  }).join('');
+
+  return`<div class="sd-section" style="margin-top:10px;margin-bottom:16px">
+    <div class="sd-section-title">📋 สรุปผลรายสัปดาห์</div>
+    ${rows}
+  </div>`;
+}
+
 function buildWeeklySummaryAccordion(u, byDate, targets, healthLogs, weeklySummaries){
   // Build weeks from all submissions — group by Mon-Sat week
   const weekMap={};
@@ -2537,6 +2625,76 @@ async function autoMarkMissedDays(userId, byDate){
       }
     }catch(e){console.log('missed mark err',e);}
   }
+}
+
+// ===== TESTIMONIAL SYSTEM =====
+async function checkTestimonialEligibility(weeklyChecks){
+  if(!weeklyChecks||weeklyChecks.length<2)return;
+  const first=weeklyChecks[0].weight_kg;
+  const last=weeklyChecks[weeklyChecks.length-1].weight_kg;
+  if(!first||!last)return;
+  const lossPct=(first-last)/first;
+  if(lossPct<0.03)return; // ต้องลดอย่างน้อย 3%
+  try{
+    // เช็คว่าเคยส่งแล้วหรือยัง
+    const doc=await db.collection('students').doc(user.userId).get();
+    if(doc.exists&&doc.data().testimonialSent)return;
+    // mark ว่าส่งแล้ว
+    await db.collection('students').doc(user.userId).set({testimonialSent:true,testimonialSentAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
+    // ส่ง Flex Card
+    const lostKg=Math.round((first-last)*10)/10;
+    const lostPct=Math.round(lossPct*100);
+    const flex=buildTestimonialFlex(lostKg,lostPct,weeklyChecks.length);
+    if(typeof liff!=='undefined'&&liff.isInClient()){
+      await liff.sendMessages([flex]);
+    }
+  }catch(e){console.log('testimonial check err',e);}
+}
+
+function buildTestimonialFlex(lostKg, lostPct, weeks){
+  return{
+    type:'flex',
+    altText:`🎉 คุณลดน้ำหนักได้ ${lostKg} กก. แล้ว! ขอ share ประสบการณ์หน่อยนะคะ`,
+    contents:{
+      type:'bubble',
+      size:'kilo',
+      header:{
+        type:'box',layout:'vertical',
+        backgroundColor:'#7C3AED',paddingAll:'16px',
+        contents:[
+          {type:'text',text:'🎉 สุดยอดมากเลยค่ะ!',color:'#FFFFFF',weight:'bold',size:'lg'},
+          {type:'text',text:`ลดน้ำหนักได้ ${lostKg} กก. (${lostPct}%) ใน ${weeks} ครั้งที่วัด`,color:'#EDE9FE',size:'sm',margin:'xs',wrap:true}
+        ]
+      },
+      body:{
+        type:'box',layout:'vertical',paddingAll:'16px',
+        contents:[
+          {
+            type:'box',layout:'vertical',
+            backgroundColor:'#F5F3FF',cornerRadius:'10px',paddingAll:'12px',
+            contents:[
+              {type:'text',text:'✨ ความสำเร็จของคุณจะเป็นแรงบันดาลใจให้คนอื่นอีกเยอะเลยนะคะ',size:'sm',color:'#5B21B6',wrap:true,weight:'bold'},
+            ]
+          },
+          {type:'separator',margin:'lg'},
+          {type:'text',text:'💬 พิมพ์บอกโค้ชได้เลยนะคะ',size:'sm',color:'#374151',margin:'lg',weight:'bold'},
+          {type:'text',text:'รู้สึกยังไงบ้างกับการเดินทางครั้งนี้? อะไรที่ยากที่สุด? ชีวิตเปลี่ยนไปยังไงบ้าง?',size:'sm',color:'#6B7280',wrap:true,margin:'sm'},
+          {
+            type:'box',layout:'vertical',margin:'lg',
+            backgroundColor:'#F9FAFB',cornerRadius:'8px',paddingAll:'10px',
+            contents:[
+              {type:'text',text:'👇 ตอบกลับในแชทนี้ได้เลยค่ะ',size:'xs',color:'#9CA3AF',align:'center'},
+              {type:'text',text:'โค้ชจะบันทึกเป็น success story ให้นะคะ 💙',size:'xs',color:'#9CA3AF',align:'center',margin:'xs'}
+            ]
+          }
+        ]
+      },
+      footer:{
+        type:'box',layout:'vertical',paddingAll:'10px',
+        contents:[{type:'text',text:'DO IT FIT · ส่งอัตโนมัติเมื่อถึงเป้าหมาย',size:'xxs',color:'#aaaaaa',align:'center'}]
+      }
+    }
+  };
 }
 
 // ===== LINE FEEDBACK CARD =====
