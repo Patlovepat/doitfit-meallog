@@ -160,6 +160,21 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
 .gram-row input{flex:1;border:1.5px solid #E5E7EB;border-radius:8px;padding:9px;font-size:15px;font-family:'Prompt',sans-serif;text-align:center}
 .gram-row input:focus{outline:none;border-color:var(--primary)}
 .weigh-result{background:var(--light);border-radius:10px;padding:12px;margin-top:10px;display:flex;justify-content:space-around}
+.weigh-tab-toggle{display:flex;gap:6px;margin-bottom:10px}
+.wtab{flex:1;padding:8px;border-radius:8px;border:1.5px solid #E5E7EB;background:#fff;font-family:'Prompt',sans-serif;font-size:13px;cursor:pointer;color:var(--gray);transition:.15s}
+.wtab.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+.ai-food-textarea{width:100%;border:1.5px solid #E5E7EB;border-radius:10px;padding:10px 12px;font-size:13px;font-family:'Prompt',sans-serif;resize:none;line-height:1.7;box-sizing:border-box;color:var(--text)}
+.ai-food-textarea:focus{outline:none;border-color:var(--primary)}
+.ai-calc-btn{width:100%;padding:11px;background:var(--primary);color:#fff;border:none;border-radius:10px;font-family:'Prompt',sans-serif;font-size:14px;font-weight:500;cursor:pointer;margin-top:8px;transition:.15s}
+.ai-calc-btn:disabled{opacity:0.6;cursor:not-allowed}
+.ai-item-row{display:flex;justify-content:space-between;align-items:flex-start;padding:7px 0;border-bottom:1px solid #E5E7EB;font-size:13px}
+.ai-item-row:last-child{border-bottom:none}
+.ai-item-name{flex:1;color:var(--text);line-height:1.4}
+.ai-item-mac{font-size:11px;color:var(--gray);text-align:right;white-space:nowrap;padding-left:8px}
+.ai-total-bar{background:#fff;border-radius:8px;padding:9px 12px;margin-top:8px;display:flex;justify-content:space-between;align-items:center}
+.ai-total-kcal{font-size:17px;font-weight:700;color:var(--primary-dark)}
+.ai-total-mac{font-size:12px;color:var(--gray)}
+.ai-error{color:#e53e3e;font-size:13px;padding:8px 0;text-align:center}
 .w-item{text-align:center}
 .w-item .wval{font-size:18px;font-weight:700;color:var(--primary-dark)}
 .w-item .wname{font-size:11px;color:var(--gray)}
@@ -581,17 +596,30 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
     <!-- WEIGH MODE -->
     <div id="panel-weigh" style="display:none">
       <div class="section-card">
-        <div class="section-title">ค้นหาอาหาร</div>
-        <input type="text" class="food-search" id="food-search" placeholder="พิมพ์ชื่ออาหาร เช่น ข้าว, chicken, salmon..." oninput="filterFoods()">
-        <div id="usda-status" style="font-size:11px;color:var(--gray);padding:4px 0;display:none"></div>
-        <div class="food-list" id="food-list"></div>
-        <div id="gram-area" style="display:none">
-          <div class="gram-row"><label>น้ำหนัก (กรัม):</label><input type="number" id="grams-in" min="1" step="1" placeholder="100" oninput="calcWeigh()"></div>
-          <div class="weigh-result" id="weigh-result" style="display:none">
-            <div class="w-item"><div class="wval" id="wv-carb">0</div><div class="wname">คาร์บ (ก.)</div></div>
-            <div class="w-item"><div class="wval" id="wv-prot">0</div><div class="wname">โปรตีน (ก.)</div></div>
-            <div class="w-item"><div class="wval" id="wv-fat">0</div><div class="wname">ไขมัน (ก.)</div></div>
+        <div class="weigh-tab-toggle">
+          <button class="wtab active" id="wtab-manual" onclick="setWeighTab('manual')">🔍 ค้นหาเอง</button>
+          <button class="wtab" id="wtab-ai" onclick="setWeighTab('ai')">✨ AI กรอก</button>
+        </div>
+        <!-- Manual search -->
+        <div id="weigh-manual">
+          <input type="text" class="food-search" id="food-search" placeholder="พิมพ์ชื่ออาหาร เช่น ข้าว, chicken, salmon..." oninput="filterFoods()">
+          <div id="usda-status" style="font-size:11px;color:var(--gray);padding:4px 0;display:none"></div>
+          <div class="food-list" id="food-list"></div>
+          <div id="gram-area" style="display:none">
+            <div class="gram-row"><label>น้ำหนัก (กรัม):</label><input type="number" id="grams-in" min="1" step="1" placeholder="100" oninput="calcWeigh()"></div>
+            <div class="weigh-result" id="weigh-result" style="display:none">
+              <div class="w-item"><div class="wval" id="wv-carb">0</div><div class="wname">คาร์บ (ก.)</div></div>
+              <div class="w-item"><div class="wval" id="wv-prot">0</div><div class="wname">โปรตีน (ก.)</div></div>
+              <div class="w-item"><div class="wval" id="wv-fat">0</div><div class="wname">ไขมัน (ก.)</div></div>
+            </div>
           </div>
+        </div>
+        <!-- AI mode -->
+        <div id="weigh-ai" style="display:none">
+          <div style="font-size:12px;color:var(--gray);margin-bottom:8px">พิมพ์อาหารทั้งหมดที่กิน ไม่ต้องเป๊ะ — AI จะแปลงให้</div>
+          <textarea class="ai-food-textarea" id="ai-food-input" rows="5" placeholder="ตัวอย่าง:&#10;ข้าวกล้อง 2 ทัพพี&#10;ไข่ไก่ 2 ฟอง&#10;หมูสันใน 100g&#10;ผักผัด 60g"></textarea>
+          <button class="ai-calc-btn" id="ai-calc-btn" onclick="callGeminiAI()">✨ ให้ AI คำนวณ</button>
+          <div id="ai-result-area" style="display:none"></div>
         </div>
       </div>
     </div>
@@ -2556,6 +2584,8 @@ const TH_FOODS=[
 // STATE
 let user=null, isCoach=false, curMeal='เช้า', curMode='hand', studentTab='log';
 let photoBase64=null, selFood=null, coachTab='pending', allSubs=[], cState={};
+const GEMINI_KEY='AQ.Ab8RN6JxIssxXOW7r5wfGoc5BzEd4abAVFmDFTq8GWoakdz81A';
+let aiParsedData=null, weighSubTab='manual';
 let _photoProcessing=false;
 let selectedDate=todayStr();
 
@@ -3396,7 +3426,69 @@ function calcWeigh(){
   if(g>0){const r=g/100;document.getElementById('wv-carb').textContent=(selFood.c*r).toFixed(1);document.getElementById('wv-prot').textContent=(selFood.p*r).toFixed(1);document.getElementById('wv-fat').textContent=(selFood.f*r).toFixed(1);document.getElementById('weigh-result').style.display='flex';}
   else{document.getElementById('weigh-result').style.display='none';}
 }
+function setWeighTab(tab){
+  weighSubTab=tab;
+  document.getElementById('wtab-manual').classList.toggle('active',tab==='manual');
+  document.getElementById('wtab-ai').classList.toggle('active',tab==='ai');
+  document.getElementById('weigh-manual').style.display=tab==='manual'?'block':'none';
+  document.getElementById('weigh-ai').style.display=tab==='ai'?'block':'none';
+}
+async function callGeminiAI(){
+  const text=document.getElementById('ai-food-input').value.trim();
+  if(!text){alert('กรุณาพิมพ์รายการอาหารก่อนค่ะ');return;}
+  const btn=document.getElementById('ai-calc-btn');
+  btn.disabled=true;btn.textContent='⏳ กำลังวิเคราะห์...';
+  document.getElementById('ai-result-area').style.display='none';
+  const prompt=`คุณเป็นนักโภชนาการผู้เชี่ยวชาญด้านอาหารไทย วิเคราะห์รายการอาหารต่อไปนี้แล้วคำนวณสารอาหาร
+รายการอาหาร:
+${text}
+
+ตอบด้วย JSON เท่านั้น ห้ามมีข้อความอื่น รูปแบบ:
+{"items":[{"name":"ชื่ออาหาร","amount":"จำนวน+หน่วย","c":0.0,"p":0.0,"f":0.0,"kcal":0}],"total":{"c":0.0,"p":0.0,"f":0.0,"kcal":0}}
+กฎ: c=คาร์บ p=โปรตีน f=ไขมัน หน่วยเป็นกรัม ทศนิยม1ตำแหน่ง kcal=c*4+p*4+f*9 ปัดเป็นจำนวนเต็ม ถ้าไม่บอกปริมาณให้ใช้ขนาดปกติของไทย`;
+  try{
+    const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`,{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:0.1}})
+    });
+    const data=await res.json();
+    if(data.error)throw new Error(data.error.message);
+    const raw=data.candidates[0].content.parts[0].text;
+    const m=raw.match(/\{[\s\S]*\}/);
+    if(!m)throw new Error('ไม่พบ JSON ในคำตอบ');
+    aiParsedData=JSON.parse(m[0]);
+    renderAIResult(aiParsedData);
+  }catch(e){
+    const area=document.getElementById('ai-result-area');
+    area.innerHTML=`<div class="ai-error">⚠️ ${e.message}</div>`;
+    area.style.display='block';
+  }finally{
+    btn.disabled=false;btn.textContent='✨ ให้ AI คำนวณ';
+  }
+}
+function renderAIResult(data){
+  const area=document.getElementById('ai-result-area');
+  if(!data||!data.items){area.innerHTML='<div class="ai-error">ไม่สามารถวิเคราะห์ได้ค่ะ</div>';area.style.display='block';return;}
+  area.innerHTML=`<div style="background:var(--light);border-radius:10px;padding:8px 12px;margin-top:4px">
+    ${data.items.map(it=>`<div class="ai-item-row">
+      <div class="ai-item-name">${it.name}<br><span style="font-size:11px;color:var(--gray)">${it.amount||''}</span></div>
+      <div class="ai-item-mac">C${it.c} P${it.p} F${it.f}<br>${it.kcal} kcal</div>
+    </div>`).join('')}
+    <div class="ai-total-bar">
+      <span class="ai-total-kcal">${data.total.kcal} kcal</span>
+      <span class="ai-total-mac">C ${data.total.c}g · P ${data.total.p}g · F ${data.total.f}g</span>
+    </div>
+  </div>`;
+  area.style.display='block';
+}
 function getWeighData(){
+  if(weighSubTab==='ai'){
+    if(!aiParsedData)return null;
+    const t=aiParsedData.total;
+    const preview=document.getElementById('ai-food-input').value.substring(0,50).replace(/
+/g,' ');
+    return{food:'AI: '+preview,grams:0,carb:t.c,protein:t.p,fat:t.f,aiItems:aiParsedData.items};
+  }
   if(!selFood)return null;const g=parseFloat(document.getElementById('grams-in').value)||0;const r=g/100;
   return{food:selFood.name,grams:g,carb:parseFloat((selFood.c*r).toFixed(1)),protein:parseFloat((selFood.p*r).toFixed(1)),fat:parseFloat((selFood.f*r).toFixed(1))};
 }
@@ -3455,7 +3547,7 @@ async function submitMeal(){
       labelData=getLabelData();
     }else if(curMode==='weigh'){
       weighData=getWeighData();
-      if(!weighData){alert('กรุณาเลือกอาหารและกรอกน้ำหนักค่ะ');btn.disabled=false;btn.textContent='ส่งให้โค้ชตรวจ ✓';return;}
+      if(!weighData){alert(weighSubTab==='ai'?'กรุณาให้ AI คำนวณก่อนค่ะ':'กรุณาเลือกอาหารและกรอกน้ำหนักค่ะ');btn.disabled=false;btn.textContent='ส่งให้โค้ชตรวจ ✓';return;}
     }
     await db.collection('submissions').add({
       userId:user.userId,displayName:user.displayName,pictureUrl:user.pictureUrl||null,
@@ -3729,6 +3821,9 @@ function resetStudent(){
   document.getElementById('gram-area').style.display='none';
   document.getElementById('weigh-result').style.display='none';
   renderFoodList(TH_FOODS.slice(0,20));
+  aiParsedData=null;weighSubTab='manual';setWeighTab('manual');
+  const aif=document.getElementById('ai-food-input');if(aif)aif.value='';
+  const air=document.getElementById('ai-result-area');if(air)air.style.display='none';
   document.getElementById('success-screen').style.display='none';
   document.getElementById('student-view').style.display='block';
   document.querySelectorAll('.mode-tab')[0].click();
