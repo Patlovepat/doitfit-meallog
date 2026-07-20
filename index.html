@@ -437,7 +437,7 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
       </div>
     </div>
     <div class="mode-tabs">
-      <div class="mode-tab active" data-mode="hand" onclick="selMode(this)">✊ มือกุ้ม</div>
+      <div class="mode-tab active" data-mode="hand" onclick="selMode(this)">👊 Hand portion</div>
       <div class="mode-tab" data-mode="label" onclick="selMode(this)">🏷️ ฉลาก</div>
       <div class="mode-tab" data-mode="weigh" onclick="selMode(this)">⚖️ ชั่ง</div>
     </div>
@@ -446,6 +446,35 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
     <div id="panel-hand">
       <div class="section-card">
         <div class="section-title">ประมาณปริมาณ (ต่อมื้อ)</div>
+        <!-- TIP CARD -->
+        <div style="border:1px solid #E5E7EB;border-radius:10px;overflow:hidden;margin-bottom:14px">
+          <div onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none';this.querySelector('.tc-chev').style.transform=this.nextElementSibling.style.display==='none'?'rotate(0deg)':'rotate(180deg)'" style="display:flex;justify-content:space-between;align-items:center;padding:10px 13px;background:#EFF6FF;cursor:pointer">
+            <span style="font-size:13px;font-weight:500;color:#1D4ED8">📏 ไกด์วัดมือ</span>
+            <span class="tc-chev" style="font-size:12px;color:#93C5FD;transition:transform .2s;transform:rotate(180deg)">▼</span>
+          </div>
+          <div style="padding:10px 13px;background:#fff">
+            <div style="display:flex;align-items:flex-start;gap:8px;padding:5px 0;border-bottom:1px solid #F3F4F6">
+              <span style="font-size:16px;width:22px;flex-shrink:0">🍚</span>
+              <div style="font-size:13px;color:#1F2937">คาร์บ = 1 ฝ่ามือ<div style="font-size:11px;color:#6B7280;margin-top:1px">สันมือ ไม่รวมนิ้ว · ≈ 1 ทัพพี</div></div>
+            </div>
+            <div style="display:flex;align-items:flex-start;gap:8px;padding:5px 0;border-bottom:1px solid #F3F4F6">
+              <span style="font-size:16px;width:22px;flex-shrink:0">🍗</span>
+              <div style="font-size:13px;color:#1F2937">โปรตีน = 1 ฝ่ามือ<div style="font-size:11px;color:#6B7280;margin-top:1px">สันมือ ไม่รวมนิ้ว</div></div>
+            </div>
+            <div style="display:flex;align-items:flex-start;gap:8px;padding:5px 0;border-bottom:1px solid #F3F4F6">
+              <span style="font-size:16px;width:22px;flex-shrink:0">🫒</span>
+              <div style="font-size:13px;color:#1F2937">ไขมัน = 1 หัวแม่โป้ง<div style="font-size:11px;color:#6B7280;margin-top:1px">= 1 ช้อนชา</div></div>
+            </div>
+            <div style="background:#FEF3C7;border-radius:8px;padding:8px 10px;margin-top:8px">
+              <div style="font-size:11px;font-weight:500;color:#92400E;margin-bottom:5px">⚠️ ข้อผิดพลาดที่เจอบ่อย</div>
+              <div style="font-size:12px;color:#92400E;padding:2px 0">❌ คาร์บ ≠ กำปั้น — แค่ 1/3 ของข้าวถ้วยเซเว่น</div>
+              <div style="font-size:12px;color:#92400E;padding:2px 0">❌ ไขมัน ≠ ช้อนโต๊ะ — แค่ 1 ช้อนชาเท่านั้น!</div>
+            </div>
+            <div style="background:#F0FDF4;border-radius:8px;padding:8px 10px;margin-top:8px;font-size:12px;color:#065F46;line-height:1.5">
+              💡 จดบันทึกยาก = สัญญาณว่าอาหารนั้นอาจไม่เหมาะกับการลดไขมัน
+            </div>
+          </div>
+        </div>
         <!-- CARB + FRUIT -->
         <div class="hmb">
           <div class="hmb-header" onclick="toggleSection('carb')">
@@ -596,26 +625,8 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
     <!-- WEIGH MODE -->
     <div id="panel-weigh" style="display:none">
       <div class="section-card">
-        <div class="weigh-tab-toggle">
-          <button class="wtab active" id="wtab-manual" onclick="setWeighTab('manual')">🔍 ค้นหาเอง</button>
-          <button class="wtab" id="wtab-ai" onclick="setWeighTab('ai')">✨ AI กรอก</button>
-        </div>
-        <!-- Manual search -->
-        <div id="weigh-manual">
-          <input type="text" class="food-search" id="food-search" placeholder="พิมพ์ชื่ออาหาร เช่น ข้าว, chicken, salmon..." oninput="filterFoods()">
-          <div id="usda-status" style="font-size:11px;color:var(--gray);padding:4px 0;display:none"></div>
-          <div class="food-list" id="food-list"></div>
-          <div id="gram-area" style="display:none">
-            <div class="gram-row"><label>น้ำหนัก (กรัม):</label><input type="number" id="grams-in" min="1" step="1" placeholder="100" oninput="calcWeigh()"></div>
-            <div class="weigh-result" id="weigh-result" style="display:none">
-              <div class="w-item"><div class="wval" id="wv-carb">0</div><div class="wname">คาร์บ (ก.)</div></div>
-              <div class="w-item"><div class="wval" id="wv-prot">0</div><div class="wname">โปรตีน (ก.)</div></div>
-              <div class="w-item"><div class="wval" id="wv-fat">0</div><div class="wname">ไขมัน (ก.)</div></div>
-            </div>
-          </div>
-        </div>
         <!-- AI mode -->
-        <div id="weigh-ai" style="display:none">
+        <div id="weigh-ai">
           <div style="font-size:12px;color:var(--gray);margin-bottom:8px">พิมพ์อาหารทั้งหมดที่กิน ไม่ต้องเป๊ะ — AI จะแปลงให้</div>
           <textarea class="ai-food-textarea" id="ai-food-input" rows="5" placeholder="ตัวอย่าง:&#10;ข้าวกล้อง 2 ทัพพี&#10;ไข่ไก่ 2 ฟอง&#10;หมูสันใน 100g&#10;ผักผัด 60g"></textarea>
           <button class="ai-calc-btn" id="ai-calc-btn" onclick="callGeminiAI()">✨ ให้ AI คำนวณ</button>
@@ -740,8 +751,7 @@ firebase.initializeApp({
 });
 const db = firebase.firestore();
 
-const USDA_KEY='b9hzP7JWaIpRgdToTx0mgPYnA1Vl9tCQp9E65VxZ';
-const TH_FOODS=[
+const _REMOVED=[
   {name:'ข้าวขาวสุก',c:28,p:2.7,f:0.3,src:'th'},
   {name:'ข้าวกล้องสุก',c:23,p:2.5,f:1.0,src:'th'},
   {name:'ข้าวเหนียวสุก',c:30,p:2.3,f:0.2,src:'th'},
@@ -2583,9 +2593,9 @@ const TH_FOODS=[
 
 // STATE
 let user=null, isCoach=false, curMeal='เช้า', curMode='hand', studentTab='log';
-let photoBase64=null, selFood=null, coachTab='pending', allSubs=[], cState={};
+let photoBase64=null, coachTab='pending', allSubs=[], cState={};
 const GROQ_KEY='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';
-let aiParsedData=null, weighSubTab='manual';
+let aiParsedData=null;
 let _photoProcessing=false;
 let selectedDate=todayStr();
 
@@ -2731,7 +2741,6 @@ function startStudent(){
   if(user.pictureUrl){pic.src=user.pictureUrl;}else{pic.style.display='none';}
   document.getElementById('user-id-bar').style.display='block';
   document.getElementById('user-id-txt').textContent=user.userId;
-  renderFoodList(TH_FOODS.slice(0,20));
   loadStreak();
   renderCarbSlots();
   initFruitGrid();
@@ -3382,57 +3391,7 @@ function getLabelData(){
   return{carb:c*s,protein:p*s,fat:f*s};
 }
 
-// WEIGH
-let _usdaTimer=null;
-function filterFoods(){
-  const q=document.getElementById('food-search').value.trim();
-  const local=q?TH_FOODS.filter(f=>f.name.toLowerCase().includes(q.toLowerCase())):TH_FOODS.slice(0,20);
-  renderFoodList(local);
-  clearTimeout(_usdaTimer);
-  const status=document.getElementById('usda-status');
-  if(q.length>=2){
-    status.style.display='block';status.textContent='🔍 กำลังค้นใน USDA...';
-    _usdaTimer=setTimeout(async()=>{
-      const usdaResults=await searchUSDA(q);
-      const names=new Set(local.map(f=>f.name.toLowerCase()));
-      const merged=local.concat(usdaResults.filter(f=>!names.has(f.name.toLowerCase())));
-      renderFoodList(merged);
-      status.textContent=usdaResults.length?`🌐 พบ ${usdaResults.length} รายการเพิ่มจาก USDA`:'';
-    },700);
-  }else{status.style.display='none';}
-}
-async function searchUSDA(q){
-  try{
-    const url=`https://api.nal.usda.gov/fdc/v1/foods/search?query=${encodeURIComponent(q)}&dataType=Foundation,SR%20Legacy&pageSize=6&api_key=${USDA_KEY}`;
-    const res=await fetch(url);if(!res.ok)return[];
-    const data=await res.json();
-    return(data.foods||[]).map(f=>{
-      const get=(id)=>{const n=(f.foodNutrients||[]).find(n=>n.nutrientId===id||n.nutrientNumber==id);return n?Math.round((n.value||0)*10)/10:0;};
-      return{name:f.description,c:get(205),p:get(203),f:get(204),src:'usda'};
-    });
-  }catch(e){return[];}
-}
-function renderFoodList(list){
-  document.getElementById('food-list').innerHTML=list.length
-    ?list.map(f=>{
-        const badge=f.src==='usda'?'<span style="font-size:9px;background:#EFF6FF;color:#1D4ED8;border-radius:4px;padding:1px 5px;margin-left:4px">USDA</span>':'<span style="font-size:9px;background:#FEF9EC;color:#D4891A;border-radius:4px;padding:1px 5px;margin-left:4px">🇹🇭</span>';
-        return`<div class="food-item${selFood&&selFood.name===f.name?' selected':''}" onclick='pickFood(${JSON.stringify(f)})'>${f.name}${badge}<div class="food-macros">คาร์บ ${f.c}g · โปรตีน ${f.p}g · ไขมัน ${f.f}g (ต่อ 100g)</div></div>`;
-      }).join('')
-    :'<div style="padding:14px;text-align:center;color:var(--gray);font-size:13px">ไม่พบรายการค่ะ</div>';
-}
-function pickFood(f){selFood=typeof f==='string'?JSON.parse(f):f;document.getElementById('gram-area').style.display='block';document.getElementById('grams-in').focus();calcWeigh();}
-function calcWeigh(){
-  if(!selFood)return;const g=parseFloat(document.getElementById('grams-in').value)||0;
-  if(g>0){const r=g/100;document.getElementById('wv-carb').textContent=(selFood.c*r).toFixed(1);document.getElementById('wv-prot').textContent=(selFood.p*r).toFixed(1);document.getElementById('wv-fat').textContent=(selFood.f*r).toFixed(1);document.getElementById('weigh-result').style.display='flex';}
-  else{document.getElementById('weigh-result').style.display='none';}
-}
-function setWeighTab(tab){
-  weighSubTab=tab;
-  document.getElementById('wtab-manual').classList.toggle('active',tab==='manual');
-  document.getElementById('wtab-ai').classList.toggle('active',tab==='ai');
-  document.getElementById('weigh-manual').style.display=tab==='manual'?'block':'none';
-  document.getElementById('weigh-ai').style.display=tab==='ai'?'block':'none';
-}
+// WEIGH (AI only)
 async function callGeminiAI(){
   const text=document.getElementById('ai-food-input').value.trim();
   if(!text){alert('กรุณาพิมพ์รายการอาหารก่อนค่ะ');return;}
@@ -3482,14 +3441,10 @@ function renderAIResult(data){
   area.style.display='block';
 }
 function getWeighData(){
-  if(weighSubTab==='ai'){
-    if(!aiParsedData)return null;
-    const t=aiParsedData.total;
-    const preview=document.getElementById('ai-food-input').value.substring(0,50).split('\n').join(' ');
-    return{food:'AI: '+preview,grams:0,carb:t.c,protein:t.p,fat:t.f,aiItems:aiParsedData.items};
-  }
-  if(!selFood)return null;const g=parseFloat(document.getElementById('grams-in').value)||0;const r=g/100;
-  return{food:selFood.name,grams:g,carb:parseFloat((selFood.c*r).toFixed(1)),protein:parseFloat((selFood.p*r).toFixed(1)),fat:parseFloat((selFood.f*r).toFixed(1))};
+  if(!aiParsedData)return null;
+  const t=aiParsedData.total;
+  const preview=document.getElementById('ai-food-input').value.substring(0,50).split('\n').join(' ');
+  return{food:'AI: '+preview,grams:0,carb:t.c,protein:t.p,fat:t.f,aiItems:aiParsedData.items};
 }
 
 // PHOTO
@@ -3546,7 +3501,7 @@ async function submitMeal(){
       labelData=getLabelData();
     }else if(curMode==='weigh'){
       weighData=getWeighData();
-      if(!weighData){alert(weighSubTab==='ai'?'กรุณาให้ AI คำนวณก่อนค่ะ':'กรุณาเลือกอาหารและกรอกน้ำหนักค่ะ');btn.disabled=false;btn.textContent='ส่งให้โค้ชตรวจ ✓';return;}
+      if(!weighData){alert('กรุณาให้ AI คำนวณก่อนค่ะ');btn.disabled=false;btn.textContent='ส่งให้โค้ชตรวจ ✓';return;}
     }
     await db.collection('submissions').add({
       userId:user.userId,displayName:user.displayName,pictureUrl:user.pictureUrl||null,
@@ -3622,7 +3577,7 @@ async function loadHistory(){
 
 function buildHistCard(s){
   const DL={veggie:'🟢ผัก',light:'🔵เบา',normal:'🟡ปกติ',dense:'🟠แน่น',heavy:'🔴ตัวตึง'};
-  const modeLabel={hand:'✊ มือกุ้ม',label:'🏷️ ฉลาก',weigh:'⚖️ ชั่ง'}[s.mode]||s.mode;
+  const modeLabel={hand:'👊 Hand portion',label:'🏷️ ฉลาก',weigh:'✨ AI'}[s.mode]||s.mode;
   const statusHtml={pending:'<span class="status-badge pending">⏳ รออนุมัติ</span>',approved:'<span class="status-badge approved">✅ อนุมัติแล้ว</span>',corrected:'<span class="status-badge corrected">✏️ โค้ชแก้ไข</span>'}[s.status]||'';
   const dateLabel=s.mealDate?formatDateTH(s.mealDate):(s.createdAt?formatTime(s.createdAt.toDate()):'');
   let chips='';
@@ -3783,7 +3738,7 @@ function renderStudentDashboard(subs, targets, coachNotes, healthLogs, weeklyChe
 }
 
 function resetStudent(){
-  photoBase64=null;selFood=null;_photoProcessing=false;selectedDate=todayStr();
+  photoBase64=null;_photoProcessing=false;selectedDate=todayStr();
   // reset carb slots
   carbSlots=[{id:0,density:'normal',qty:1.5}];carbSlotNextId=1;
   // reset section open state (close all)
@@ -3815,12 +3770,7 @@ function resetStudent(){
   ['lb-carb','lb-prot','lb-fat'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('lb-serv').value='1';
   document.getElementById('label-total').style.display='none';
-  document.getElementById('food-search').value='';
-  document.getElementById('grams-in').value='';
-  document.getElementById('gram-area').style.display='none';
-  document.getElementById('weigh-result').style.display='none';
-  renderFoodList(TH_FOODS.slice(0,20));
-  aiParsedData=null;weighSubTab='manual';setWeighTab('manual');
+  aiParsedData=null;
   const aif=document.getElementById('ai-food-input');if(aif)aif.value='';
   const air=document.getElementById('ai-result-area');if(air)air.style.display='none';
   document.getElementById('success-screen').style.display='none';
@@ -4206,7 +4156,7 @@ function buildLifestyleSection(MON, TH_SHORT, healthLogs){
 function buildCard(s){
   const cs=cState[s.id]||{},showCorr=cs.open||false;
   const DL={veggie:'🟢ผัก',light:'🔵เบา',normal:'🟡ปกติ',dense:'🟠แน่น',heavy:'🔴ตัวตึง'};
-  const modeLabel={hand:'✊ มือ',label:'🏷️ ฉลาก',weigh:'⚖️ ชั่ง'}[s.mode]||s.mode;
+  const modeLabel={hand:'👊 Hand portion',label:'🏷️ ฉลาก',weigh:'✨ AI'}[s.mode]||s.mode;
   let chips='';
   if(s.mode==='hand'&&s.handData){
     const hd=s.handData;
