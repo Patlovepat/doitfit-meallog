@@ -3485,8 +3485,7 @@ function getWeighData(){
   if(weighSubTab==='ai'){
     if(!aiParsedData)return null;
     const t=aiParsedData.total;
-    const preview=document.getElementById('ai-food-input').value.substring(0,50).replace(/
-/g,' ');
+    const preview=document.getElementById('ai-food-input').value.substring(0,50).split('\n').join(' ');
     return{food:'AI: '+preview,grams:0,carb:t.c,protein:t.p,fat:t.f,aiItems:aiParsedData.items};
   }
   if(!selFood)return null;const g=parseFloat(document.getElementById('grams-in').value)||0;const r=g/100;
