@@ -2584,7 +2584,7 @@ const TH_FOODS=[
 // STATE
 let user=null, isCoach=false, curMeal='เช้า', curMode='hand', studentTab='log';
 let photoBase64=null, selFood=null, coachTab='pending', allSubs=[], cState={};
-const GEMINI_KEY='AQ.Ab8RN6KWtvY4fWrzz4-_6wyTLccswKOOKW9ajipH-e4mn3_nvw';
+const GROQ_KEY='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';
 let aiParsedData=null, weighSubTab='manual';
 let _photoProcessing=false;
 let selectedDate=todayStr();
@@ -3447,13 +3447,13 @@ ${text}
 {"items":[{"name":"ชื่ออาหาร","amount":"จำนวน+หน่วย","c":0.0,"p":0.0,"f":0.0,"kcal":0}],"total":{"c":0.0,"p":0.0,"f":0.0,"kcal":0}}
 กฎ: c=คาร์บ p=โปรตีน f=ไขมัน หน่วยเป็นกรัม ทศนิยม1ตำแหน่ง kcal=c*4+p*4+f*9 ปัดเป็นจำนวนเต็ม ถ้าไม่บอกปริมาณให้ใช้ขนาดปกติของไทย`;
   try{
-    const res=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',{
-      method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':GEMINI_KEY},
-      body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:0.1}})
+    const res=await fetch('https://api.groq.com/openai/v1/chat/completions',{
+      method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+GROQ_KEY},
+      body:JSON.stringify({model:'llama-3.3-70b-versatile',messages:[{role:'user',content:prompt}],temperature:0.1})
     });
     const data=await res.json();
     if(data.error)throw new Error(data.error.message);
-    const raw=data.candidates[0].content.parts[0].text;
+    const raw=data.choices[0].message.content;
     const m=raw.match(/\{[\s\S]*\}/);
     if(!m)throw new Error('ไม่พบ JSON ในคำตอบ');
     aiParsedData=JSON.parse(m[0]);
