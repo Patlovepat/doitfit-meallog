@@ -434,6 +434,10 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
 </div>
 
 <!-- STUDENT VIEW -->
+<div id="test-mode-banner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:#7C3AED;color:#fff;padding:8px 16px;font-size:13px;font-family:'Prompt',sans-serif;display:none;align-items:center;justify-content:space-between;gap:8px">
+  <span>🧪 Test Mode — ส่งข้อมูลจะถูก tag ว่าทดสอบ</span>
+  <button onclick="exitTestMode()" style="background:rgba(255,255,255,0.2);border:none;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer;font-family:'Prompt',sans-serif;font-size:12px">✕ กลับหน้าโค้ช</button>
+</div>
 <div id="student-view">
   <div class="app-header">
     <div class="logo"><span>DO</span></div>
@@ -738,7 +742,7 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
   <div class="app-header">
     <div class="logo"><span>DO</span></div>
     <h1>Coach Dashboard</h1>
-    <span class="coach-badge">👑 Coach</span>
+    <span class="coach-badge" onclick="enterTestMode()" title="ทดสอบโหมดนักเรียน" style="cursor:pointer">👑 Coach</span>
   </div>
   <div class="coach-tabs">
     <div class="coach-tab active" data-tab="pending" onclick="selCoachTab(this)">
@@ -2623,10 +2627,11 @@ const _REMOVED=[
 ];
 
 // STATE
-let user=null, isCoach=false, curMeal='เช้า', curMode='hand', studentTab='log';
+let user=null, isCoach=false, curMeal='เช้า', curMode='hand', studentTab='log', testMode=false;
 let photoBase64=null, coachTab='pending', allSubs=[], cState={};
 let coachFilter='all';
 let studentTodaySubs=[];
+let histCache=null;
 const GROQ_KEY='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';
 let aiParsedData=null;
 let _photoProcessing=false;
@@ -3597,14 +3602,16 @@ async function submitMeal(){
       meal:curMeal,mode:curMode,mealDate:selectedDate,
       handData,labelData,weighData,photoBase64:photoBase64||null,
       status:'pending',correction:null,
+      isTest:testMode||false,
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
     // update today's progress bar locally
     const newSubLocal={mode:curMode,mealDate:selectedDate,handData,labelData,weighData,status:'pending'};
     studentTodaySubs.push(newSubLocal);
     renderDailyProgress();
+    histCache=null; // invalidate history cache
     showSuccess(curMode,handData,labelData,weighData);
-    sendFeedbackCard(); // LINE Flex Message feedback
+    if(!testMode)sendFeedbackCard(); // ไม่ส่ง LINE card ใน test mode
   }catch(e){console.error(e);alert('เกิดข้อผิดพลาด: '+e.message);btn.disabled=false;btn.textContent='ส่งให้โค้ชตรวจ ✓';}
 }
 
@@ -3659,11 +3666,16 @@ async function showMilestone(){
 // HISTORY
 async function loadHistory(){
   const list=document.getElementById('history-list');
+  if(histCache){
+    list.innerHTML=histCache.map(s=>buildHistCard(s)).join('');
+    return;
+  }
   list.innerHTML='<div style="padding:32px;text-align:center;color:var(--gray)"><div style="font-size:32px;margin-bottom:8px">⏳</div>กำลังโหลด...</div>';
   try{
     const snap=await db.collection('submissions').where('userId','==',user.userId).limit(30).get();
     const subs=snap.docs.map(d=>({id:d.id,...d.data()}))
       .sort((a,b)=>{const ta=a.createdAt?.toDate?.()?.getTime?.()||0,tb=b.createdAt?.toDate?.()?.getTime?.()||0;return tb-ta;});
+    histCache=subs;
     if(!subs.length){list.innerHTML='<div class="hist-empty"><div class="he-icon">📭</div><p>ยังไม่มีประวัติการส่งค่ะ<br>ลองบันทึกมื้อแรกเลย!</p></div>';return;}
     list.innerHTML=subs.map(s=>buildHistCard(s)).join('');
   }catch(e){list.innerHTML='<div style="padding:24px;text-align:center;color:#EF4444">โหลดไม่ได้: '+e.message+'</div>';}
@@ -3715,6 +3727,7 @@ async function deleteHistSub(id){
   if(!confirm('ลบรายการนี้?'))return;
   try{
     await db.collection('submissions').doc(id).delete();
+    histCache=null; // invalidate history cache
     loadHistory();
     loadTodayProgress();
   }catch(e){alert('ลบไม่ได้: '+e.message);}
@@ -3727,9 +3740,9 @@ function getSubMacros(s){
   else if(s.mode==='label'&&s.labelData){c=s.labelData.carb||0;p=s.labelData.protein||0;f=s.labelData.fat||0;}
   else if(s.mode==='weigh'&&s.weighData){c=s.weighData.carb||0;p=s.weighData.protein||0;f=s.weighData.fat||0;}
   if(s.status==='corrected'&&s.correction){
-    c=s.correction.carb||c;
-    p=s.correction.protein||p;
-    f=s.correction.fat||f;
+    if(s.correction.carb!==undefined)c=s.correction.carb;
+    if(s.correction.protein!==undefined)p=s.correction.protein;
+    if(s.correction.fat!==undefined)f=s.correction.fat;
   }
   const kcal=(s.mode==='weigh'&&s.weighData&&s.weighData.kcal&&!(s.status==='corrected'&&s.correction))?s.weighData.kcal:Math.round(c*4+p*4+f*9);
   return{kcal,c,p,f};
@@ -3896,6 +3909,26 @@ function resetStudent(){
   document.querySelectorAll('.mode-tab')[0].click();
   document.querySelectorAll('.nav-tab')[0].click();
   buildDateStrip();
+}
+
+// TEST MODE
+function enterTestMode(){
+  testMode=true;
+  document.getElementById('coach-view').style.display='none';
+  const banner=document.getElementById('test-mode-banner');
+  banner.style.display='flex';
+  // เพิ่ม padding-top ให้ student-view ไม่ถูก banner บัง
+  document.getElementById('student-view').style.paddingTop='48px';
+  startStudent();
+}
+function exitTestMode(){
+  testMode=false;
+  document.getElementById('test-mode-banner').style.display='none';
+  document.getElementById('student-view').style.display='none';
+  document.getElementById('student-view').style.paddingTop='';
+  document.getElementById('success-screen').style.display='none';
+  document.getElementById('coach-view').style.display='block';
+  histCache=null; // refresh ประวัติถ้ากลับมาเป็นนักเรียน
 }
 
 // COACH
@@ -4327,7 +4360,8 @@ function buildCard(s){
   let actions='';
   if(s.status==='pending')actions=`<div class="card-actions"><button class="btn-approve" onclick="approveCard('${s.id}')">✓ ถูกต้อง</button><button class="btn-correct" onclick="toggleCorr('${s.id}')">${showCorr?'✕ ยกเลิก':'✏️ แก้ไข'}</button></div>`;
   const corrPanel=showCorr?buildCorrPanel(s,cs):'';
-  return`<div class="card" id="card-${s.id}"><div class="card-header">${avatarHtml}<div><div class="card-name">${escHtml(s.displayName||'นักเรียน')}<span class="mode-tag ${s.mode}">${modeLabel}</span></div><div class="card-meta">${dateLabel}มื้อ${s.meal} &nbsp;${statusBadge}</div></div><div class="card-time">${timeStr}</div></div>${photoHtml}<div class="card-body"><div class="est-chips">${chips}</div>${macroBar}${corrNote}${actions}</div>${corrPanel}</div>`;
+  const testBadge=s.isTest?'<span style="background:#EDE9FE;color:#7C3AED;border-radius:6px;padding:1px 7px;font-size:11px;margin-left:4px">🧪 ทดสอบ</span>':'';
+  return`<div class="card" id="card-${s.id}"><div class="card-header">${avatarHtml}<div><div class="card-name">${escHtml(s.displayName||'นักเรียน')}<span class="mode-tag ${s.mode}">${modeLabel}</span>${testBadge}</div><div class="card-meta">${dateLabel}มื้อ${s.meal} &nbsp;${statusBadge}</div></div><div class="card-time">${timeStr}</div></div>${photoHtml}<div class="card-body"><div class="est-chips">${chips}</div>${macroBar}${corrNote}${actions}</div>${corrPanel}</div>`;
 }
 
 function buildCorrPanel(s,cs){
@@ -4344,11 +4378,11 @@ function buildCorrPanel(s,cs){
     fat=cs.fat!==undefined?cs.fat:Math.round(s.weighData.fat||0);
     step=1; unit='g';
   }else{
-    // hand mode
-    carb=cs.carb!==undefined?cs.carb:(s.handData?s.handData.carb:1.5);
-    prot=cs.protein!==undefined?cs.protein:(s.handData?s.handData.protein:1.0);
-    fat=cs.fat!==undefined?cs.fat:0;
-    step=0.5; unit='มือ';
+    // hand mode — default ค่า gram จาก totalCarb/totalProtein/totalFat
+    carb=cs.carb!==undefined?cs.carb:Math.round(s.handData?.totalCarb||0);
+    prot=cs.protein!==undefined?cs.protein:Math.round(s.handData?.totalProtein||0);
+    fat=cs.fat!==undefined?cs.fat:Math.round(s.handData?.totalFat||0);
+    step=1; unit='g';
   }
   return`<div class="correction-panel"><h4>✏️ แก้ไขค่าที่ถูกต้อง</h4><div class="corr-steppers"><div class="corr-s-item"><label>🟡 คาร์บ${unit==='g'?' (g)':''}</label><div class="corr-s-row"><button onclick="adjCorr('${s.id}','carb',-${step})">−</button><input type="number" class="corr-input" id="cc-carb-${s.id}" value="${carb}" min="0" step="${step}" onchange="syncCorr('${s.id}','carb')"><button onclick="adjCorr('${s.id}','carb',${step})">+</button></div></div><div class="corr-s-item"><label>🔴 โปรตีน${unit==='g'?' (g)':''}</label><div class="corr-s-row"><button onclick="adjCorr('${s.id}','protein',-${step})">−</button><input type="number" class="corr-input" id="cc-protein-${s.id}" value="${prot}" min="0" step="${step}" onchange="syncCorr('${s.id}','protein')"><button onclick="adjCorr('${s.id}','protein',${step})">+</button></div></div><div class="corr-s-item"><label>🟢 ไขมัน${unit==='g'?' (g)':''}</label><div class="corr-s-row"><button onclick="adjCorr('${s.id}','fat',-${step})">−</button><input type="number" class="corr-input" id="cc-fat-${s.id}" value="${fat}" min="0" step="${step}" onchange="syncCorr('${s.id}','fat')"><button onclick="adjCorr('${s.id}','fat',${step})">+</button></div></div></div><textarea class="corr-note-ta" id="cc-note-${s.id}" rows="2" placeholder="ข้อความถึงนักเรียน (ไม่บังคับ)...">${escHtml(cs.note||'')}</textarea><button class="btn-send-corr" onclick="sendCorrection('${s.id}')">ส่ง Feedback ✓</button></div>`;
 }
