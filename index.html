@@ -3610,6 +3610,7 @@ async function submitMeal(){
     studentTodaySubs.push(newSubLocal);
     renderDailyProgress();
     histCache=null; // invalidate history cache
+    dashCache=null; // invalidate dashboard cache
     showSuccess(curMode,handData,labelData,weighData);
     if(!testMode)sendFeedbackCard(); // ไม่ส่ง LINE card ใน test mode
   }catch(e){console.error(e);alert('เกิดข้อผิดพลาด: '+e.message);btn.disabled=false;btn.textContent='ส่งให้โค้ชตรวจ ✓';}
@@ -3748,43 +3749,34 @@ function getSubMacros(s){
   return{kcal,c,p,f};
 }
 
-async function loadDashboard(){
+let dashCache=null;
+async function loadDashboard(forceRefresh=false){
   const content=document.getElementById('dashboard-content');
+  if(dashCache&&!forceRefresh){
+    renderStudentDashboard(...dashCache);
+    return;
+  }
   content.innerHTML='<div style="padding:32px;text-align:center;color:var(--gray)"><div style="font-size:32px;margin-bottom:8px">⏳</div>กำลังโหลด...</div>';
   try{
-    // submissions
-    const snap=await db.collection('submissions').where('userId','==',user.userId).limit(50).get();
+    // รัน queries ทั้งหมดพร้อมกัน (parallel)
+    const [snap,td,hs,wc,ws]=await Promise.all([
+      db.collection('submissions').where('userId','==',user.userId).limit(50).get(),
+      db.collection('students').doc(user.userId).get().catch(()=>null),
+      db.collection('healthLogs').doc(user.userId).collection('days').limit(14).get().catch(()=>null),
+      db.collection('weeklyChecks').doc(user.userId).collection('entries').orderBy('date','asc').limit(20).get().catch(()=>null),
+      db.collection('students').doc(user.userId).collection('weeklySummaries').orderBy('weekStart','desc').limit(8).get().catch(()=>null),
+    ]);
     const subs=snap.docs.map(d=>({id:d.id,...d.data()}));
-    // student doc: targets + coachNotes
     let targets={kcal:TARGETS.kcal,c:TARGETS.c,p:TARGETS.p,f:TARGETS.f};
     let coachNotes='';
-    try{
-      const td=await db.collection('students').doc(user.userId).get();
-      if(td.exists){
-        const d=td.data();
-        if(d.targets)targets={...targets,...d.targets};
-        if(d.coachNotes)coachNotes=d.coachNotes;
-      }
-    }catch(e){}
-    // health logs
+    if(td&&td.exists){const dd=td.data();if(dd.targets)targets={...targets,...dd.targets};if(dd.coachNotes)coachNotes=dd.coachNotes;}
     let healthLogs={};
-    try{
-      const hs=await db.collection('healthLogs').doc(user.userId).collection('days').limit(14).get();
-      hs.docs.forEach(d=>{healthLogs[d.id]=d.data();});
-    }catch(e){}
-    // weekly checks
+    if(hs)hs.docs.forEach(d=>{healthLogs[d.id]=d.data();});
     let weeklyChecks=[];
-    try{
-      const wc=await db.collection('weeklyChecks').doc(user.userId).collection('entries').orderBy('date','asc').limit(20).get();
-      wc.docs.forEach(d=>{weeklyChecks.push({id:d.id,...d.data()});});
-    }catch(e){}
-    // weekly summaries (coach notes per week)
+    if(wc)wc.docs.forEach(d=>{weeklyChecks.push({id:d.id,...d.data()});});
     let weeklySummaries={};
-    try{
-      const ws=await db.collection('students').doc(user.userId).collection('weeklySummaries').orderBy('weekStart','desc').limit(8).get();
-      ws.docs.forEach(d=>{weeklySummaries[d.id]=d.data();});
-    }catch(e){}
-    // check testimonial eligibility (non-blocking)
+    if(ws)ws.docs.forEach(d=>{weeklySummaries[d.id]=d.data();});
+    dashCache=[subs,targets,coachNotes,healthLogs,weeklyChecks,weeklySummaries];
     checkTestimonialEligibility(weeklyChecks).catch(()=>{});
     renderStudentDashboard(subs,targets,coachNotes,healthLogs,weeklyChecks,weeklySummaries);
   }catch(e){content.innerHTML='<div style="padding:24px;text-align:center;color:#EF4444">โหลดไม่ได้: '+e.message+'</div>';}
@@ -3808,7 +3800,7 @@ function renderStudentDashboard(subs, targets, coachNotes, healthLogs, weeklyChe
     if(d.hasSub&&d.isToday){cls='today-done';icon='✓';}
     else if(d.hasSub){cls='done';icon='✓';}
     else if(d.isToday){cls='today-miss';icon='วันนี้';}
-    return`<div class="wd-item"><div class="wd-name">${d.day}</div><div class="wd-dot ${cls}">${icon}</div><div class="wd-kcal">${d.kcal?Math.round(d.kcal/100*10)/10+'k':''}</div></div>`;
+    return`<div class="wd-item"><div class="wd-name">${d.day}</div><div class="wd-dot ${cls}">${icon}</div><div class="wd-kcal">${d.kcal?Math.round(d.kcal/100)/10+'k':''}</div></div>`;
   }).join('');
 
   // coach notes (read-only)
@@ -4139,6 +4131,9 @@ function buildMacro7Html(MON, TH_SHORT, byDate, targets){
   }).join('');
   return`<div class="sd-section" style="margin-top:10px">
     <div class="sd-section-title">📊 Macro 7 วันล่าสุด</div>
+    <div style="display:flex;gap:12px;font-size:11px;color:var(--gray);margin-bottom:8px">
+      <span>🟠 Carb</span><span>🔵 Protein</span><span>🟣 Fat</span>
+    </div>
     ${macro7Rows}
   </div>`;
 }
