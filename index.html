@@ -434,11 +434,11 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
 </div>
 
 <!-- STUDENT VIEW -->
-<div id="test-mode-banner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:#7C3AED;color:#fff;padding:8px 16px;font-size:13px;font-family:'Prompt',sans-serif;display:none;align-items:center;justify-content:space-between;gap:8px">
-  <span>🧪 Test Mode — ส่งข้อมูลจะถูก tag ว่าทดสอบ</span>
-  <button onclick="exitTestMode()" style="background:rgba(255,255,255,0.2);border:none;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer;font-family:'Prompt',sans-serif;font-size:12px">✕ กลับหน้าโค้ช</button>
-</div>
 <div id="student-view">
+  <div id="test-mode-banner" style="display:none;background:#7C3AED;color:#fff;padding:10px 16px;font-size:13px;font-family:'Prompt',sans-serif;align-items:center;justify-content:space-between;gap:8px">
+    <span>🧪 Test Mode — ข้อมูลที่ส่งจะถูก tag ว่าทดสอบ</span>
+    <button onclick="exitTestMode()" style="background:rgba(255,255,255,0.2);border:none;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer;font-family:'Prompt',sans-serif;font-size:12px">✕ กลับโค้ช</button>
+  </div>
   <div class="app-header">
     <div class="logo"><span>DO</span></div>
     <h1>Meal Log</h1>
@@ -3915,20 +3915,16 @@ function resetStudent(){
 function enterTestMode(){
   testMode=true;
   document.getElementById('coach-view').style.display='none';
-  const banner=document.getElementById('test-mode-banner');
-  banner.style.display='flex';
-  // เพิ่ม padding-top ให้ student-view ไม่ถูก banner บัง
-  document.getElementById('student-view').style.paddingTop='48px';
+  document.getElementById('test-mode-banner').style.display='flex';
   startStudent();
 }
 function exitTestMode(){
   testMode=false;
   document.getElementById('test-mode-banner').style.display='none';
   document.getElementById('student-view').style.display='none';
-  document.getElementById('student-view').style.paddingTop='';
   document.getElementById('success-screen').style.display='none';
   document.getElementById('coach-view').style.display='block';
-  histCache=null; // refresh ประวัติถ้ากลับมาเป็นนักเรียน
+  histCache=null;
 }
 
 // COACH
