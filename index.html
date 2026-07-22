@@ -2764,7 +2764,7 @@ async function init(){
     const profile=await liff.getProfile();
     user=profile;
     const coachDoc=await db.collection('coaches').doc(user.userId).get();
-    isCoach=coachDoc.exists||user.userId==='Ud83289516016ac0d07ac9394bfd6137a';
+    isCoach=coachDoc.exists||['Ud83289516016ac0d07ac9394bfd6137a','U105e1c5b5d6d2dc54d07d1de16ec4939'].includes(user.userId);
     document.getElementById('loading').style.display='none';
     isCoach?startCoach():startStudent();
   }catch(e){
