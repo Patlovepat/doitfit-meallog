@@ -175,6 +175,19 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
 .ai-total-kcal{font-size:17px;font-weight:700;color:var(--primary-dark)}
 .ai-total-mac{font-size:12px;color:var(--gray)}
 .ai-error{color:#e53e3e;font-size:13px;padding:8px 0;text-align:center}
+/* AI editable inputs */
+.ai-edit-input{width:44px;border:1px solid #FDE68A;border-radius:6px;text-align:center;font-size:12px;font-family:'Prompt',sans-serif;padding:2px 3px;-moz-appearance:textfield;background:white}
+.ai-edit-input::-webkit-inner-spin-button,.ai-edit-input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+.ai-del-btn{background:none;border:none;cursor:pointer;font-size:14px;padding:0 2px;color:#EF4444;line-height:1;flex-shrink:0}
+/* Daily progress bar */
+.daily-progress{background:white;padding:8px 16px;border-bottom:1px solid #E5E7EB}
+.dp-label{font-size:11px;color:var(--gray);margin-bottom:4px;display:flex;justify-content:space-between}
+.dp-track{height:6px;background:#F3F4F6;border-radius:3px;overflow:hidden}
+.dp-fill{height:100%;border-radius:3px;transition:.4s}
+/* Coach filter bar */
+.coach-filter-bar{display:flex;gap:6px;padding:8px 12px;background:#F9FAFB;border-bottom:1px solid #E5E7EB}
+.cf-btn{padding:5px 14px;border-radius:20px;border:1.5px solid #E5E7EB;background:white;font-size:12px;font-family:'Prompt',sans-serif;color:var(--gray);cursor:pointer;transition:.15s}
+.cf-btn.active{background:#F5A623;border-color:#F5A623;color:white;font-weight:600}
 .w-item{text-align:center}
 .w-item .wval{font-size:18px;font-weight:700;color:var(--primary-dark)}
 .w-item .wname{font-size:11px;color:var(--gray)}
@@ -443,6 +456,13 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
         <button class="meal-btn" data-meal="ว่าง" onclick="selMeal(this)">🍎 ว่าง</button>
       </div>
     </div>
+    <div class="daily-progress" id="daily-progress" style="display:none">
+      <div class="dp-label">
+        <span id="dp-text">กินไปแล้ว 0 kcal</span>
+        <span id="dp-pct">0%</span>
+      </div>
+      <div class="dp-track"><div class="dp-fill" id="dp-fill" style="width:0%;background:#22C55E"></div></div>
+    </div>
     <div class="mode-tabs">
       <div class="mode-tab active" data-mode="hand" onclick="selMode(this)">👊 Hand portion</div>
       <div class="mode-tab" data-mode="label" onclick="selMode(this)">🏷️ ฉลาก</div>
@@ -569,7 +589,7 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
               <button class="cook-btn" data-ck="deep" onclick="setCookM('deep',this)">🔴 ทอด/กะทิ<br><span class="dens-kcal">+180 kcal</span></button>
             </div>
             <div class="fat-item-row">
-              <div class="fat-item-label">🫒 น้ำมัน / เนย / เนยถั่ว / ชีส 1 แผ่น</div>
+              <div class="fat-item-label">🫒 น้ำมัน (ช้อนชา) / เนย / เนยถั่ว / ชีส 1 แผ่น</div>
               <div class="fat-note">⚠️ เนยถั่ว 1 ช้อนโต๊ะ ≈ 3 ช้อนชา · น้ำสลัดครีมขอราดเองดีกว่า · ~45 kcal/ช้อนชา</div>
               <div class="hmb-stepper">
                 <button onclick="adj('fat',-0.5)">−</button>
@@ -726,6 +746,10 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
     </div>
     <div class="coach-tab" data-tab="done" onclick="selCoachTab(this)">อนุมัติแล้ว</div>
     <div class="coach-tab" data-tab="students" onclick="selCoachTab(this)">นักเรียน</div>
+  </div>
+  <div id="coach-filter-bar" class="coach-filter-bar" style="display:none">
+    <button class="cf-btn active" id="cfb-all" onclick="setCoachFilter('all')">ทั้งหมด</button>
+    <button class="cf-btn" id="cfb-pending" onclick="setCoachFilter('pending')">รออนุมัติ</button>
   </div>
   <div class="cards-container" id="cards-container">
     <div class="empty-state"><div class="es-icon">📭</div><p>ยังไม่มีรายการ</p></div>
@@ -2601,6 +2625,8 @@ const _REMOVED=[
 // STATE
 let user=null, isCoach=false, curMeal='เช้า', curMode='hand', studentTab='log';
 let photoBase64=null, coachTab='pending', allSubs=[], cState={};
+let coachFilter='all';
+let studentTodaySubs=[];
 const GROQ_KEY='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';
 let aiParsedData=null;
 let _photoProcessing=false;
@@ -2754,6 +2780,7 @@ function startStudent(){
   updateHandSummary();
   buildDateStrip();
   loadStudentTargets(); // โหลด target จริงจาก Firestore
+  loadTodayProgress(); // โหลด progress bar
 }
 
 async function loadStudentTargets(){
@@ -2767,6 +2794,30 @@ async function loadStudentTargets(){
       if(t.f)TARGETS.f=t.f;
     }
   }catch(e){console.log('target load err',e);}
+}
+
+async function loadTodayProgress(){
+  try{
+    const today=todayStr();
+    const snap=await db.collection('submissions').where('userId','==',user.userId).limit(50).get();
+    studentTodaySubs=snap.docs.map(d=>({id:d.id,...d.data()})).filter(s=>subDate(s)===today);
+    renderDailyProgress();
+  }catch(e){console.log('progress load err',e);}
+}
+function renderDailyProgress(){
+  const bar=document.getElementById('daily-progress');
+  if(!bar)return;
+  if(!studentTodaySubs.length){bar.style.display='none';return;}
+  let tot=0;
+  studentTodaySubs.forEach(s=>{tot+=getSubMacros(s).kcal;});
+  const target=TARGETS.kcal;
+  const pct=Math.min(100,Math.round(tot/target*100));
+  const color=pct>=110?'#EF4444':pct>=90?'#F97316':'#22C55E';
+  document.getElementById('dp-text').textContent=`กินไปแล้ว ${Math.round(tot)} kcal / ${target} kcal`;
+  document.getElementById('dp-pct').textContent=pct+'%';
+  document.getElementById('dp-fill').style.width=pct+'%';
+  document.getElementById('dp-fill').style.background=color;
+  bar.style.display='block';
 }
 
 // STUDENT NAV
@@ -3435,23 +3486,54 @@ ${text}
 function renderAIResult(data){
   const area=document.getElementById('ai-result-area');
   if(!data||!data.items){area.innerHTML='<div class="ai-error">ไม่สามารถวิเคราะห์ได้ค่ะ</div>';area.style.display='block';return;}
+  const rows=data.items.map((it,i)=>`<div class="ai-item-row" data-idx="${i}">
+    <div class="ai-item-name">${escHtml(it.name||'')}<br><span style="font-size:11px;color:var(--gray)">${escHtml(it.amount||'')}</span></div>
+    <div class="ai-item-mac" style="display:flex;align-items:center;gap:2px;flex-shrink:0">
+      C<input type="number" class="ai-edit-input" value="${it.c}" step="0.1" min="0" oninput="updateAIItem(${i},'c',this.value)">
+      P<input type="number" class="ai-edit-input" value="${it.p}" step="0.1" min="0" oninput="updateAIItem(${i},'p',this.value)">
+      F<input type="number" class="ai-edit-input" value="${it.f}" step="0.1" min="0" oninput="updateAIItem(${i},'f',this.value)">
+    </div>
+    <button class="ai-del-btn" onclick="deleteAIItem(${i})">🗑️</button>
+  </div>`).join('');
   area.innerHTML=`<div style="background:var(--light);border-radius:10px;padding:8px 12px;margin-top:4px">
-    ${data.items.map(it=>`<div class="ai-item-row">
-      <div class="ai-item-name">${it.name}<br><span style="font-size:11px;color:var(--gray)">${it.amount||''}</span></div>
-      <div class="ai-item-mac">C${it.c} P${it.p} F${it.f}<br>${it.kcal} kcal</div>
-    </div>`).join('')}
-    <div class="ai-total-bar">
-      <span class="ai-total-kcal">${data.total.kcal} kcal</span>
-      <span class="ai-total-mac">C ${data.total.c}g · P ${data.total.p}g · F ${data.total.f}g</span>
+    ${rows}
+    <div class="ai-total-bar" id="ai-total-bar">
+      <span class="ai-total-kcal" id="ai-total-kcal">${data.total.kcal} kcal</span>
+      <span class="ai-total-mac" id="ai-total-mac">C ${data.total.c}g · P ${data.total.p}g · F ${data.total.f}g</span>
     </div>
   </div>`;
   area.style.display='block';
 }
+function updateAIItem(idx,field,val){
+  if(!aiParsedData||!aiParsedData.items[idx])return;
+  aiParsedData.items[idx][field]=parseFloat(val)||0;
+  const it=aiParsedData.items[idx];
+  it.kcal=Math.round(it.c*4+it.p*4+it.f*9);
+  recalcAITotal();
+}
+function deleteAIItem(idx){
+  if(!aiParsedData)return;
+  aiParsedData.items.splice(idx,1);
+  renderAIResult(aiParsedData);
+}
+function recalcAITotal(){
+  if(!aiParsedData)return;
+  let c=0,p=0,f=0;
+  aiParsedData.items.forEach(it=>{c+=it.c||0;p+=it.p||0;f+=it.f||0;});
+  c=Math.round(c*10)/10;p=Math.round(p*10)/10;f=Math.round(f*10)/10;
+  const kcal=Math.round(c*4+p*4+f*9);
+  aiParsedData.total={c,p,f,kcal};
+  const tcEl=document.getElementById('ai-total-kcal');
+  const tmEl=document.getElementById('ai-total-mac');
+  if(tcEl)tcEl.textContent=kcal+' kcal';
+  if(tmEl)tmEl.textContent=`C ${c}g · P ${p}g · F ${f}g`;
+}
 function getWeighData(){
   if(!aiParsedData)return null;
   const t=aiParsedData.total;
-  const preview=document.getElementById('ai-food-input').value.substring(0,50).split('\n').join(' ');
-  return{food:'AI: '+preview,grams:0,carb:t.c,protein:t.p,fat:t.f,aiItems:aiParsedData.items};
+  const fullText=document.getElementById('ai-food-input').value.trim();
+  const preview=fullText.substring(0,50).split('\n').join(' ');
+  return{food:'AI: '+preview,grams:0,carb:t.c,protein:t.p,fat:t.f,kcal:t.kcal,aiItems:aiParsedData.items,aiText:fullText};
 }
 
 // PHOTO
@@ -3517,6 +3599,10 @@ async function submitMeal(){
       status:'pending',correction:null,
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
+    // update today's progress bar locally
+    const newSubLocal={mode:curMode,mealDate:selectedDate,handData,labelData,weighData,status:'pending'};
+    studentTodaySubs.push(newSubLocal);
+    renderDailyProgress();
     showSuccess(curMode,handData,labelData,weighData);
     sendFeedbackCard(); // LINE Flex Message feedback
   }catch(e){console.error(e);alert('เกิดข้อผิดพลาด: '+e.message);btn.disabled=false;btn.textContent='ส่งให้โค้ชตรวจ ✓';}
@@ -3600,20 +3686,38 @@ function buildHistCard(s){
     chips=`<span class="chip">C ${s.labelData.carb.toFixed(1)}g</span><span class="chip">P ${s.labelData.protein.toFixed(1)}g</span><span class="chip">F ${s.labelData.fat.toFixed(1)}g</span>`;
     chips+=`<span class="chip">⚡ ${Math.round(s.labelData.carb*4+s.labelData.protein*4+s.labelData.fat*9)} kcal</span>`;
   }else if(s.mode==='weigh'&&s.weighData){
-    chips=`<span class="chip">${s.weighData.food} ${s.weighData.grams}g</span><span class="chip">⚡ ${Math.round(s.weighData.carb*4+s.weighData.protein*4+s.weighData.fat*9)} kcal</span>`;
+    const wd=s.weighData;
+    if(wd.aiItems&&wd.aiItems.length){
+      chips=wd.aiItems.map(it=>`<span class="chip">${escHtml(it.name||'')} ${escHtml(it.amount||'')} · C${it.c} P${it.p} F${it.f}</span>`).join('');
+    }else{
+      chips=`<span class="chip">${escHtml(wd.food||'')}</span>`;
+    }
+    const wMacros=getSubMacros(s);
+    chips+=`<span class="chip">C ${wMacros.c}g · P ${wMacros.p}g · F ${wMacros.f}g</span>`;
+    chips+=`<span class="chip">⚡ ${wMacros.kcal} kcal</span>`;
   }
   const photoHtml=s.photoBase64?`<img style="width:100%;max-height:160px;object-fit:cover;border-radius:8px;margin-bottom:8px" src="${s.photoBase64}" loading="lazy">`:'';
   let corrHtml='';
   if(s.status==='corrected'&&s.correction){
     corrHtml=`<div class="hist-corr">✏️ โค้ชแก้ไข: C ${s.correction.carb} · P ${s.correction.protein} · F ${s.correction.fat}${s.correction.note?'<br>💬 '+escHtml(s.correction.note):''}</div>`;
   }
+  const delBtn=`<button onclick="deleteHistSub('${s.id}')" style="width:100%;margin-top:8px;padding:6px;background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;color:#B91C1C;font-size:12px;font-family:'Prompt',sans-serif;cursor:pointer">🗑️ ลบรายการนี้</button>`;
   return`<div class="hist-card">
     <div class="hist-card-head" style="display:flex;align-items:flex-start;justify-content:space-between">
       <div><div style="font-size:13px;font-weight:600">${dateLabel} · มื้อ${s.meal}</div><div style="font-size:11px;color:var(--gray);margin-top:2px">${modeLabel}${s.photoBase64?' · 📸':''}</div></div>
       ${statusHtml}
     </div>
-    <div class="hist-card-body">${photoHtml}<div class="est-chips" style="margin-bottom:0">${chips}</div>${corrHtml}</div>
+    <div class="hist-card-body">${photoHtml}<div class="est-chips" style="margin-bottom:0">${chips}</div>${corrHtml}${delBtn}</div>
   </div>`;
+}
+
+async function deleteHistSub(id){
+  if(!confirm('ลบรายการนี้?'))return;
+  try{
+    await db.collection('submissions').doc(id).delete();
+    loadHistory();
+    loadTodayProgress();
+  }catch(e){alert('ลบไม่ได้: '+e.message);}
 }
 
 // DASHBOARD
@@ -3622,7 +3726,13 @@ function getSubMacros(s){
   if(s.mode==='hand'&&s.handData){c=s.handData.totalCarb||0;p=s.handData.totalProtein||0;f=s.handData.totalFat||0;}
   else if(s.mode==='label'&&s.labelData){c=s.labelData.carb||0;p=s.labelData.protein||0;f=s.labelData.fat||0;}
   else if(s.mode==='weigh'&&s.weighData){c=s.weighData.carb||0;p=s.weighData.protein||0;f=s.weighData.fat||0;}
-  return{kcal:Math.round(c*4+p*4+f*9),c,p,f};
+  if(s.status==='corrected'&&s.correction){
+    c=s.correction.carb||c;
+    p=s.correction.protein||p;
+    f=s.correction.fat||f;
+  }
+  const kcal=(s.mode==='weigh'&&s.weighData&&s.weighData.kcal&&!(s.status==='corrected'&&s.correction))?s.weighData.kcal:Math.round(c*4+p*4+f*9);
+  return{kcal,c,p,f};
 }
 
 async function loadDashboard(){
@@ -3806,10 +3916,27 @@ function renderCoach(){
   const badge=document.getElementById('pending-count');
   if(pending.length>0){badge.style.display='inline-block';badge.textContent=pending.length;}else{badge.style.display='none';}
   const container=document.getElementById('cards-container');
-  if(coachTab==='students'){container.innerHTML='<div style="padding:20px;text-align:center;color:var(--gray)">⏳ กำลังโหลด...</div>';return;}
-  const list=coachTab==='pending'?pending:done;
-  if(!list.length){container.innerHTML='<div class="empty-state"><div class="es-icon">'+(coachTab==='pending'?'🎉':'📭')+'</div><p>'+(coachTab==='pending'?'ไม่มีรายการรอค่ะ':'ยังไม่มีประวัติ')+'</p></div>';return;}
+  const filterBar=document.getElementById('coach-filter-bar');
+  if(coachTab==='students'){
+    container.innerHTML='<div style="padding:20px;text-align:center;color:var(--gray)">⏳ กำลังโหลด...</div>';
+    if(filterBar)filterBar.style.display='none';
+    return;
+  }
+  if(filterBar)filterBar.style.display='flex';
+  // update active filter button states
+  document.querySelectorAll('.cf-btn').forEach(b=>b.classList.remove('active'));
+  const activeBtn=document.getElementById('cfb-'+coachFilter);
+  if(activeBtn)activeBtn.classList.add('active');
+  // determine list based on tab + filter
+  let list;
+  if(coachFilter==='pending') list=pending;
+  else list=coachTab==='pending'?pending:done;
+  if(!list.length){container.innerHTML='<div class="empty-state"><div class="es-icon">'+(coachFilter==='pending'||coachTab==='pending'?'🎉':'📭')+'</div><p>'+(coachFilter==='pending'||coachTab==='pending'?'ไม่มีรายการรอค่ะ':'ยังไม่มีประวัติ')+'</p></div>';return;}
   container.innerHTML=list.map(s=>buildCard(s)).join('');
+}
+function setCoachFilter(f){
+  coachFilter=f;
+  renderCoach();
 }
 
 // ===== STUDENT LIST (นักเรียน tab) =====
@@ -4181,8 +4308,13 @@ function buildCard(s){
   }else if(s.mode==='label'&&s.labelData){
     chips=`<span class="est-chip gram">คาร์บ ${s.labelData.carb.toFixed(1)}g</span><span class="est-chip gram">โปรตีน ${s.labelData.protein.toFixed(1)}g</span><span class="est-chip gram">ไขมัน ${s.labelData.fat.toFixed(1)}g</span>`;
   }else if(s.mode==='weigh'&&s.weighData){
-    const wKcalC=Math.round((s.weighData.carb||0)*4+(s.weighData.protein||0)*4+(s.weighData.fat||0)*9);
-    chips=`<span class="est-chip gram">${s.weighData.food}</span><span class="est-chip gram">C:${s.weighData.carb||0}g</span><span class="est-chip gram">P:${s.weighData.protein||0}g</span><span class="est-chip gram">F:${s.weighData.fat||0}g</span><span class="est-chip gram">⚡${wKcalC}kcal</span>`;
+    const wd=s.weighData;
+    if(wd.aiItems&&wd.aiItems.length){
+      chips=wd.aiItems.map(it=>`<span class="est-chip gram">${escHtml(it.name||'')} ${escHtml(it.amount||'')} · C${it.c} P${it.p} F${it.f}</span>`).join('');
+    }else{
+      const wKcalC=Math.round((wd.carb||0)*4+(wd.protein||0)*4+(wd.fat||0)*9);
+      chips=`<span class="est-chip gram">${wd.food}</span><span class="est-chip gram">C:${wd.carb||0}g</span><span class="est-chip gram">P:${wd.protein||0}g</span><span class="est-chip gram">F:${wd.fat||0}g</span><span class="est-chip gram">⚡${wKcalC}kcal</span>`;
+    }
   }
   const m=getSubMacros(s);
   const macroBar=`<div class="macro-summary"><div class="ms-item">${m.c}g<span>คาร์บ</span></div><div class="ms-item">${m.p}g<span>โปรตีน</span></div><div class="ms-item">${m.f}g<span>ไขมัน</span></div><div class="ms-kcal">⚡ ${m.kcal} kcal</div></div>`;
