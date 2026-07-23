@@ -629,6 +629,18 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
           </div>
         </div>
       </div>
+      <!-- ชื่อเมนู + อธิบาย (Hand portion เท่านั้น) -->
+      <div style="margin-top:10px;padding:12px;background:#FFFBEB;border:1.5px solid #FDE68A;border-radius:12px">
+        <div style="font-size:12px;font-weight:700;color:#92400E;margin-bottom:2px">🍽️ ชื่อเมนูที่กิน</div>
+        <div style="font-size:11px;color:#B45309;margin-bottom:7px">บอกให้โค้ชรู้ว่ากินอะไร — ช่วยให้แนะนำได้ตรงกว่าค่ะ</div>
+        <input type="text" id="menu-name-input" maxlength="60"
+          placeholder="เช่น ข้าวกะเพราไข่ดาว, สลัดไก่ย่าง..."
+          style="width:100%;border:1.5px solid #FCD34D;border-radius:9px;padding:9px 12px;font-size:13px;font-family:'Prompt',sans-serif;color:var(--text);background:white;box-sizing:border-box;margin-bottom:8px">
+        <div style="font-size:12px;font-weight:700;color:#92400E;margin-bottom:4px">📝 อธิบายเพิ่มเติม (ไม่บังคับ)</div>
+        <textarea id="menu-desc-input" maxlength="150" rows="2"
+          placeholder="เช่น ข้าวนิดเดียว, เอาไก่ออกบางส่วน, ใส่น้ำมันน้อย..."
+          style="width:100%;border:1.5px solid #FCD34D;border-radius:9px;padding:9px 12px;font-size:12px;font-family:'Prompt',sans-serif;color:var(--text);background:white;box-sizing:border-box;resize:none"></textarea>
+      </div>
     </div>
 
     <!-- LABEL MODE -->
@@ -3587,9 +3599,11 @@ async function submitMeal(){
       C+=fruitLadles*15;
       const fruitData=Object.fromEntries(FRUIT_ITEMS.filter(f=>fruitCounts[f.id]>0).map(f=>[f.id,fruitCounts[f.id]]));
       C=Math.round(C);P=Math.round(P);F=Math.round(F);
+      const menuName=document.getElementById('menu-name-input').value.trim();
+      const menuDesc=document.getElementById('menu-desc-input').value.trim();
       handData={carbSlots:carbSlots.map(s=>({density:s.density,qty:s.qty})),
         protein:protQty,protType,eggWhole,eggWhite,cookMethod,visibleFat,avo:avoQty,
-        fruits:fruitData,fruitLadles,
+        fruits:fruitData,fruitLadles,menuName:menuName||null,menuDesc:menuDesc||null,
         totalCarb:C,totalProtein:P,totalFat:F,totalKcal:Math.round(C*4+P*4+F*9)};
     }else if(curMode==='label'){
       labelData=getLabelData();
@@ -3690,10 +3704,13 @@ function buildHistCard(s){
   let chips='';
   if(s.mode==='hand'&&s.handData){
     const hd=s.handData;
+    if(hd.menuName)chips+=`<span class="chip" style="background:#FEF3C7;color:#92400E;font-weight:600">🍽️ ${escHtml(hd.menuName)}</span>`;
+    if(hd.menuDesc)chips+=`<span class="chip" style="background:#FFFBEB;color:#A16207;font-size:11px">📝 ${escHtml(hd.menuDesc)}</span>`;
     if(hd.carbSlots){hd.carbSlots.forEach((sl,i)=>{chips+=`<span class="chip">${DL[sl.density]||'🟡'} ${sl.qty}มือ</span>`;});}
     else{chips=`<span class="chip">${DL[hd.carbDensity]||'🟡'} ${hd.carb}มือ</span>`;if(hd.carb2>0)chips+=`<span class="chip">+${hd.carb2}มือ</span>`;}
     chips+=`<span class="chip">โปรตีน ${hd.protein}ฝ่ามือ</span>`;
     if(hd.eggWhole>0)chips+=`<span class="chip">🥚×${hd.eggWhole}</span>`;
+    if(hd.eggWhite>0)chips+=`<span class="chip">🤍ไข่ขาว×${hd.eggWhite}</span>`;
     chips+=`<span class="chip">⚡ ${hd.totalKcal} kcal</span>`;
   }else if(s.mode==='label'&&s.labelData){
     chips=`<span class="chip">C ${s.labelData.carb.toFixed(1)}g</span><span class="chip">P ${s.labelData.protein.toFixed(1)}g</span><span class="chip">F ${s.labelData.fat.toFixed(1)}g</span>`;
@@ -3862,6 +3879,8 @@ function renderStudentDashboard(subs, targets, coachNotes, healthLogs, weeklyChe
 
 function resetStudent(){
   photoBase64=null;_photoProcessing=false;selectedDate=todayStr();
+  document.getElementById('menu-name-input').value='';
+  document.getElementById('menu-desc-input').value='';
   // reset carb slots
   carbSlots=[{id:0,density:'normal',qty:1.5}];carbSlotNextId=1;
   // reset section open state (close all)
@@ -4321,6 +4340,8 @@ function buildCard(s){
     const hd=s.handData;
     const protL={lean:'Lean✅',semilean:'Semi-lean🔶'}[hd.protType]||'';
     const cookL={none:'ต้ม/ย่าง',stirfry:'ผัด',deep:'ทอด/กะทิ'}[hd.cookMethod]||'';
+    if(hd.menuName)chips+=`<span class="est-chip" style="background:#FEF3C7;color:#92400E;font-weight:600">🍽️ ${escHtml(hd.menuName)}</span>`;
+    if(hd.menuDesc)chips+=`<span class="est-chip" style="background:#FFFBEB;color:#A16207;font-size:11px">📝 ${escHtml(hd.menuDesc)}</span>`;
     if(hd.carbSlots){hd.carbSlots.forEach((sl,i)=>{chips+=`<span class="est-chip">${DL[sl.density]||'🟡'} ${sl.qty}มือ</span>`;});}
     else{chips=`<span class="est-chip">${DL[hd.carbDensity]||'🟡'} ${hd.carb}มือ</span>`;if(hd.carb2>0)chips+=`<span class="est-chip">${DL[hd.carbDensity2]||'🟡'} +${hd.carb2}มือ</span>`;}
     chips+=`<span class="est-chip">${protL} ${hd.protein}ฝ่ามือ</span>`;
@@ -4356,48 +4377,204 @@ function buildCard(s){
 }
 
 function buildCorrPanel(s,cs){
-  // default values and step size per mode
-  let carb,prot,fat,step,unit;
+  // === HAND PORTION MODE ===
+  if(s.mode==='hand'){
+    if(!cState[s.id])cState[s.id]={};
+    cState[s.id]._sub=s;
+    const hd=s.handData||{};
+    const density=cs.carbDensity||(hd.carbSlots?.[0]?.density||'normal');
+    const carbQty=cs.carbQty!==undefined?cs.carbQty:(hd.carbSlots?.reduce((t,sl)=>t+(sl.qty||0),0)||1.5);
+    const protType=cs.protType||hd.protType||'lean';
+    const protQty=cs.protQty!==undefined?cs.protQty:(hd.protein||1);
+    const cookMethod=cs.cookMethod||hd.cookMethod||'none';
+    const visFat=cs.visFat!==undefined?cs.visFat:(hd.visibleFat||0);
+    const eggWhole=cs.eggWhole!==undefined?cs.eggWhole:(hd.eggWhole||0);
+    const eggWhite=cs.eggWhite!==undefined?cs.eggWhite:(hd.eggWhite||0);
+    const avo=cs.avo!==undefined?cs.avo:(hd.avo||0);
+    const fruitLadles=cs.fruitLadles!==undefined?cs.fruitLadles:(hd.fruitLadles||0);
+    const cd=CARB_D[density]||CARB_D.normal;
+    const pt=PROT_T[protType]||PROT_T.lean;
+    const ck=COOK_M[cookMethod]||COOK_M.none;
+    const eggsC=eggWhole*EGG_W.c+eggWhite*EGG_WH.c;
+    const eggsP=eggWhole*EGG_W.p+eggWhite*EGG_WH.p;
+    const eggsF=eggWhole*EGG_W.f;
+    const avoC=avo*AVO.c,avoP=avo*AVO.p,avoF=avo*AVO.f;
+    const fruitC=fruitLadles*15;
+    const preC=Math.round(cd.c*carbQty+pt.c*protQty+eggsC+avoC+fruitC);
+    const preP=Math.round(cd.p*carbQty+pt.p*protQty+eggsP+avoP);
+    const preF=Math.round(cd.f*carbQty+pt.f*protQty+ck.f+visFat*VIS_FAT_G+eggsF+avoF);
+    const preKcal=Math.round(preC*4+preP*4+preF*9);
+    const dBtn=(d)=>`<button id="hcd-${d}-${s.id}" onclick="setHCorrCarbD('${s.id}','${d}')" style="border:none;border-radius:8px;padding:5px 9px;font-size:12px;font-family:'Prompt',sans-serif;cursor:pointer;transition:all .15s;${d===density?'background:#F5A623;color:white;font-weight:700':'background:#F3F4F6;color:var(--text)'}">${CARB_D[d].emoji} ${CARB_D[d].label}</button>`;
+    const ptBtn=(t,lbl)=>`<button id="hpt-${t}-${s.id}" onclick="setHCorrProtT('${s.id}','${t}')" style="border:none;border-radius:8px;padding:5px 12px;font-size:12px;font-family:'Prompt',sans-serif;cursor:pointer;transition:all .15s;${t===protType?'background:#3B82F6;color:white;font-weight:700':'background:#F3F4F6;color:var(--text)'}">${lbl}</button>`;
+    const ckBtn=(m,lbl)=>`<button id="hck-${m}-${s.id}" onclick="setHCorrCookM('${s.id}','${m}')" style="border:none;border-radius:8px;padding:5px 10px;font-size:12px;font-family:'Prompt',sans-serif;cursor:pointer;transition:all .15s;${m===cookMethod?'background:#8B5CF6;color:white;font-weight:700':'background:#F3F4F6;color:var(--text)'}">${lbl}</button>`;
+    const hRow=(label,field,val,step)=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid #F3F4F6">
+  <span style="font-size:13px;color:var(--text)">${label}</span>
+  <div class="corr-s-row" style="margin:0"><button onclick="adjHCorr('${s.id}','${field}',-${step})">−</button><input type="number" class="corr-input" id="hc-${field}-${s.id}" value="${val}" min="0" step="${step}" style="width:48px" onchange="syncHCorr('${s.id}','${field}')"><button onclick="adjHCorr('${s.id}','${field}',${step})">+</button></div>
+</div>`;
+    return`<div class="correction-panel">
+<h4>✏️ แก้ค่า — Hand Portion</h4>
+<div style="margin-bottom:10px">
+  <div style="font-size:12px;font-weight:700;color:var(--gray);margin-bottom:5px">🟡 คาร์บ — ความหนาแน่น</div>
+  <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px">${['veggie','light','normal','dense','heavy'].map(dBtn).join('')}</div>
+  <div style="font-size:12px;font-weight:700;color:var(--gray);margin-bottom:4px">จำนวน (มือ)</div>
+  <div class="corr-s-row"><button onclick="adjHCorr('${s.id}','carbQty',-0.5)">−</button><input type="number" class="corr-input" id="hc-carbQty-${s.id}" value="${carbQty}" min="0" step="0.5" onchange="syncHCorr('${s.id}','carbQty')"><button onclick="adjHCorr('${s.id}','carbQty',0.5)">+</button></div>
+</div>
+<div style="margin-bottom:10px">
+  <div style="font-size:12px;font-weight:700;color:var(--gray);margin-bottom:5px">🔴 โปรตีน</div>
+  <div style="display:flex;gap:6px;margin-bottom:8px">${ptBtn('lean','💪 ไม่ติดมัน')}${ptBtn('semilean','🍗 ติดมัน')}</div>
+  <div style="font-size:12px;font-weight:700;color:var(--gray);margin-bottom:4px">จำนวน (ฝ่ามือ)</div>
+  <div class="corr-s-row"><button onclick="adjHCorr('${s.id}','protQty',-0.5)">−</button><input type="number" class="corr-input" id="hc-protQty-${s.id}" value="${protQty}" min="0" step="0.5" onchange="syncHCorr('${s.id}','protQty')"><button onclick="adjHCorr('${s.id}','protQty',0.5)">+</button></div>
+</div>
+<div style="margin-bottom:10px">
+  <div style="font-size:12px;font-weight:700;color:var(--gray);margin-bottom:5px">🍳 วิธีปรุง + น้ำมัน</div>
+  <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px">${ckBtn('none','🥗 ต้ม/ย่าง')}${ckBtn('stirfry','🥘 ผัด')}${ckBtn('deep','🍳 ทอด/กะทิ')}</div>
+  <div style="font-size:12px;font-weight:700;color:var(--gray);margin-bottom:4px">น้ำมันมองเห็น (ช้อนชา)</div>
+  <div class="corr-s-row"><button onclick="adjHCorr('${s.id}','visFat',-0.5)">−</button><input type="number" class="corr-input" id="hc-visFat-${s.id}" value="${visFat}" min="0" step="0.5" onchange="syncHCorr('${s.id}','visFat')"><button onclick="adjHCorr('${s.id}','visFat',0.5)">+</button></div>
+</div>
+<div style="margin-bottom:10px;background:#F9FAFB;border-radius:10px;padding:8px 10px">
+  <div style="font-size:12px;font-weight:700;color:var(--gray);margin-bottom:4px">🥚 ไข่ + อาโวคาโด + ผลไม้</div>
+  ${hRow('🥚 ไข่ทั้งฟอง (ฟอง)','eggWhole',eggWhole,1)}
+  ${hRow('🤍 ไข่ขาว (ฟอง)','eggWhite',eggWhite,1)}
+  ${hRow('🥑 อาโวคาโด (ลูก)','avo',avo,0.5)}
+  ${hRow('🍓 ผลไม้ (ทัพพีคาร์บ)','fruitLadles',fruitLadles,0.5)}
+</div>
+<div id="hc-preview-${s.id}" style="background:#F0FDF4;border-radius:8px;padding:8px 12px;margin:6px 0 4px;font-size:13px;font-weight:700;color:#15803D;text-align:center">C ${preC}g · P ${preP}g · F ${preF}g → ⚡ ${preKcal} kcal</div>
+<textarea class="corr-note-ta" id="cc-note-${s.id}" rows="2" placeholder="ข้อความถึงนักเรียน (ไม่บังคับ)..." oninput="syncNote('${s.id}',this.value)">${escHtml(cs.note||'')}</textarea>
+<button class="btn-send-corr" onclick="sendCorrection('${s.id}')">ส่ง Feedback ✓</button>
+</div>`;
+  }
+  // === LABEL / WEIGH MODE — gram steppers ===
+  let carb,prot,fat;
   if(s.mode==='label'&&s.labelData){
     carb=cs.carb!==undefined?cs.carb:Math.round(s.labelData.carb||0);
     prot=cs.protein!==undefined?cs.protein:Math.round(s.labelData.protein||0);
     fat=cs.fat!==undefined?cs.fat:Math.round(s.labelData.fat||0);
-    step=1; unit='g';
-  }else if(s.mode==='weigh'&&s.weighData){
-    carb=cs.carb!==undefined?cs.carb:Math.round(s.weighData.carb||0);
-    prot=cs.protein!==undefined?cs.protein:Math.round(s.weighData.protein||0);
-    fat=cs.fat!==undefined?cs.fat:Math.round(s.weighData.fat||0);
-    step=1; unit='g';
   }else{
-    // hand mode — default ค่า gram จาก totalCarb/totalProtein/totalFat
-    carb=cs.carb!==undefined?cs.carb:Math.round(s.handData?.totalCarb||0);
-    prot=cs.protein!==undefined?cs.protein:Math.round(s.handData?.totalProtein||0);
-    fat=cs.fat!==undefined?cs.fat:Math.round(s.handData?.totalFat||0);
-    step=1; unit='g';
+    carb=cs.carb!==undefined?cs.carb:Math.round(s.weighData?.carb||0);
+    prot=cs.protein!==undefined?cs.protein:Math.round(s.weighData?.protein||0);
+    fat=cs.fat!==undefined?cs.fat:Math.round(s.weighData?.fat||0);
   }
-  return`<div class="correction-panel"><h4>✏️ แก้ไขค่าที่ถูกต้อง</h4><div class="corr-steppers"><div class="corr-s-item"><label>🟡 คาร์บ${unit==='g'?' (g)':''}</label><div class="corr-s-row"><button onclick="adjCorr('${s.id}','carb',-${step})">−</button><input type="number" class="corr-input" id="cc-carb-${s.id}" value="${carb}" min="0" step="${step}" onchange="syncCorr('${s.id}','carb')"><button onclick="adjCorr('${s.id}','carb',${step})">+</button></div></div><div class="corr-s-item"><label>🔴 โปรตีน${unit==='g'?' (g)':''}</label><div class="corr-s-row"><button onclick="adjCorr('${s.id}','protein',-${step})">−</button><input type="number" class="corr-input" id="cc-protein-${s.id}" value="${prot}" min="0" step="${step}" onchange="syncCorr('${s.id}','protein')"><button onclick="adjCorr('${s.id}','protein',${step})">+</button></div></div><div class="corr-s-item"><label>🟢 ไขมัน${unit==='g'?' (g)':''}</label><div class="corr-s-row"><button onclick="adjCorr('${s.id}','fat',-${step})">−</button><input type="number" class="corr-input" id="cc-fat-${s.id}" value="${fat}" min="0" step="${step}" onchange="syncCorr('${s.id}','fat')"><button onclick="adjCorr('${s.id}','fat',${step})">+</button></div></div></div><textarea class="corr-note-ta" id="cc-note-${s.id}" rows="2" placeholder="ข้อความถึงนักเรียน (ไม่บังคับ)...">${escHtml(cs.note||'')}</textarea><button class="btn-send-corr" onclick="sendCorrection('${s.id}')">ส่ง Feedback ✓</button></div>`;
+  const prevKcal=Math.round(carb*4+prot*4+fat*9);
+  return`<div class="correction-panel"><h4>✏️ แก้ไขค่าที่ถูกต้อง</h4><div class="corr-steppers"><div class="corr-s-item"><label>🟡 คาร์บ (g)</label><div class="corr-s-row"><button onclick="adjCorr('${s.id}','carb',-1)">−</button><input type="number" class="corr-input" id="cc-carb-${s.id}" value="${carb}" min="0" step="1" onchange="syncCorr('${s.id}','carb')"><button onclick="adjCorr('${s.id}','carb',1)">+</button></div></div><div class="corr-s-item"><label>🔴 โปรตีน (g)</label><div class="corr-s-row"><button onclick="adjCorr('${s.id}','protein',-1)">−</button><input type="number" class="corr-input" id="cc-protein-${s.id}" value="${prot}" min="0" step="1" onchange="syncCorr('${s.id}','protein')"><button onclick="adjCorr('${s.id}','protein',1)">+</button></div></div><div class="corr-s-item"><label>🟢 ไขมัน (g)</label><div class="corr-s-row"><button onclick="adjCorr('${s.id}','fat',-1)">−</button><input type="number" class="corr-input" id="cc-fat-${s.id}" value="${fat}" min="0" step="1" onchange="syncCorr('${s.id}','fat')"><button onclick="adjCorr('${s.id}','fat',1)">+</button></div></div></div><div id="corr-preview-${s.id}" style="background:#F0FDF4;border-radius:8px;padding:8px 12px;margin:6px 0 4px;font-size:13px;font-weight:700;color:#15803D;text-align:center">C ${carb}g · P ${prot}g · F ${fat}g → ⚡ ${prevKcal} kcal</div><textarea class="corr-note-ta" id="cc-note-${s.id}" rows="2" placeholder="ข้อความถึงนักเรียน (ไม่บังคับ)..." oninput="syncNote('${s.id}',this.value)">${escHtml(cs.note||'')}</textarea><button class="btn-send-corr" onclick="sendCorrection('${s.id}')">ส่ง Feedback ✓</button></div>`;
 }
 
 function toggleCorr(id){if(!cState[id])cState[id]={};cState[id].open=!cState[id].open;renderCoach();}
+function updateCorrPreview(id){
+  const c=parseFloat(document.getElementById(`cc-carb-${id}`)?.value)||0;
+  const p=parseFloat(document.getElementById(`cc-protein-${id}`)?.value)||0;
+  const f=parseFloat(document.getElementById(`cc-fat-${id}`)?.value)||0;
+  const kcal=Math.round(c*4+p*4+f*9);
+  const el=document.getElementById(`corr-preview-${id}`);
+  if(el)el.textContent=`C ${c}g · P ${p}g · F ${f}g → ⚡ ${kcal} kcal`;
+}
 function adjCorr(id,macro,delta){
   if(!cState[id])cState[id]={};
   const el=document.getElementById(`cc-${macro}-${id}`);
   const cur=parseFloat(el.value)||0;
   const val=Math.max(0,Math.round((cur+delta)*10)/10);
   cState[id][macro]=val;el.value=val;
+  updateCorrPreview(id);
 }
 function syncCorr(id,macro){
   if(!cState[id])cState[id]={};
   const el=document.getElementById(`cc-${macro}-${id}`);
   const val=Math.max(0,parseFloat(el.value)||0);
   cState[id][macro]=val;el.value=val;
+  updateCorrPreview(id);
+}
+// === Hand portion correction helpers ===
+function setHCorrCarbD(id,density){
+  if(!cState[id])cState[id]={};
+  cState[id].carbDensity=density;
+  ['veggie','light','normal','dense','heavy'].forEach(d=>{
+    const btn=document.getElementById(`hcd-${d}-${id}`);
+    if(btn){btn.style.background=d===density?'#F5A623':'#F3F4F6';btn.style.color=d===density?'white':'var(--text)';btn.style.fontWeight=d===density?'700':'400';}
+  });
+  updateHandCorrPreview(id);
+}
+function setHCorrProtT(id,type){
+  if(!cState[id])cState[id]={};
+  cState[id].protType=type;
+  ['lean','semilean'].forEach(t=>{
+    const btn=document.getElementById(`hpt-${t}-${id}`);
+    if(btn){btn.style.background=t===type?'#3B82F6':'#F3F4F6';btn.style.color=t===type?'white':'var(--text)';btn.style.fontWeight=t===type?'700':'400';}
+  });
+  updateHandCorrPreview(id);
+}
+function setHCorrCookM(id,method){
+  if(!cState[id])cState[id]={};
+  cState[id].cookMethod=method;
+  ['none','stirfry','deep'].forEach(m=>{
+    const btn=document.getElementById(`hck-${m}-${id}`);
+    if(btn){btn.style.background=m===method?'#8B5CF6':'#F3F4F6';btn.style.color=m===method?'white':'var(--text)';btn.style.fontWeight=m===method?'700':'400';}
+  });
+  updateHandCorrPreview(id);
+}
+function adjHCorr(id,field,delta){
+  if(!cState[id])cState[id]={};
+  const el=document.getElementById(`hc-${field}-${id}`);
+  const cur=parseFloat(el.value)||0;
+  const val=Math.max(0,Math.round((cur+delta)*10)/10);
+  cState[id][field]=val;el.value=val;
+  updateHandCorrPreview(id);
+}
+function syncHCorr(id,field){
+  if(!cState[id])cState[id]={};
+  const el=document.getElementById(`hc-${field}-${id}`);
+  const val=Math.max(0,parseFloat(el.value)||0);
+  cState[id][field]=val;el.value=val;
+  updateHandCorrPreview(id);
+}
+function syncNote(id,val){
+  if(!cState[id])cState[id]={};
+  cState[id].note=val;
+}
+function calcHandCorrMacros(id){
+  const s=cState[id]?._sub;
+  if(!s)return{C:0,P:0,F:0,kcal:0};
+  const hd=s.handData||{};
+  const st=cState[id]||{};
+  const density=st.carbDensity||(hd.carbSlots?.[0]?.density||'normal');
+  const carbQty=st.carbQty!==undefined?st.carbQty:(hd.carbSlots?.reduce((t,sl)=>t+(sl.qty||0),0)||1.5);
+  const protType=st.protType||hd.protType||'lean';
+  const protQty=st.protQty!==undefined?st.protQty:(hd.protein||1);
+  const cookMethod=st.cookMethod||hd.cookMethod||'none';
+  const visFat=st.visFat!==undefined?st.visFat:(hd.visibleFat||0);
+  const eggWhole=st.eggWhole!==undefined?st.eggWhole:(hd.eggWhole||0);
+  const eggWhite=st.eggWhite!==undefined?st.eggWhite:(hd.eggWhite||0);
+  const avo=st.avo!==undefined?st.avo:(hd.avo||0);
+  const fruitLadles=st.fruitLadles!==undefined?st.fruitLadles:(hd.fruitLadles||0);
+  const cd=CARB_D[density]||CARB_D.normal;
+  const pt=PROT_T[protType]||PROT_T.lean;
+  const ck=COOK_M[cookMethod]||COOK_M.none;
+  const eggsC=eggWhole*EGG_W.c+eggWhite*EGG_WH.c;
+  const eggsP=eggWhole*EGG_W.p+eggWhite*EGG_WH.p;
+  const eggsF=eggWhole*EGG_W.f;
+  const avoC=avo*AVO.c,avoP=avo*AVO.p,avoF=avo*AVO.f;
+  const fruitC=fruitLadles*15;
+  const C=Math.round(cd.c*carbQty+pt.c*protQty+eggsC+avoC+fruitC);
+  const P=Math.round(cd.p*carbQty+pt.p*protQty+eggsP+avoP);
+  const F=Math.round(cd.f*carbQty+pt.f*protQty+ck.f+visFat*VIS_FAT_G+eggsF+avoF);
+  return{C,P,F,kcal:Math.round(C*4+P*4+F*9)};
+}
+function updateHandCorrPreview(id){
+  const{C,P,F,kcal}=calcHandCorrMacros(id);
+  const el=document.getElementById(`hc-preview-${id}`);
+  if(el)el.textContent=`C ${C}g · P ${P}g · F ${F}g → ⚡ ${kcal} kcal`;
 }
 async function approveCard(id){try{await db.collection('submissions').doc(id).update({status:'approved'});}catch(e){alert('Error: '+e.message);}}
 async function sendCorrection(id){
-  const carb=parseFloat(document.getElementById(`cc-carb-${id}`).value)||0;
-  const prot=parseFloat(document.getElementById(`cc-protein-${id}`).value)||0;
-  const fat=parseFloat(document.getElementById(`cc-fat-${id}`).value)||0;
-  const note=document.getElementById(`cc-note-${id}`).value.trim();
+  let carb,prot,fat;
+  const s=cState[id]?._sub;
+  if(s&&s.mode==='hand'){
+    const{C,P,F}=calcHandCorrMacros(id);
+    carb=C;prot=P;fat=F;
+  }else{
+    carb=parseFloat(document.getElementById(`cc-carb-${id}`)?.value)||0;
+    prot=parseFloat(document.getElementById(`cc-protein-${id}`)?.value)||0;
+    fat=parseFloat(document.getElementById(`cc-fat-${id}`)?.value)||0;
+  }
+  const note=document.getElementById(`cc-note-${id}`)?.value.trim()||'';
   try{await db.collection('submissions').doc(id).update({status:'corrected',correction:{carb,protein:prot,fat,note}});cState[id]={};}
   catch(e){alert('Error: '+e.message);}
 }
