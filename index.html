@@ -441,6 +441,10 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
 
 <!-- STUDENT VIEW -->
 <div id="student-view">
+  <div id="coach-log-banner" style="display:none;background:var(--primary);color:#fff;padding:10px 16px;font-size:13px;font-family:'Prompt',sans-serif;align-items:center;justify-content:space-between;gap:8px">
+    <span>✍️ บันทึกอาหารของตัวเองค่ะ</span>
+    <button onclick="exitCoachLog()" style="background:rgba(255,255,255,0.2);border:none;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer;font-family:'Prompt',sans-serif;font-size:12px">← กลับ Dashboard</button>
+  </div>
   <div id="test-mode-banner" style="display:none;background:#7C3AED;color:#fff;padding:10px 16px;font-size:13px;font-family:'Prompt',sans-serif;align-items:center;justify-content:space-between;gap:8px">
     <span>🧪 Test Mode — ข้อมูลที่ส่งจะถูก tag ว่าทดสอบ</span>
     <button onclick="exitTestMode()" style="background:rgba(255,255,255,0.2);border:none;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer;font-family:'Prompt',sans-serif;font-size:12px">✕ กลับโค้ช</button>
@@ -749,7 +753,7 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
 <div id="success-screen">
   <div class="success-icon">✅</div>
   <h2>ส่งเรียบร้อยแล้วค่ะ!</h2>
-  <p>โค้ชจะตรวจสอบและให้ feedback<br>เร็วๆ นี้ค่ะ</p>
+  <p id="success-msg">โค้ชจะตรวจสอบและให้ feedback<br>เร็วๆ นี้ค่ะ</p>
   <div class="milestone-box" id="milestone-box">
     <div class="mfire">🔥</div>
     <div class="mt" id="milestone-title"></div>
@@ -773,6 +777,7 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
     </div>
     <div class="coach-tab" data-tab="done" onclick="selCoachTab(this)">อนุมัติแล้ว</div>
     <div class="coach-tab" data-tab="students" onclick="selCoachTab(this)">นักเรียน</div>
+    <div class="coach-tab" data-tab="mylog" onclick="selCoachTab(this)">✍️ บันทึก</div>
   </div>
   <div id="coach-filter-bar" class="coach-filter-bar" style="display:none">
     <button class="cf-btn active" id="cfb-all" onclick="setCoachFilter('all')">ทั้งหมด</button>
@@ -2650,7 +2655,7 @@ const _REMOVED=[
 ];
 
 // STATE
-let user=null, isCoach=false, curMeal='เช้า', curMode='hand', studentTab='log', testMode=false;
+let user=null, isCoach=false, curMeal='เช้า', curMode='hand', studentTab='log', testMode=false, coachLogMode=false;
 let photoBase64=null, coachTab='pending', allSubs=[], cState={};
 let coachFilter='all';
 let studentTodaySubs=[];
@@ -3750,6 +3755,8 @@ async function submitMeal(){
 function showSuccess(mode,handData,labelData,weighData){
   document.getElementById('student-view').style.display='none';
   document.getElementById('success-screen').style.display='flex';
+  const smsg=document.getElementById('success-msg');
+  if(smsg)smsg.innerHTML=coachLogMode?'บันทึกสำเร็จค่ะ! ได้ feedback card แล้ว 💪':'โค้ชจะตรวจสอบและให้ feedback<br>เร็วๆ นี้ค่ะ';
   const DL={veggie:'🟢ผัก',light:'🔵เบา',normal:'🟡ปกติ',dense:'🟠แน่น',heavy:'🔴ตัวตึง'};
   let chips=`<span class="chip">${formatDateTH(selectedDate)} · มื้อ${curMeal}</span>`;
   if(mode==='hand'&&handData){
@@ -3917,7 +3924,7 @@ async function loadDashboard(forceRefresh=false){
 
 function renderStudentDashboard(subs, targets, coachNotes, healthLogs, weeklyChecks, weeklySummaries={}){
   const MON=getMonWeekDates();
-  const TH_SHORT=['จ','อ','พ','พฤ','ศ','ส'];
+  const TH_SHORT=['จ','อ','พ','พฤ','ศ','ส','อา'];
   const byDate={};
   subs.forEach(s=>{const k=subDate(s);if(!byDate[k])byDate[k]=[];byDate[k].push(s);});
   const today=todayStr();
@@ -3994,6 +4001,7 @@ function renderStudentDashboard(subs, targets, coachNotes, healthLogs, weeklyChe
 }
 
 function resetStudent(){
+  if(coachLogMode){exitCoachLog();return;}
   photoBase64=null;_photoProcessing=false;selectedDate=todayStr();
   document.getElementById('menu-name-input').value='';
   document.getElementById('menu-desc-input').value='';
@@ -4056,6 +4064,26 @@ function exitTestMode(){
   histCache=null;
 }
 
+// COACH LOG MODE
+function enterCoachLog(){
+  coachLogMode=true;
+  document.getElementById('coach-view').style.display='none';
+  document.getElementById('coach-log-banner').style.display='flex';
+  document.getElementById('btn-submit').textContent='บันทึกของฉัน ✓';
+  startStudent();
+}
+function exitCoachLog(){
+  coachLogMode=false;
+  document.getElementById('coach-log-banner').style.display='none';
+  document.getElementById('student-view').style.display='none';
+  document.getElementById('success-screen').style.display='none';
+  document.getElementById('coach-view').style.display='block';
+  document.getElementById('btn-submit').textContent='ส่งให้โค้ชตรวจ ✓';
+  // reset active tab back to pending
+  document.querySelectorAll('.coach-tab').forEach((t,i)=>{t.classList.toggle('active',i===0);});
+  coachTab='pending';
+  histCache=null;
+}
 // COACH
 function startCoach(){
   document.getElementById('coach-view').style.display='block';
@@ -4066,6 +4094,7 @@ function selCoachTab(tab){
   document.querySelectorAll('.coach-tab').forEach(t=>t.classList.remove('active'));
   tab.classList.add('active');
   coachTab=tab.dataset.tab;
+  if(coachTab==='mylog'){enterCoachLog();return;}
   renderCoach();
   if(coachTab==='students')loadStudentList();
 }
@@ -4130,12 +4159,12 @@ async function loadStudentList(){
 }
 
 function buildStudentCard(u){
-  const MON=getMonWeekDates(); // จ-ส ของสัปดาห์นี้
+  const MON=getMonWeekDates(); // จ-อา ของสัปดาห์นี้
   const byDate={};
   u.subs.forEach(s=>{const k=subDate(s);if(!byDate[k])byDate[k]=[];byDate[k].push(s);});
   const streak=calcStreak(u.subs);
-  // week dots จ-ส
-  const TH_SHORT=['จ','อ','พ','พฤ','ศ','ส'];
+  // week dots จ-อา
+  const TH_SHORT=['จ','อ','พ','พฤ','ศ','ส','อา'];
   const dotsHtml=MON.map((d,i)=>{
     const hasSub=!!(byDate[d]&&byDate[d].length);
     return`<div class="stu-day-col">
@@ -4172,14 +4201,14 @@ function buildStudentCard(u){
 }
 
 function getMonWeekDates(){
-  // ส่งคืน array ของวันจันทร์ - เสาร์ของสัปดาห์นี้ (YYYY-MM-DD)
+  // ส่งคืน array ของวันจันทร์ - อาทิตย์ของสัปดาห์นี้ (YYYY-MM-DD)
   const today=new Date();
   const dow=today.getDay(); // 0=อา 1=จ ... 6=ส
   const mondayOffset=dow===0?-6:1-dow; // shift to monday
   const monday=new Date(today);
   monday.setDate(today.getDate()+mondayOffset);
   const dates=[];
-  for(let i=0;i<6;i++){
+  for(let i=0;i<7;i++){
     const d=new Date(monday);
     d.setDate(monday.getDate()+i);
     dates.push(d.toISOString().split('T')[0]);
@@ -4277,7 +4306,7 @@ function buildMacro7Html(MON, TH_SHORT, byDate, targets){
 
 function renderStudentDetail(u, targets, healthLogs, weeklySummaries={}, weeklyChecks=[]){
   const MON=getMonWeekDates();
-  const TH_SHORT=['จ','อ','พ','พฤ','ศ','ส'];
+  const TH_SHORT=['จ','อ','พ','พฤ','ศ','ส','อา'];
   const byDate={};
   u.subs.forEach(s=>{const k=subDate(s);if(!byDate[k])byDate[k]=[];byDate[k].push(s);});
 
@@ -4718,7 +4747,7 @@ function buildZigzagSection(MON, TH_SHORT, byDate, targets, userId){
 
   const zz=calcZigzag(yActual,targets);
 
-  // Net 7-day chart (จ-ส vs target)
+  // Net 7-day chart (จ-อา vs target)
   const maxKcal=Math.max(...MON.map(d=>{let k=0;(byDate[d]||[]).forEach(s=>{k+=getSubMacros(s).kcal;});return k;}),targets.kcal*1.3,1);
   const netBars=MON.map((d,i)=>{
     const hasSub=(byDate[d]||[]).length>0;
@@ -4762,7 +4791,7 @@ function buildZigzagSection(MON, TH_SHORT, byDate, targets, userId){
     <div class="sd-section-title">⚡ Zigzag Calories</div>
 
     <div style="background:white;border:1px solid #E5E7EB;border-radius:10px;padding:11px 12px;margin-bottom:10px">
-      <div style="font-size:11px;color:var(--gray);margin-bottom:8px;font-weight:600">Net 7 วัน (จ–ส) vs เป้า</div>
+      <div style="font-size:11px;color:var(--gray);margin-bottom:8px;font-weight:600">Net 7 วัน (จ–อา) vs เป้า</div>
       <div style="display:flex;gap:5px;align-items:flex-end">${netBars}</div>
       <div style="display:flex;gap:10px;margin-top:6px;font-size:9px;color:var(--gray)">
         <span>🟢 ในเป้า</span><span style="color:#EF4444">🔴 เกิน</span><span style="color:#3B82F6">🔵 ขาด</span>
@@ -4834,7 +4863,7 @@ function buildStudentZigzagSection(MON, TH_SHORT, byDate, targets){
   return`<div class="sd-section" style="margin-top:10px">
     <div class="sd-section-title">⚡ Zigzag Calories</div>
     <div style="background:white;border:1px solid #E5E7EB;border-radius:10px;padding:11px 12px;margin-bottom:10px">
-      <div style="font-size:11px;color:var(--gray);margin-bottom:8px;font-weight:600">Net 7 วัน (จ–ส) vs เป้า</div>
+      <div style="font-size:11px;color:var(--gray);margin-bottom:8px;font-weight:600">Net 7 วัน (จ–อา) vs เป้า</div>
       <div style="display:flex;gap:5px;align-items:flex-end">${netBars}</div>
       <div style="display:flex;gap:10px;margin-top:6px;font-size:9px;color:var(--gray)">
         <span>🟢 ในเป้า</span><span style="color:#EF4444">🔴 เกิน</span><span style="color:#3B82F6">🔵 ขาด</span>
