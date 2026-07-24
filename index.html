@@ -2758,7 +2758,7 @@ async function loadStreak(){
 }
 
 // DATE HELPERS
-function todayStr(){return new Date().toISOString().split('T')[0];}
+function todayStr(){const d=new Date();const pad=n=>String(n).padStart(2,'0');return`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;}
 function formatDateTH(str){
   if(!str)return'';
   const [y,m,d]=str.split('-');
@@ -3699,6 +3699,13 @@ function applySavedMenu(id){
     eggWhole=hd.eggWhole||0;eggWhite=hd.eggWhite||0;
     cookMethod=hd.cookMethod||'none';visibleFat=hd.visibleFat||0;avoQty=hd.avo||0;
     fruitCounts={...hd.fruits};
+    FRUIT_ITEMS.forEach(f=>{
+      fruitCounts[f.id]=fruitCounts[f.id]||0;
+      const el=document.getElementById('fc-'+f.id);if(el)el.textContent=fruitCounts[f.id];
+      const fi=document.getElementById('fi-'+f.id);if(fi)fi.classList.toggle('has-fruit',fruitCounts[f.id]>0);
+      const uel=document.getElementById('fu-'+f.id);if(uel)uel.style.display=fruitCounts[f.id]>0?'block':'none';
+    });
+    const fbar=document.getElementById('fruit-total-bar');if(fbar)fbar.style.display=getFruitLadles()>0?'flex':'none';
     renderCarbSlots();updateHandSummary();
   }
 }
@@ -3729,7 +3736,7 @@ async function submitMeal(){
       labelData=getLabelData();
     }else if(curMode==='weigh'){
       weighData=getWeighData();
-      if(!weighData){alert('กรุณาให้ AI คำนวณก่อนค่ะ');btn.disabled=false;btn.textContent='ส่งให้โค้ชตรวจ ✓';return;}
+      if(!weighData){alert('กรุณาให้ AI คำนวณก่อนค่ะ');btn.disabled=false;btn.textContent=coachLogMode?'บันทึกของฉัน ✓':'ส่งให้โค้ชตรวจ ✓';return;}
     }
     await db.collection('submissions').add({
       userId:user.userId,displayName:user.displayName,pictureUrl:user.pictureUrl||null,
@@ -3749,7 +3756,7 @@ async function submitMeal(){
     const bss=document.getElementById('btn-save-success');
     if(bss)bss.style.display=(curMode==='restaurant')?'none':'inline-block';
     if(!testMode)sendFeedbackCard(); // ไม่ส่ง LINE card ใน test mode
-  }catch(e){console.error(e);alert('เกิดข้อผิดพลาด: '+e.message);btn.disabled=false;btn.textContent='ส่งให้โค้ชตรวจ ✓';}
+  }catch(e){console.error(e);alert('เกิดข้อผิดพลาด: '+e.message);btn.disabled=false;btn.textContent=coachLogMode?'บันทึกของฉัน ✓':'ส่งให้โค้ชตรวจ ✓';}
 }
 
 function showSuccess(mode,handData,labelData,weighData){
@@ -4211,7 +4218,7 @@ function getMonWeekDates(){
   for(let i=0;i<7;i++){
     const d=new Date(monday);
     d.setDate(monday.getDate()+i);
-    dates.push(d.toISOString().split('T')[0]);
+    const pad2=n=>String(n).padStart(2,'0');dates.push(`${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`);
   }
   return dates;
 }
@@ -4275,7 +4282,7 @@ function buildMacro7Html(MON, TH_SHORT, byDate, targets){
   const macro7Rows=MON.map((d,i)=>{
     const daySubs=byDate[d]||[];
     if(!daySubs.length)return`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #F3F4F6">
-      <span style="font-size:11px;color:var(--gray)">${TH_SHORT[i]} ${formatDateShort(d)}</span>
+      <span style="font-size:11px;color:var(--gray)">${TH_SHORT[i]} ${parseInt(d.split('-')[2])}</span>
       <span style="font-size:10px;color:#D1D5DB">ไม่ส่ง</span>
     </div>`;
     let tc=0,tp=0,tf=0;
@@ -4285,7 +4292,7 @@ function buildMacro7Html(MON, TH_SHORT, byDate, targets){
     const chipColor=kcal>targets.kcal+200?'color:#EF4444':kcal<targets.kcal-200?'color:#3B82F6':'color:#22C55E';
     return`<div style="padding:7px 0;border-bottom:1px solid #F3F4F6">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
-        <span style="font-size:11px;font-weight:600;color:var(--text)">${TH_SHORT[i]} ${formatDateShort(d)}</span>
+        <span style="font-size:11px;font-weight:600;color:var(--text)">${TH_SHORT[i]} ${parseInt(d.split('-')[2])}</span>
         <span style="font-size:12px;font-weight:700;${chipColor}">${kcal} kcal</span>
       </div>
       <div class="m7-bars">
@@ -5247,8 +5254,10 @@ function calcSmartMsg(totC,totP,totF,totKcal){
 function flexProgressBar(pct, color){
   const fill=Math.min(Math.round(pct),100);
   const empty=100-fill;
-  const parts=[{flex:fill,bg:color}];
+  const parts=[];
+  if(fill>0)parts.push({flex:fill,bg:color});
   if(empty>0)parts.push({flex:empty,bg:'#E5E7EB'});
+  if(!parts.length)parts.push({flex:100,bg:'#E5E7EB'});
   return{
     type:'box',layout:'horizontal',height:'6px',margin:'sm',cornerRadius:'3px',
     contents:parts.map(p=>({
