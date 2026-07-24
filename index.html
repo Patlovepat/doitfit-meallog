@@ -270,14 +270,6 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
 .mode-tag.hand{background:#DBEAFE;color:#1D4ED8}
 .mode-tag.label{background:#D1FAE5;color:#065F46}
 .mode-tag.weigh{background:#FEF3C7;color:#92400E}
-.mode-tag.restaurant{background:#FEE2E2;color:#B91C1C}
-.rest-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:4px}
-.rest-btn{padding:10px 10px;border:1.5px solid #E5E7EB;border-radius:10px;background:#fff;font-family:'Prompt',sans-serif;font-size:12px;font-weight:600;cursor:pointer;text-align:left;transition:.15s;color:var(--text);width:100%}
-.rest-btn:hover{border-color:var(--primary);background:var(--light)}
-.rest-menu-item{display:flex;justify-content:space-between;align-items:flex-start;padding:10px 0;border-bottom:1px solid #F3F4F6;cursor:pointer;transition:.1s;gap:8px}
-.rest-menu-item:last-child{border-bottom:none}
-.rest-menu-item:active,.rest-menu-item:hover{opacity:.8}
-.rest-selected-card{background:#FFF7ED;border:2px solid #FED7AA;border-radius:12px;padding:12px 14px;margin-bottom:0}
 .card-photo{width:100%;max-height:220px;object-fit:cover;border-bottom:1px solid #F3F4F6}
 .card-body{padding:12px 14px}
 .est-chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
@@ -485,7 +477,6 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
       <div class="mode-tab active" data-mode="hand" onclick="selMode(this)">👊 Hand portion</div>
       <div class="mode-tab" data-mode="label" onclick="selMode(this)">🏷️ ฉลาก</div>
       <div class="mode-tab" data-mode="weigh" onclick="selMode(this)">⚖️ ชั่ง</div>
-      <div class="mode-tab" data-mode="restaurant" onclick="selMode(this)">🏪 ร้านดัง</div>
     </div>
 
     <!-- HAND MODE -->
@@ -688,46 +679,11 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
         <!-- AI mode -->
         <div id="weigh-ai">
           <div id="saved-chips-weigh" class="saved-menu-area" style="display:none"></div>
-          <div style="font-size:12px;color:var(--gray);margin-bottom:8px">พิมพ์อาหารทั้งหมดที่กิน — ยิ่งระบุปริมาณ/กรัม ยิ่งแม่น 🎯</div>
-          <textarea class="ai-food-textarea" id="ai-food-input" rows="5" placeholder="ตัวอย่าง:&#10;ข้าวกล้อง 2 ทัพพี (180g)&#10;ไข่ดาว 2 ฟอง&#10;หมูสันใน 120g ย่าง&#10;ผักบุ้งผัดน้ำมันน้อย 80g&#10;&#10;หรือเช่น: ข้าวผัดกุ้ง 1 จาน, สลัดไก่ย่าง"></textarea>
+          <div style="font-size:12px;color:var(--gray);margin-bottom:8px">พิมพ์อาหารทั้งหมดที่กิน ไม่ต้องเป๊ะ — AI จะแปลงให้</div>
+          <textarea class="ai-food-textarea" id="ai-food-input" rows="5" placeholder="ตัวอย่าง:&#10;ข้าวกล้อง 2 ทัพพี&#10;ไข่ไก่ 2 ฟอง&#10;หมูสันใน 100g&#10;ผักผัด 60g"></textarea>
           <button class="ai-calc-btn" id="ai-calc-btn" onclick="callGeminiAI()">✨ ให้ AI คำนวณ</button>
           <div id="ai-result-area" style="display:none"></div>
           <button class="btn-save-menu" id="btn-save-weigh" style="display:none" onclick="saveCurrentMenu()">⭐ บันทึกเป็นเมนูโปรด</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- RESTAURANT MODE -->
-    <div id="panel-restaurant" style="display:none">
-      <div class="section-card">
-        <!-- Step 1: Restaurant grid -->
-        <div id="rest-step-restaurants">
-          <div class="section-title" style="margin-bottom:12px">🏪 เลือกร้านอาหาร</div>
-          <div class="rest-grid" id="rest-grid"></div>
-          <div style="font-size:11px;color:var(--gray);margin-top:8px;text-align:center">80 เมนู · 10 ร้าน · ข้อมูลทางการและโดยประมาณ</div>
-        </div>
-        <!-- Step 2: Menu list -->
-        <div id="rest-step-menu" style="display:none">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
-            <button onclick="restBack()" style="padding:5px 10px;border:1.5px solid #E5E7EB;border-radius:8px;background:#fff;font-family:'Prompt',sans-serif;font-size:12px;cursor:pointer;color:var(--text)">← กลับ</button>
-            <div style="font-size:14px;font-weight:700;color:var(--text)" id="rest-menu-title"></div>
-          </div>
-          <div id="rest-menu-list"></div>
-        </div>
-      </div>
-      <!-- Selected food card -->
-      <div id="rest-selected-area" style="display:none">
-        <div class="section-card" style="margin-top:12px">
-          <div class="rest-selected-card">
-            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
-              <div>
-                <div style="font-size:10px;color:#B91C1C;font-weight:700;margin-bottom:3px" id="rest-sel-rest"></div>
-                <div style="font-size:14px;font-weight:700;color:var(--text)" id="rest-sel-name"></div>
-              </div>
-              <button onclick="restClearSel()" style="flex-shrink:0;margin-left:8px;width:26px;height:26px;border-radius:50%;border:1.5px solid #FED7AA;background:#fff;font-size:14px;cursor:pointer;color:#B45309;display:flex;align-items:center;justify-content:center;font-weight:700">✕</button>
-            </div>
-            <div id="rest-sel-detail"></div>
-          </div>
         </div>
       </div>
     </div>
@@ -2756,10 +2712,6 @@ const TH_MONTHS=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','�
 const TH_DAYS=['อา','จ','อ','พ','พฤ','ศ','ส'];
 const TARGETS={kcal:1600,c:160,p:120,f:55};
 const STREAK_MILESTONES=[3,7,14,21,30];
-const RESTAURANT_DB=[{"id":"mcdonalds-big-mac","r":"McDonald's","rid":"mcdonalds","th":"บิ๊กแมค","srv":"1 ชิ้น (7.5 oz)","kcal":540,"c":47,"p":25,"f":28,"src":"official"},{"id":"mcdonalds-quarter-pounder-w-cheese","r":"McDonald's","rid":"mcdonalds","th":"ควอเตอร์พาวเดอร์ชีส","srv":"1 ชิ้น","kcal":540,"c":42,"p":31,"f":28,"src":"official"},{"id":"mcdonalds-mcchicken","r":"McDonald's","rid":"mcdonalds","th":"แมคชิคเก้น","srv":"1 ชิ้น","kcal":370,"c":40,"p":14,"f":17,"src":"official"},{"id":"mcdonalds-filet-o-fish","r":"McDonald's","rid":"mcdonalds","th":"ฟิเลโอฟิช","srv":"1 ชิ้น","kcal":390,"c":39,"p":15,"f":19,"src":"official"},{"id":"mcdonalds-chicken-mcnuggets-6-pc","r":"McDonald's","rid":"mcdonalds","th":"แมคนักเก็ต 6 ชิ้น","srv":"6 ชิ้น","kcal":280,"c":18,"p":13,"f":18,"src":"official"},{"id":"mcdonalds-cheeseburger","r":"McDonald's","rid":"mcdonalds","th":"ชีสเบอร์เกอร์","srv":"1 ชิ้น","kcal":300,"c":33,"p":15,"f":12,"src":"official"},{"id":"mcdonalds-hamburger","r":"McDonald's","rid":"mcdonalds","th":"แฮมเบอร์เกอร์","srv":"1 ชิ้น","kcal":250,"c":32,"p":15,"f":8,"src":"official"},{"id":"mcdonalds-egg-mcmuffin","r":"McDonald's","rid":"mcdonalds","th":"เอ้กแมคมัฟฟิน","srv":"1 ชิ้น","kcal":300,"c":31,"p":17,"f":13,"src":"official"},{"id":"mcdonalds-french-fries-small","r":"McDonald's","rid":"mcdonalds","th":"เฟรนช์ฟรายส์ (เล็ก)","srv":"เล็ก","kcal":230,"c":30,"p":4,"f":11,"src":"official"},{"id":"mcdonalds-french-fries-medium","r":"McDonald's","rid":"mcdonalds","th":"เฟรนช์ฟรายส์ (กลาง)","srv":"กลาง","kcal":340,"c":44,"p":4,"f":16,"src":"official"},{"id":"mcdonalds-hot-fudge-sundae","r":"McDonald's","rid":"mcdonalds","th":"ฮอตฟัดจ์ซันเด","srv":"1 ถ้วย","kcal":330,"c":53,"p":8,"f":9,"src":"official"},{"id":"kfc-original-recipe-breast","r":"KFC","rid":"kfc","th":"ไก่ออริจินัล อกไก่","srv":"1 ชิ้น","kcal":290,"c":8,"p":35,"f":13,"src":"official"},{"id":"kfc-original-recipe-thigh","r":"KFC","rid":"kfc","th":"ไก่ออริจินัล สะโพก","srv":"1 ชิ้น","kcal":220,"c":6,"p":15,"f":15,"src":"official"},{"id":"kfc-original-recipe-drumstick","r":"KFC","rid":"kfc","th":"ไก่ออริจินัล น่อง","srv":"1 ชิ้น","kcal":140,"c":2,"p":15,"f":8,"src":"official"},{"id":"kfc-original-recipe-wing","r":"KFC","rid":"kfc","th":"ไก่ออริจินัล ปีก","srv":"1 ชิ้น","kcal":160,"c":4,"p":14,"f":9,"src":"official"},{"id":"kfc-hot-wings-5-pc","r":"KFC","rid":"kfc","th":"ฮอตวิงส์ 5 ชิ้น","srv":"5 ชิ้น","kcal":380,"c":15,"p":27,"f":24,"src":"official"},{"id":"kfc-popcorn-chicken-small","r":"KFC","rid":"kfc","th":"ป๊อปคอร์นไก่ (เล็ก)","srv":"เล็ก","kcal":370,"c":26,"p":19,"f":21,"src":"official"},{"id":"kfc-popcorn-chicken-large","r":"KFC","rid":"kfc","th":"ป๊อปคอร์นไก่ (ใหญ่)","srv":"ใหญ่","kcal":1000,"c":71,"p":52,"f":57,"src":"official"},{"id":"kfc-zinger-sandwich","r":"KFC","rid":"kfc","th":"ซิงเกอร์เบอร์เกอร์","srv":"1 ชิ้น","kcal":640,"c":59,"p":25,"f":35,"src":"official"},{"id":"kfc-crispy-strips-3-pc","r":"KFC","rid":"kfc","th":"คริสปี้สตริป 3 ชิ้น","srv":"3 ชิ้น","kcal":330,"c":21,"p":27,"f":15,"src":"official"},{"id":"kfc-seasoned-fries-medium","r":"KFC","rid":"kfc","th":"เฟรนช์ฟรายส์ปรุงรส (กลาง)","srv":"กลาง","kcal":850,"c":124,"p":15,"f":35,"src":"official"},{"id":"starbucks-caffe-latte","r":"Starbucks","rid":"starbucks","th":"คาเฟ่ลาเต้","srv":"Grande 16oz","kcal":190,"c":19,"p":13,"f":7,"src":"estimated"},{"id":"starbucks-cappuccino","r":"Starbucks","rid":"starbucks","th":"คาปูชิโน","srv":"Grande 16oz","kcal":140,"c":14,"p":10,"f":5,"src":"estimated"},{"id":"starbucks-caramel-macchiato","r":"Starbucks","rid":"starbucks","th":"คาราเมลมัคคิอาโต","srv":"Grande 16oz","kcal":250,"c":34,"p":10,"f":7,"src":"estimated"},{"id":"starbucks-caffe-americano","r":"Starbucks","rid":"starbucks","th":"อเมริกาโน","srv":"Grande 16oz","kcal":15,"c":3,"p":1,"f":0,"src":"estimated"},{"id":"starbucks-caffe-mocha-w-whip","r":"Starbucks","rid":"starbucks","th":"คาเฟ่มอคค่า (วิปครีม)","srv":"Grande 16oz","kcal":360,"c":47,"p":12,"f":14,"src":"estimated"},{"id":"starbucks-white-chocolate-mocha","r":"Starbucks","rid":"starbucks","th":"ไวท์ช็อกโกแลตมอคค่า","srv":"Grande 16oz","kcal":430,"c":53,"p":12,"f":18,"src":"estimated"},{"id":"starbucks-java-chip-frappuccino","r":"Starbucks","rid":"starbucks","th":"จาวาชิพแฟรบปูชิโน","srv":"Grande 16oz","kcal":440,"c":63,"p":5,"f":19,"src":"estimated"},{"id":"starbucks-caramel-frappuccino","r":"Starbucks","rid":"starbucks","th":"คาราเมลแฟรบปูชิโน","srv":"Grande 16oz","kcal":380,"c":54,"p":4,"f":16,"src":"estimated"},{"id":"starbucks-pike-place-brewed-coffee","r":"Starbucks","rid":"starbucks","th":"ไพค์เพลสกาแฟดำ","srv":"Grande 16oz","kcal":5,"c":0,"p":1,"f":0,"src":"estimated"},{"id":"subway-turkey-breast","r":"Subway","rid":"subway","th":"เทอร์กี้เบรสต์","srv":"6-inch","kcal":280,"c":46,"p":18,"f":3.5,"src":"official"},{"id":"subway-sweet-onion-chicken-teriyaki","r":"Subway","rid":"subway","th":"ไก่เทอริยากิ","srv":"6-inch","kcal":370,"c":57,"p":25,"f":4.5,"src":"official"},{"id":"subway-tuna","r":"Subway","rid":"subway","th":"ทูน่า","srv":"6-inch","kcal":480,"c":44,"p":20,"f":25,"src":"official"},{"id":"subway-veggie-delite","r":"Subway","rid":"subway","th":"เวจจี้ดีไลท์","srv":"6-inch","kcal":230,"c":44,"p":8,"f":2.5,"src":"official"},{"id":"subway-italian-b-m-t","r":"Subway","rid":"subway","th":"อิตาเลียน บี.เอ็ม.ที.","srv":"6-inch","kcal":410,"c":46,"p":20,"f":16,"src":"official"},{"id":"subway-black-forest-ham","r":"Subway","rid":"subway","th":"แฮมป่าดำ","srv":"6-inch","kcal":290,"c":46,"p":18,"f":4.5,"src":"official"},{"id":"subway-oven-roasted-chicken","r":"Subway","rid":"subway","th":"อกไก่อบ","srv":"6-inch","kcal":320,"c":45,"p":23,"f":5,"src":"official"},{"id":"subway-meatball-marinara","r":"Subway","rid":"subway","th":"มีตบอลมารินารา","srv":"6-inch","kcal":480,"c":59,"p":21,"f":18,"src":"official"},{"id":"subway-steak-cheese","r":"Subway","rid":"subway","th":"สเต๊กแอนด์ชีส","srv":"6-inch","kcal":380,"c":48,"p":26,"f":10,"src":"official"},{"id":"sushiro-salmon-nigiri","r":"Sushiro","rid":"sushiro","th":"แซลมอน","srv":"1 จาน","kcal":91,"c":12.6,"p":5.2,"f":2.5,"src":"estimated"},{"id":"sushiro-premium-lean-bluefin-tuna-nigiri","r":"Sushiro","rid":"sushiro","th":"ทูน่าติดมันพรีเมียม","srv":"1 จาน","kcal":79,"c":9.2,"p":8.6,"f":0.6,"src":"estimated"},{"id":"sushiro-skipjack-tuna-nigiri","r":"Sushiro","rid":"sushiro","th":"โบนิโต (คัตสึโอะ)","srv":"1 จาน","kcal":83,"c":9,"p":9,"f":1,"src":"estimated"},{"id":"sushiro-large-shrimp-nigiri","r":"Sushiro","rid":"sushiro","th":"กุ้งใหญ่","srv":"1 จาน","kcal":46,"c":5.6,"p":4,"f":0.3,"src":"estimated"},{"id":"sushiro-hamachi-nigiri","r":"Sushiro","rid":"sushiro","th":"ฮามาจิ (หางเหลือง)","srv":"1 จาน","kcal":99,"c":9.7,"p":5.7,"f":4,"src":"estimated"},{"id":"sushiro-salmon-avocado-roll","r":"Sushiro","rid":"sushiro","th":"แซลมอนอโวคาโดโรล","srv":"1 จาน","kcal":140,"c":16,"p":5.3,"f":6.3,"src":"estimated"},{"id":"sushiro-shrimp-fry-avocado-roll","r":"Sushiro","rid":"sushiro","th":"กุ้งชุบแป้งทอดอโวคาโดโรล","srv":"1 จาน","kcal":136,"c":18.7,"p":4.5,"f":5,"src":"estimated"},{"id":"sushiro-shrimp-tempura-nigiri","r":"Sushiro","rid":"sushiro","th":"กุ้งเทมปุระ","srv":"1 จาน","kcal":142,"c":17,"p":5.5,"f":5.8,"src":"estimated"},{"id":"sushiro-salmon-belly-gunkan","r":"Sushiro","rid":"sushiro","th":"ท้องแซลมอนกุนคัง","srv":"1 จาน","kcal":114,"c":14.4,"p":5.7,"f":3.6,"src":"estimated"},{"id":"sushiro-chawanmushi","r":"Sushiro","rid":"sushiro","th":"ไข่ตุ๋นชาวันมูชิ","srv":"1 ถ้วย","kcal":77,"c":4.2,"p":6.5,"f":3.8,"src":"estimated"},{"id":"sushiro-miso-soup","r":"Sushiro","rid":"sushiro","th":"ซุปมิโสะ","srv":"1 ถ้วย","kcal":48,"c":6.5,"p":2.5,"f":0.8,"src":"estimated"},{"id":"ohkajhu-carrot-flour-wrap-sheet-wrapper-only","r":"Ohkajhu (โอ้กะจู๋)","rid":"ohkajhu","th":"แผ่นแป้งแรปแครอท (เฉพาะแผ่น)","srv":"1 แผ่น ~93g","kcal":267,"c":43,"p":8.1,"f":5.8,"src":"estimated"},{"id":"ohkajhu-vegetable-wrap-sheet-wrapper-only","r":"Ohkajhu (โอ้กะจู๋)","rid":"ohkajhu","th":"แผ่นแป้งแรปผัก (เฉพาะแผ่น)","srv":"1 แผ่น ~93g","kcal":279,"c":44.2,"p":8.1,"f":8.1,"src":"estimated"},{"id":"sizzler-the-sizzler-steak","r":"Sizzler","rid":"sizzler","th":"เดอะซิซซ์เลอร์สเต๊ก","srv":"1 ที่","kcal":588,"c":1,"p":70,"f":32,"src":"estimated"},{"id":"sizzler-grilled-salmon","r":"Sizzler","rid":"sizzler","th":"แซลมอนย่าง","srv":"6 oz","kcal":304,"c":0.4,"p":34,"f":19,"src":"estimated"},{"id":"sizzler-cilantro-lime-barramundi","r":"Sizzler","rid":"sizzler","th":"ปลากะพงซิลานโตรไลม์","srv":"1 ที่ (ไม่รวมเครื่องเคียง)","kcal":450,"c":34,"p":51,"f":17,"src":"estimated"},{"id":"sizzler-chicken-breast-w-bbq","r":"Sizzler","rid":"sizzler","th":"อกไก่ย่างบาร์บีคิว","srv":"7 oz","kcal":220,"c":8,"p":41,"f":2,"src":"estimated"},{"id":"sizzler-cheese-toast","r":"Sizzler","rid":"sizzler","th":"ขนมปังชีส","srv":"1 แผ่น","kcal":290,"c":22,"p":6,"f":19,"src":"estimated"},{"id":"sizzler-garlic-mashed-potatoes","r":"Sizzler","rid":"sizzler","th":"มันบดกระเทียม","srv":"1 ที่","kcal":200,"c":39,"p":3,"f":4,"src":"estimated"},{"id":"sizzler-baked-potato","r":"Sizzler","rid":"sizzler","th":"มันอบ","srv":"1 หัว","kcal":510,"c":55,"p":5,"f":30,"src":"estimated"},{"id":"sizzler-french-fries","r":"Sizzler","rid":"sizzler","th":"เฟรนช์ฟรายส์","srv":"7 oz","kcal":500,"c":52,"p":5,"f":31,"src":"estimated"},{"id":"sizzler-steamed-broccoli","r":"Sizzler","rid":"sizzler","th":"บร็อคโคลีนึ่ง","srv":"1 ที่","kcal":40,"c":7,"p":4,"f":0,"src":"estimated"},{"id":"sizzler-side-salad","r":"Sizzler","rid":"sizzler","th":"ไซด์สลัด","srv":"1 ที่","kcal":70,"c":15,"p":3,"f":2,"src":"estimated"},{"id":"starbucks-ham-cheese-croissant","r":"Starbucks","rid":"starbucks","th":"ครัวซองต์แฮมชีส","srv":"1 ชิ้น","kcal":320,"c":28,"p":14,"f":17,"src":"estimated"},{"id":"starbucks-butter-croissant","r":"Starbucks","rid":"starbucks","th":"ครัวซองต์เนย","srv":"1 ชิ้น","kcal":260,"c":27,"p":5,"f":15,"src":"estimated"},{"id":"starbucks-chocolate-croissant","r":"Starbucks","rid":"starbucks","th":"ครัวซองต์ช็อกโกแลต","srv":"1 ชิ้น","kcal":340,"c":38,"p":5,"f":20,"src":"estimated"},{"id":"starbucks-bacon-gouda-egg-sandwich","r":"Starbucks","rid":"starbucks","th":"แซนด์วิชเบคอนโกดาไข่","srv":"116 g","kcal":370,"c":33,"p":18,"f":18,"src":"estimated"},{"id":"starbucks-birthday-cake-pop","r":"Starbucks","rid":"starbucks","th":"เค้กป็อปวันเกิด","srv":"43 g","kcal":170,"c":23,"p":1,"f":9,"src":"estimated"},{"id":"starbucks-chocolate-chunk-cookie","r":"Starbucks","rid":"starbucks","th":"คุกกี้ช็อกชังก์","srv":"80 g","kcal":360,"c":47,"p":6,"f":18,"src":"estimated"},{"id":"burger-king-whopper-no-cheese","r":"Burger King","rid":"burger-king","th":"วอปเปอร์ (ไม่ใส่ชีส)","srv":"1 ชิ้น","kcal":678,"c":54,"p":31,"f":37,"src":"estimated"},{"id":"burger-king-cheeseburger","r":"Burger King","rid":"burger-king","th":"ชีสเบอร์เกอร์","srv":"1 ชิ้น","kcal":290,"c":31,"p":15,"f":13,"src":"estimated"},{"id":"burger-king-chicken-nuggets-8-pc","r":"Burger King","rid":"burger-king","th":"ชิคเก้นนักเก็ต 8 ชิ้น","srv":"8 ชิ้น","kcal":390,"c":23,"p":18,"f":25,"src":"estimated"},{"id":"burger-king-french-fries-medium","r":"Burger King","rid":"burger-king","th":"เฟรนช์ฟรายส์ (กลาง)","srv":"153 g","kcal":370,"c":54,"p":5,"f":16,"src":"estimated"},{"id":"pizza-hut-hawaiian","r":"Pizza Hut","rid":"pizza-hut","th":"ฮาวายเอี้ยน","srv":"1 ชิ้น (สี่เหลี่ยม)","kcal":240,"c":31,"p":10,"f":9,"src":"estimated"},{"id":"pizza-hut-pepperoni","r":"Pizza Hut","rid":"pizza-hut","th":"เปปเปอโรนี","srv":"1 ชิ้น (แป้งกลาง)","kcal":220,"c":25,"p":9,"f":9,"src":"estimated"},{"id":"pizza-hut-supreme","r":"Pizza Hut","rid":"pizza-hut","th":"ซูพรีม","srv":"1 ชิ้น (แป้งกลาง)","kcal":230,"c":26,"p":10,"f":9,"src":"estimated"},{"id":"pizza-hut-garlic-bread","r":"Pizza Hut","rid":"pizza-hut","th":"ขนมปังกระเทียม","srv":"1 ชิ้น","kcal":190,"c":29,"p":5,"f":6,"src":"estimated"},{"id":"bonchon-soy-garlic-wings-8-pc","r":"Bonchon","rid":"bonchon","th":"ปีกไก่ซอสโชยุกระเทียม 8 ชิ้น","srv":"8 ชิ้น","kcal":680,"c":14,"p":45,"f":43,"src":"estimated"},{"id":"bonchon-soy-garlic-wings-10-pc","r":"Bonchon","rid":"bonchon","th":"ปีกไก่ซอสโชยุกระเทียม 10 ชิ้น","srv":"10 ชิ้น","kcal":850,"c":18,"p":56,"f":54,"src":"estimated"},{"id":"bonchon-spicy-wings-8-pc","r":"Bonchon","rid":"bonchon","th":"ปีกไก่เผ็ด 8 ชิ้น","srv":"8 ชิ้น","kcal":740,"c":27,"p":47,"f":47,"src":"estimated"},{"id":"bonchon-soy-garlic-drumsticks-4-pc","r":"Bonchon","rid":"bonchon","th":"น่องไก่ซอสโชยุ 4 ชิ้น","srv":"4 ชิ้น","kcal":541,"c":18,"p":50,"f":29,"src":"estimated"}];
-const FOOD_MAP=Object.fromEntries(RESTAURANT_DB.map(f=>[f.id,f]));
-const REST_META={'mcdonalds':{name:"McDonald's",emoji:'🍔'},'kfc':{name:'KFC',emoji:'🍗'},'sizzler':{name:'Sizzler',emoji:'🥗'},'subway':{name:'Subway',emoji:'🥪'},'starbucks':{name:'Starbucks',emoji:'☕'},'sushiro':{name:'Sushiro',emoji:'🍣'},'burger-king':{name:'Burger King',emoji:'🍟'},'pizza-hut':{name:'Pizza Hut',emoji:'🍕'},'bonchon':{name:'Bonchon',emoji:'🍗'},'ohkajhu':{name:'Ohkajhu (โอ้กะจู๋)',emoji:'🥗'}};
-let selRestId=null, selFood=null;
 
 function calcStreak(subs){
   const dates=new Set(subs.map(s=>subDate(s)));
@@ -2801,7 +2753,7 @@ async function loadStreak(){
 }
 
 // DATE HELPERS
-function todayStr(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function todayStr(){return new Date().toISOString().split('T')[0];}
 function formatDateTH(str){
   if(!str)return'';
   const [y,m,d]=str.split('-');
@@ -3348,8 +3300,6 @@ function selMode(tab){
   document.getElementById('panel-hand').style.display=curMode==='hand'?'block':'none';
   document.getElementById('panel-label').style.display=curMode==='label'?'block':'none';
   document.getElementById('panel-weigh').style.display=curMode==='weigh'?'block':'none';
-  document.getElementById('panel-restaurant').style.display=curMode==='restaurant'?'block':'none';
-  if(curMode==='restaurant')renderRestGrid();
 }
 
 // HAND MODE — collapsible sections + dynamic carb slots
@@ -3535,89 +3485,17 @@ async function callGeminiAI(){
   const btn=document.getElementById('ai-calc-btn');
   btn.disabled=true;btn.textContent='⏳ กำลังวิเคราะห์...';
   document.getElementById('ai-result-area').style.display='none';
-  const sysPrompt=`คุณเป็นนักโภชนาการผู้เชี่ยวชาญด้านอาหารไทยและอาหารทั่วไป คำนวณสารอาหารจากรายการอาหารที่ได้รับ
+  const prompt=`คุณเป็นนักโภชนาการผู้เชี่ยวชาญด้านอาหารไทย วิเคราะห์รายการอาหารต่อไปนี้แล้วคำนวณสารอาหาร
+รายการอาหาร:
+${text}
 
-ฐานข้อมูลสารอาหาร (USDA/INMU, cooked, ต่อหน่วยที่ระบุ) c=carb p=protein f=fat k=kcal:
-ข้าวสวย|100g|c28.7|p2.7|f0.3|k130
-ข้าวกล้อง|100g|c23|p2.6|f0.9|k112
-ข้าวหอมมะลิ|100g|c29|p2.5|f0.3|k130
-ข้าวโอ๊ต|100g|c12|p2.5|f1.4|k71
-ก๋วยเตี๋ยว/เส้นหมี่|100g|c22|p1.5|f0.1|k96
-บะหมี่ไข่|100g|c25|p4|f1.4|k138
-วุ้นเส้น|100g|c19|p0.1|f0|k78
-ขนมปังขาว|1แผ่น30g|c15|p2.7|f0.9|k80
-มันฝรั่งต้ม|100g|c17|p2|f0.1|k77
-มันเทศ|100g|c20|p1.4|f0.1|k76
-อกไก่|100g|c0|p31|f3.6|k165
-น่องไก่|100g|c0|p26|f9|k184
-ปีกไก่|100g|c0|p27|f17|k261
-ไก่รวม|100g|c0|p27|f7|k175
-หมูสันใน|100g|c0|p26|f4|k143
-หมูสับ|100g|c0|p25|f10|k193
-หมูสามชั้น|100g|c0|p17|f30|k340
-เนื้อวัวไม่ติดมัน|100g|c0|p26|f11|k212
-กุ้ง|100g|c0.9|p24|f1.1|k99
-ปลาทั่วไป/ปลานิล/ปลาดุก|100g|c0|p22|f5|k136
-ปลาแซลมอน|100g|c0|p25|f13|k220
-ปลาทู|100g|c0|p22|f13|k213
-ปลาทูน่ากระป๋องน้ำ|100g|c0|p25|f1|k116
-ปลาหมึก|100g|c3|p18|f1.4|k92
-ไข่ต้ม/ลวก|1ฟอง50g|c0.4|p6.5|f5|k72
-ไข่ดาว|1ฟอง55g|c0.3|p7|f8|k101
-ไข่ขาว|1ขาว33g|c0.2|p3.6|f0.1|k17
-เต้าหู้แข็ง|100g|c2|p8|f4|k76
-เต้าหู้นิ่ม|100g|c1.5|p5|f2.5|k50
-ผักบุ้ง|100g|c3|p2|f3|k46
-บร็อคโคลี่|100g|c7|p2.8|f0.4|k34
-ผักโขม|100g|c3.6|p3|f0.4|k23
-กะหล่ำปลี|100g|c6|p1.3|f0.1|k25
-แครอท|100g|c10|p0.9|f0.2|k41
-มะเขือเทศ|100g|c3.9|p0.9|f0.2|k18
-ถั่วฝักยาว|100g|c7|p1.8|f0.2|k47
-ข้าวโพด|100g|c19|p3.2|f1.2|k86
-เห็ด|100g|c3.3|p3.1|f0.3|k22
-แตงกวา|100g|c3.6|p0.7|f0.1|k15
-คะน้า/ผักใบเขียว|100g|c4|p2.5|f0.4|k28
-ถั่วเขียวต้ม|100g|c19|p7|f0.4|k105
-ถั่วดำต้ม|100g|c23|p9|f0.5|k132
-ถั่วแระ|100g|c10|p11|f5|k121
-น้ำมันพืช/มะกอก|1ชช5g|c0|p0|f5|k44
-เนย|1ชช5g|c0|p0|f4.1|k36
-เนยถั่ว|1ชต15g|c3|p3.8|f7.5|k89
-อะโวคาโด|1/4ลูก50g|c4.5|p1|f7.5|k80
-กะทิ|100ml|c3.3|p2.3|f24|k230
-นมวัวไขมันเต็ม|100ml|c4.8|p3.2|f3.3|k61
-นมพร่องมันเนย|100ml|c5|p3.4|f0.1|k34
-โยเกิร์ตกรีก|100g|c3.6|p10|f0.4|k59
-กล้วยหอม|1ลูก100g|c23|p1.1|f0.3|k89
-มะม่วงสุก|100g|c15|p0.8|f0.4|k60
-แตงโม|100g|c7.6|p0.6|f0.2|k30
-ส้ม|1ลูก130g|c15|p1.2|f0.2|k61
-แอปเปิ้ล|1ลูก180g|c25|p0.5|f0.4|k94
-ฝรั่ง|100g|c14|p2.6|f0.9|k68
-ทุเรียน|100g|c27|p1.5|f5.3|k147
-มะละกอ|100g|c11|p0.5|f0.3|k43
-สับปะรด|100g|c13|p0.5|f0.1|k50
-
-กฎการคำนวณ:
-- ใช้ค่าจากฐานข้อมูลข้างต้นก่อน ถ้าไม่มีให้ประมาณจากความรู้
-- scale ตามปริมาณจริง (เช่น อกไก่ 120g = 31×1.2=37.2g protein)
-- ถ้าไม่บอกปริมาณ: ข้าว 1 ทัพพี≈150g, ไข่ 1 ฟอง≈50g, อกไก่ 1 ชิ้น≈120g, หมู/เนื้อ 1 จาน≈100g
-- kcal=c×4+p×4+f×9
-- ตอบด้วย JSON เท่านั้น รูปแบบ: {"items":[{"name":"ชื่ออาหาร","amount":"จำนวน+หน่วย","c":0.0,"p":0.0,"f":0.0,"kcal":0}],"total":{"c":0.0,"p":0.0,"f":0.0,"kcal":0}}
-- c/p/f หน่วยกรัม ทศนิยม1ตำแหน่ง แยกแต่ละรายการเป็น item`;
-  const fewShotUser=`รายการอาหาร:
-ข้าวกล้อง 2 ทัพพี (300g)
-ไข่ดาว 2 ฟอง
-หมูสันในย่าง 150g
-ผักบุ้งผัด 80g (น้ำมันน้อย ~5g)`;
-  // Values from USDA/INMU DB: ข้าวกล้อง 300g: c69,p7.8,f2.7,k336 | ไข่ดาว 2x55g: c0.6,p14,f16,k202 | หมูสันใน 150g: c0,p39,f6,k215 | ผักบุ้ง 80g: c2.4,p1.6,f2.4 + oil5g=f5: total f=2.4+5=7.4 -> rounding per item
-  const fewShotAssist=`{"items":[{"name":"ข้าวกล้อง","amount":"2 ทัพพี (300g)","c":69.0,"p":7.8,"f":2.7,"kcal":336},{"name":"ไข่ดาว","amount":"2 ฟอง (110g)","c":0.6,"p":14.0,"f":16.0,"kcal":202},{"name":"หมูสันในย่าง","amount":"150g","c":0.0,"p":39.0,"f":6.0,"kcal":215},{"name":"ผักบุ้งผัด","amount":"80g+น้ำมัน5g","c":2.4,"p":1.6,"f":7.4,"kcal":82}],"total":{"c":72.0,"p":62.4,"f":32.1,"kcal":835}}`;
-  const userPrompt=`รายการอาหาร:\n${text}`;
+ตอบด้วย JSON เท่านั้น ห้ามมีข้อความอื่น รูปแบบ:
+{"items":[{"name":"ชื่ออาหาร","amount":"จำนวน+หน่วย","c":0.0,"p":0.0,"f":0.0,"kcal":0}],"total":{"c":0.0,"p":0.0,"f":0.0,"kcal":0}}
+กฎ: c=คาร์บ p=โปรตีน f=ไขมัน หน่วยเป็นกรัม ทศนิยม1ตำแหน่ง kcal=c*4+p*4+f*9 ปัดเป็นจำนวนเต็ม ถ้าไม่บอกปริมาณให้ใช้ขนาดปกติของไทย`;
   try{
     const res=await fetch('https://api.groq.com/openai/v1/chat/completions',{
       method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+GROQ_KEY},
-      body:JSON.stringify({model:'llama-3.3-70b-versatile',messages:[{role:'system',content:sysPrompt},{role:'user',content:fewShotUser},{role:'assistant',content:fewShotAssist},{role:'user',content:userPrompt}],temperature:0.1})
+      body:JSON.stringify({model:'llama-3.3-70b-versatile',messages:[{role:'user',content:prompt}],temperature:0.1})
     });
     const data=await res.json();
     if(data.error)throw new Error(data.error.message);
@@ -3717,6 +3595,7 @@ async function compressPhoto(file){
   });
 }
 
+
 // SAVED MENUS
 let savedMenusCache=null;
 async function loadSavedMenus(){
@@ -3791,7 +3670,6 @@ async function saveCurrentMenu(){
     await loadSavedMenus();
     refreshAllChips();
     alert('บันทึกเมนูแล้วค่ะ ✓');
-    // hide success screen save button after saving
     const sb=document.getElementById('btn-save-success');if(sb)sb.style.display='none';
   }catch(e){alert('บันทึกไม่สำเร็จ: '+e.message);}
 }
@@ -3819,12 +3697,11 @@ function applySavedMenu(id){
     renderCarbSlots();updateHandSummary();
   }
 }
-
 // SUBMIT
 async function submitMeal(){
   const btn=document.getElementById('btn-submit');btn.disabled=true;btn.textContent='กำลังส่ง...';
   try{
-    let handData=null,labelData=null,weighData=null,restaurantData=null;
+    let handData=null,labelData=null,weighData=null;
     if(curMode==='hand'){
       const pm=PROT_T[protType],ck=COOK_M[cookMethod];
       let C=0,P=0,F=0;
@@ -3848,33 +3725,29 @@ async function submitMeal(){
     }else if(curMode==='weigh'){
       weighData=getWeighData();
       if(!weighData){alert('กรุณาให้ AI คำนวณก่อนค่ะ');btn.disabled=false;btn.textContent='ส่งให้โค้ชตรวจ ✓';return;}
-    }else if(curMode==='restaurant'){
-      if(!selFood){alert('กรุณาเลือกเมนูจากร้านก่อนค่ะ');btn.disabled=false;btn.textContent='ส่งให้โค้ชตรวจ ✓';return;}
-      restaurantData={restaurantId:selFood.rid,restaurantName:selFood.r,foodId:selFood.id,foodName:selFood.th,servingDesc:selFood.srv,carb:selFood.c,protein:selFood.p,fat:selFood.f,kcal:selFood.kcal,dataSource:selFood.src};
     }
     await db.collection('submissions').add({
       userId:user.userId,displayName:user.displayName,pictureUrl:user.pictureUrl||null,
       meal:curMeal,mode:curMode,mealDate:selectedDate,
-      handData,labelData,weighData,restaurantData,photoBase64:photoBase64||null,
+      handData,labelData,weighData,photoBase64:photoBase64||null,
       status:'pending',correction:null,
       isTest:testMode||false,
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
     // update today's progress bar locally
-    const newSubLocal={mode:curMode,mealDate:selectedDate,handData,labelData,weighData,restaurantData,status:'pending'};
+    const newSubLocal={mode:curMode,mealDate:selectedDate,handData,labelData,weighData,status:'pending'};
     studentTodaySubs.push(newSubLocal);
     renderDailyProgress();
     histCache=null; // invalidate history cache
     dashCache=null; // invalidate dashboard cache
-    showSuccess(curMode,handData,labelData,weighData,restaurantData);
-    // show save button for hand/label/weigh (not restaurant)
+    showSuccess(curMode,handData,labelData,weighData);
     const bss=document.getElementById('btn-save-success');
     if(bss)bss.style.display=(curMode==='restaurant')?'none':'inline-block';
     if(!testMode)sendFeedbackCard(); // ไม่ส่ง LINE card ใน test mode
   }catch(e){console.error(e);alert('เกิดข้อผิดพลาด: '+e.message);btn.disabled=false;btn.textContent='ส่งให้โค้ชตรวจ ✓';}
 }
 
-function showSuccess(mode,handData,labelData,weighData,restaurantData){
+function showSuccess(mode,handData,labelData,weighData){
   document.getElementById('student-view').style.display='none';
   document.getElementById('success-screen').style.display='flex';
   const DL={veggie:'🟢ผัก',light:'🔵เบา',normal:'🟡ปกติ',dense:'🟠แน่น',heavy:'🔴ตัวตึง'};
@@ -3894,13 +3767,6 @@ function showSuccess(mode,handData,labelData,weighData,restaurantData){
       chips+=`<span class="chip">🍎 ${fnames} (${hd.fruitLadles} ทัพพี)</span>`;
     }
     chips+=`<span class="chip">⚡ ${hd.totalKcal} kcal</span>`;
-  }else if(mode==='restaurant'&&restaurantData){
-    const rd=restaurantData;
-    chips+=`<span class="chip" style="background:#FEE2E2;color:#B91C1C;font-weight:600">🏪 ${escHtml(rd.restaurantName)}</span>`;
-    chips+=`<span class="chip">🍽️ ${escHtml(rd.foodName)}</span>`;
-    chips+=`<span class="chip">C${rd.carb} · P${rd.protein} · F${rd.fat}</span>`;
-    chips+=`<span class="chip">⚡ ${rd.kcal} kcal</span>`;
-    if(rd.dataSource==='estimated')chips+=`<span class="chip" style="background:#FEF3C7;color:#B45309;font-size:11px">โดยประมาณ</span>`;
   }else if(mode==='label'&&labelData){
     chips+=`<span class="chip">คาร์บ ${labelData.carb.toFixed(1)}g</span><span class="chip">โปรตีน ${labelData.protein.toFixed(1)}g</span><span class="chip">ไขมัน ${labelData.fat.toFixed(1)}g</span>`;
   }else if(mode==='weigh'&&weighData){
@@ -3949,7 +3815,7 @@ async function loadHistory(){
 
 function buildHistCard(s){
   const DL={veggie:'🟢ผัก',light:'🔵เบา',normal:'🟡ปกติ',dense:'🟠แน่น',heavy:'🔴ตัวตึง'};
-  const modeLabel={hand:'👊 Hand portion',label:'🏷️ ฉลาก',weigh:'✨ AI',restaurant:'🏪 ร้านดัง'}[s.mode]||s.mode;
+  const modeLabel={hand:'👊 Hand portion',label:'🏷️ ฉลาก',weigh:'✨ AI'}[s.mode]||s.mode;
   const statusHtml={pending:'<span class="status-badge pending">⏳ รออนุมัติ</span>',approved:'<span class="status-badge approved">✅ อนุมัติแล้ว</span>',corrected:'<span class="status-badge corrected">✏️ โค้ชแก้ไข</span>'}[s.status]||'';
   const dateLabel=s.mealDate?formatDateTH(s.mealDate):(s.createdAt?formatTime(s.createdAt.toDate()):'');
   let chips='';
@@ -3961,16 +3827,7 @@ function buildHistCard(s){
     else{chips=`<span class="chip">${DL[hd.carbDensity]||'🟡'} ${hd.carb}มือ</span>`;if(hd.carb2>0)chips+=`<span class="chip">+${hd.carb2}มือ</span>`;}
     chips+=`<span class="chip">โปรตีน ${hd.protein}ฝ่ามือ</span>`;
     if(hd.eggWhole>0)chips+=`<span class="chip">🥚×${hd.eggWhole}</span>`;
-    if(hd.eggWhite>0)chips+=`<span class="chip">🤍ไข่ขาว×${hd.eggWhite}</span>`;
     chips+=`<span class="chip">⚡ ${hd.totalKcal} kcal</span>`;
-  }else if(s.mode==='restaurant'&&s.restaurantData){
-    const rd=s.restaurantData;
-    chips=`<span class="chip" style="background:#FEE2E2;color:#B91C1C;font-weight:600">🏪 ${escHtml(rd.restaurantName)}</span>`;
-    chips+=`<span class="chip">🍽️ ${escHtml(rd.foodName)}</span>`;
-    if(rd.servingDesc)chips+=`<span class="chip" style="font-size:11px;color:var(--gray)">${escHtml(rd.servingDesc)}</span>`;
-    chips+=`<span class="chip">C${rd.carb} · P${rd.protein} · F${rd.fat}</span>`;
-    chips+=`<span class="chip">⚡ ${rd.kcal} kcal</span>`;
-    if(rd.dataSource==='estimated')chips+=`<span class="chip" style="background:#FEF3C7;color:#B45309;font-size:11px">โดยประมาณ</span>`;
   }else if(s.mode==='label'&&s.labelData){
     chips=`<span class="chip">C ${s.labelData.carb.toFixed(1)}g</span><span class="chip">P ${s.labelData.protein.toFixed(1)}g</span><span class="chip">F ${s.labelData.fat.toFixed(1)}g</span>`;
     chips+=`<span class="chip">⚡ ${Math.round(s.labelData.carb*4+s.labelData.protein*4+s.labelData.fat*9)} kcal</span>`;
@@ -4016,14 +3873,12 @@ function getSubMacros(s){
   if(s.mode==='hand'&&s.handData){c=s.handData.totalCarb||0;p=s.handData.totalProtein||0;f=s.handData.totalFat||0;}
   else if(s.mode==='label'&&s.labelData){c=s.labelData.carb||0;p=s.labelData.protein||0;f=s.labelData.fat||0;}
   else if(s.mode==='weigh'&&s.weighData){c=s.weighData.carb||0;p=s.weighData.protein||0;f=s.weighData.fat||0;}
-  else if(s.mode==='restaurant'&&s.restaurantData){c=s.restaurantData.carb||0;p=s.restaurantData.protein||0;f=s.restaurantData.fat||0;}
   if(s.status==='corrected'&&s.correction){
     if(s.correction.carb!==undefined)c=s.correction.carb;
     if(s.correction.protein!==undefined)p=s.correction.protein;
     if(s.correction.fat!==undefined)f=s.correction.fat;
   }
-  const corrected=s.status==='corrected'&&s.correction;
-  const kcal=(s.mode==='weigh'&&s.weighData?.kcal&&!corrected)?s.weighData.kcal:(s.mode==='restaurant'&&s.restaurantData?.kcal&&!corrected)?s.restaurantData.kcal:Math.round(c*4+p*4+f*9);
+  const kcal=(s.mode==='weigh'&&s.weighData&&s.weighData.kcal&&!(s.status==='corrected'&&s.correction))?s.weighData.kcal:Math.round(c*4+p*4+f*9);
   return{kcal,c,p,f};
 }
 
@@ -4178,10 +4033,6 @@ function resetStudent(){
   const air=document.getElementById('ai-result-area');if(air)air.style.display='none';
   const bsw=document.getElementById('btn-save-weigh');if(bsw)bsw.style.display='none';
   const bss2=document.getElementById('btn-save-success');if(bss2)bss2.style.display='none';
-  selFood=null;selRestId=null;
-  const rsa=document.getElementById('rest-selected-area');if(rsa)rsa.style.display='none';
-  const rsm=document.getElementById('rest-step-menu');if(rsm)rsm.style.display='none';
-  const rsr=document.getElementById('rest-step-restaurants');if(rsr)rsr.style.display='block';
   document.getElementById('success-screen').style.display='none';
   document.getElementById('student-view').style.display='block';
   document.querySelectorAll('.mode-tab')[0].click();
@@ -4601,7 +4452,7 @@ function buildLifestyleSection(MON, TH_SHORT, healthLogs){
 function buildCard(s){
   const cs=cState[s.id]||{},showCorr=cs.open||false;
   const DL={veggie:'🟢ผัก',light:'🔵เบา',normal:'🟡ปกติ',dense:'🟠แน่น',heavy:'🔴ตัวตึง'};
-  const modeLabel={hand:'👊 Hand portion',label:'🏷️ ฉลาก',weigh:'✨ AI',restaurant:'🏪 ร้านดัง'}[s.mode]||s.mode;
+  const modeLabel={hand:'👊 Hand portion',label:'🏷️ ฉลาก',weigh:'✨ AI'}[s.mode]||s.mode;
   let chips='';
   if(s.mode==='hand'&&s.handData){
     const hd=s.handData;
@@ -4617,13 +4468,6 @@ function buildCard(s){
     chips+=`<span class="est-chip">${cookL}${hd.visibleFat>0?' +น้ำมัน'+hd.visibleFat+'ช':''}</span>`;
     if(hd.avo>0)chips+=`<span class="est-chip">🥑×${hd.avo}</span>`;
     chips+=`<span class="est-chip">⚡ ${hd.totalKcal} kcal</span>`;
-  }else if(s.mode==='restaurant'&&s.restaurantData){
-    const rd=s.restaurantData;
-    chips=`<span class="est-chip" style="background:#FEE2E2;color:#B91C1C;font-weight:600">🏪 ${escHtml(rd.restaurantName)}</span>`;
-    chips+=`<span class="est-chip">🍽️ ${escHtml(rd.foodName)}</span>`;
-    if(rd.servingDesc)chips+=`<span class="est-chip" style="font-size:11px">${escHtml(rd.servingDesc)}</span>`;
-    chips+=`<span class="est-chip gram">C:${rd.carb}g · P:${rd.protein}g · F:${rd.fat}g</span>`;
-    if(rd.dataSource==='estimated')chips+=`<span class="est-chip" style="background:#FEF3C7;color:#B45309;font-size:11px">โดยประมาณ</span>`;
   }else if(s.mode==='label'&&s.labelData){
     chips=`<span class="est-chip gram">คาร์บ ${s.labelData.carb.toFixed(1)}g</span><span class="est-chip gram">โปรตีน ${s.labelData.protein.toFixed(1)}g</span><span class="est-chip gram">ไขมัน ${s.labelData.fat.toFixed(1)}g</span>`;
   }else if(s.mode==='weigh'&&s.weighData){
@@ -4654,7 +4498,7 @@ function buildCorrPanel(s,cs){
   // === HAND PORTION MODE ===
   if(s.mode==='hand'){
     if(!cState[s.id])cState[s.id]={};
-    cState[s.id]._sub=s;
+    cState[s.id]._sub=s; // store ref so updateHandCorrPreview can access it
     const hd=s.handData||{};
     const density=cs.carbDensity||(hd.carbSlots?.[0]?.density||'normal');
     const carbQty=cs.carbQty!==undefined?cs.carbQty:(hd.carbSlots?.reduce((t,sl)=>t+(sl.qty||0),0)||1.5);
@@ -4662,18 +4506,14 @@ function buildCorrPanel(s,cs){
     const protQty=cs.protQty!==undefined?cs.protQty:(hd.protein||1);
     const cookMethod=cs.cookMethod||hd.cookMethod||'none';
     const visFat=cs.visFat!==undefined?cs.visFat:(hd.visibleFat||0);
-    const eggWhole=cs.eggWhole!==undefined?cs.eggWhole:(hd.eggWhole||0);
-    const eggWhite=cs.eggWhite!==undefined?cs.eggWhite:(hd.eggWhite||0);
-    const avo=cs.avo!==undefined?cs.avo:(hd.avo||0);
-    const fruitLadles=cs.fruitLadles!==undefined?cs.fruitLadles:(hd.fruitLadles||0);
     const cd=CARB_D[density]||CARB_D.normal;
     const pt=PROT_T[protType]||PROT_T.lean;
     const ck=COOK_M[cookMethod]||COOK_M.none;
-    const eggsC=eggWhole*EGG_W.c+eggWhite*EGG_WH.c;
-    const eggsP=eggWhole*EGG_W.p+eggWhite*EGG_WH.p;
-    const eggsF=eggWhole*EGG_W.f;
-    const avoC=avo*AVO.c,avoP=avo*AVO.p,avoF=avo*AVO.f;
-    const fruitC=fruitLadles*15;
+    const eggsC=(hd.eggWhole||0)*EGG_W.c+(hd.eggWhite||0)*EGG_WH.c;
+    const eggsP=(hd.eggWhole||0)*EGG_W.p+(hd.eggWhite||0)*EGG_WH.p;
+    const eggsF=(hd.eggWhole||0)*EGG_W.f;
+    const avoC=(hd.avo||0)*AVO.c,avoP=(hd.avo||0)*AVO.p,avoF=(hd.avo||0)*AVO.f;
+    const fruitC=(hd.fruitLadles||0)*15;
     const preC=Math.round(cd.c*carbQty+pt.c*protQty+eggsC+avoC+fruitC);
     const preP=Math.round(cd.p*carbQty+pt.p*protQty+eggsP+avoP);
     const preF=Math.round(cd.f*carbQty+pt.f*protQty+ck.f+visFat*VIS_FAT_G+eggsF+avoF);
@@ -4681,10 +4521,6 @@ function buildCorrPanel(s,cs){
     const dBtn=(d)=>`<button id="hcd-${d}-${s.id}" onclick="setHCorrCarbD('${s.id}','${d}')" style="border:none;border-radius:8px;padding:5px 9px;font-size:12px;font-family:'Prompt',sans-serif;cursor:pointer;transition:all .15s;${d===density?'background:#F5A623;color:white;font-weight:700':'background:#F3F4F6;color:var(--text)'}">${CARB_D[d].emoji} ${CARB_D[d].label}</button>`;
     const ptBtn=(t,lbl)=>`<button id="hpt-${t}-${s.id}" onclick="setHCorrProtT('${s.id}','${t}')" style="border:none;border-radius:8px;padding:5px 12px;font-size:12px;font-family:'Prompt',sans-serif;cursor:pointer;transition:all .15s;${t===protType?'background:#3B82F6;color:white;font-weight:700':'background:#F3F4F6;color:var(--text)'}">${lbl}</button>`;
     const ckBtn=(m,lbl)=>`<button id="hck-${m}-${s.id}" onclick="setHCorrCookM('${s.id}','${m}')" style="border:none;border-radius:8px;padding:5px 10px;font-size:12px;font-family:'Prompt',sans-serif;cursor:pointer;transition:all .15s;${m===cookMethod?'background:#8B5CF6;color:white;font-weight:700':'background:#F3F4F6;color:var(--text)'}">${lbl}</button>`;
-    const hRow=(label,field,val,step)=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid #F3F4F6">
-  <span style="font-size:13px;color:var(--text)">${label}</span>
-  <div class="corr-s-row" style="margin:0"><button onclick="adjHCorr('${s.id}','${field}',-${step})">−</button><input type="number" class="corr-input" id="hc-${field}-${s.id}" value="${val}" min="0" step="${step}" style="width:48px" onchange="syncHCorr('${s.id}','${field}')"><button onclick="adjHCorr('${s.id}','${field}',${step})">+</button></div>
-</div>`;
     return`<div class="correction-panel">
 <h4>✏️ แก้ค่า — Hand Portion</h4>
 <div style="margin-bottom:10px">
@@ -4705,35 +4541,24 @@ function buildCorrPanel(s,cs){
   <div style="font-size:12px;font-weight:700;color:var(--gray);margin-bottom:4px">น้ำมันมองเห็น (ช้อนชา)</div>
   <div class="corr-s-row"><button onclick="adjHCorr('${s.id}','visFat',-0.5)">−</button><input type="number" class="corr-input" id="hc-visFat-${s.id}" value="${visFat}" min="0" step="0.5" onchange="syncHCorr('${s.id}','visFat')"><button onclick="adjHCorr('${s.id}','visFat',0.5)">+</button></div>
 </div>
-<div style="margin-bottom:10px;background:#F9FAFB;border-radius:10px;padding:8px 10px">
-  <div style="font-size:12px;font-weight:700;color:var(--gray);margin-bottom:4px">🥚 ไข่ + อาโวคาโด + ผลไม้</div>
-  ${hRow('🥚 ไข่ทั้งฟอง (ฟอง)','eggWhole',eggWhole,1)}
-  ${hRow('🤍 ไข่ขาว (ฟอง)','eggWhite',eggWhite,1)}
-  ${hRow('🥑 อาโวคาโด (ลูก)','avo',avo,0.5)}
-  ${hRow('🍓 ผลไม้ (ทัพพีคาร์บ)','fruitLadles',fruitLadles,0.5)}
-</div>
 <div id="hc-preview-${s.id}" style="background:#F0FDF4;border-radius:8px;padding:8px 12px;margin:6px 0 4px;font-size:13px;font-weight:700;color:#15803D;text-align:center">C ${preC}g · P ${preP}g · F ${preF}g → ⚡ ${preKcal} kcal</div>
-<textarea class="corr-note-ta" id="cc-note-${s.id}" rows="2" placeholder="ข้อความถึงนักเรียน (ไม่บังคับ)..." oninput="syncNote('${s.id}',this.value)">${escHtml(cs.note||'')}</textarea>
+<textarea class="corr-note-ta" id="cc-note-${s.id}" rows="2" placeholder="ข้อความถึงนักเรียน (ไม่บังคับ)...">${escHtml(cs.note||'')}</textarea>
 <button class="btn-send-corr" onclick="sendCorrection('${s.id}')">ส่ง Feedback ✓</button>
 </div>`;
   }
-  // === LABEL / WEIGH / RESTAURANT MODE — gram steppers ===
+  // === LABEL / WEIGH MODE — gram steppers ===
   let carb,prot,fat;
   if(s.mode==='label'&&s.labelData){
     carb=cs.carb!==undefined?cs.carb:Math.round(s.labelData.carb||0);
     prot=cs.protein!==undefined?cs.protein:Math.round(s.labelData.protein||0);
     fat=cs.fat!==undefined?cs.fat:Math.round(s.labelData.fat||0);
-  }else if(s.mode==='restaurant'&&s.restaurantData){
-    carb=cs.carb!==undefined?cs.carb:Math.round(s.restaurantData.carb||0);
-    prot=cs.protein!==undefined?cs.protein:Math.round(s.restaurantData.protein||0);
-    fat=cs.fat!==undefined?cs.fat:Math.round(s.restaurantData.fat||0);
   }else{
     carb=cs.carb!==undefined?cs.carb:Math.round(s.weighData?.carb||0);
     prot=cs.protein!==undefined?cs.protein:Math.round(s.weighData?.protein||0);
     fat=cs.fat!==undefined?cs.fat:Math.round(s.weighData?.fat||0);
   }
   const prevKcal=Math.round(carb*4+prot*4+fat*9);
-  return`<div class="correction-panel"><h4>✏️ แก้ไขค่าที่ถูกต้อง</h4><div class="corr-steppers"><div class="corr-s-item"><label>🟡 คาร์บ (g)</label><div class="corr-s-row"><button onclick="adjCorr('${s.id}','carb',-1)">−</button><input type="number" class="corr-input" id="cc-carb-${s.id}" value="${carb}" min="0" step="1" onchange="syncCorr('${s.id}','carb')"><button onclick="adjCorr('${s.id}','carb',1)">+</button></div></div><div class="corr-s-item"><label>🔴 โปรตีน (g)</label><div class="corr-s-row"><button onclick="adjCorr('${s.id}','protein',-1)">−</button><input type="number" class="corr-input" id="cc-protein-${s.id}" value="${prot}" min="0" step="1" onchange="syncCorr('${s.id}','protein')"><button onclick="adjCorr('${s.id}','protein',1)">+</button></div></div><div class="corr-s-item"><label>🟢 ไขมัน (g)</label><div class="corr-s-row"><button onclick="adjCorr('${s.id}','fat',-1)">−</button><input type="number" class="corr-input" id="cc-fat-${s.id}" value="${fat}" min="0" step="1" onchange="syncCorr('${s.id}','fat')"><button onclick="adjCorr('${s.id}','fat',1)">+</button></div></div></div><div id="corr-preview-${s.id}" style="background:#F0FDF4;border-radius:8px;padding:8px 12px;margin:6px 0 4px;font-size:13px;font-weight:700;color:#15803D;text-align:center">C ${carb}g · P ${prot}g · F ${fat}g → ⚡ ${prevKcal} kcal</div><textarea class="corr-note-ta" id="cc-note-${s.id}" rows="2" placeholder="ข้อความถึงนักเรียน (ไม่บังคับ)..." oninput="syncNote('${s.id}',this.value)">${escHtml(cs.note||'')}</textarea><button class="btn-send-corr" onclick="sendCorrection('${s.id}')">ส่ง Feedback ✓</button></div>`;
+  return`<div class="correction-panel"><h4>✏️ แก้ไขค่าที่ถูกต้อง</h4><div class="corr-steppers"><div class="corr-s-item"><label>🟡 คาร์บ (g)</label><div class="corr-s-row"><button onclick="adjCorr('${s.id}','carb',-1)">−</button><input type="number" class="corr-input" id="cc-carb-${s.id}" value="${carb}" min="0" step="1" onchange="syncCorr('${s.id}','carb')"><button onclick="adjCorr('${s.id}','carb',1)">+</button></div></div><div class="corr-s-item"><label>🔴 โปรตีน (g)</label><div class="corr-s-row"><button onclick="adjCorr('${s.id}','protein',-1)">−</button><input type="number" class="corr-input" id="cc-protein-${s.id}" value="${prot}" min="0" step="1" onchange="syncCorr('${s.id}','protein')"><button onclick="adjCorr('${s.id}','protein',1)">+</button></div></div><div class="corr-s-item"><label>🟢 ไขมัน (g)</label><div class="corr-s-row"><button onclick="adjCorr('${s.id}','fat',-1)">−</button><input type="number" class="corr-input" id="cc-fat-${s.id}" value="${fat}" min="0" step="1" onchange="syncCorr('${s.id}','fat')"><button onclick="adjCorr('${s.id}','fat',1)">+</button></div></div></div><div id="corr-preview-${s.id}" style="background:#F0FDF4;border-radius:8px;padding:8px 12px;margin:6px 0 4px;font-size:13px;font-weight:700;color:#15803D;text-align:center">C ${carb}g · P ${prot}g · F ${fat}g → ⚡ ${prevKcal} kcal</div><textarea class="corr-note-ta" id="cc-note-${s.id}" rows="2" placeholder="ข้อความถึงนักเรียน (ไม่บังคับ)...">${escHtml(cs.note||'')}</textarea><button class="btn-send-corr" onclick="sendCorrection('${s.id}')">ส่ง Feedback ✓</button></div>`;
 }
 
 function toggleCorr(id){if(!cState[id])cState[id]={};cState[id].open=!cState[id].open;renderCoach();}
@@ -4803,71 +4628,6 @@ function syncHCorr(id,field){
   cState[id][field]=val;el.value=val;
   updateHandCorrPreview(id);
 }
-function syncNote(id,val){
-  if(!cState[id])cState[id]={};
-  cState[id].note=val;
-}
-// === RESTAURANT MODE ===
-function renderRestGrid(){
-  const grid=document.getElementById('rest-grid');
-  if(!grid)return;
-  const rids=[...new Set(RESTAURANT_DB.map(f=>f.rid))];
-  grid.innerHTML=rids.map(rid=>{
-    const meta=REST_META[rid]||{name:rid,emoji:'🏪'};
-    const count=RESTAURANT_DB.filter(f=>f.rid===rid).length;
-    return`<button class="rest-btn" onclick="selectRest('${rid}')">${meta.emoji} ${meta.name}<div style="font-size:10px;font-weight:400;color:var(--gray);margin-top:2px">${count} เมนู</div></button>`;
-  }).join('');
-}
-function selectRest(rid){
-  selRestId=rid;
-  const meta=REST_META[rid]||{name:rid,emoji:'🏪'};
-  const items=RESTAURANT_DB.filter(f=>f.rid===rid);
-  document.getElementById('rest-step-restaurants').style.display='none';
-  document.getElementById('rest-step-menu').style.display='block';
-  document.getElementById('rest-menu-title').textContent=meta.emoji+' '+meta.name;
-  const list=document.getElementById('rest-menu-list');
-  list.innerHTML=items.map(item=>{
-    const srcBadge=item.src==='estimated'?`<span style="font-size:9px;color:#B45309;background:#FEF3C7;padding:1px 5px;border-radius:5px;margin-left:4px">โดยประมาณ</span>`:'';
-    return`<div class="rest-menu-item" onclick="selectFood('${item.id}')">
-      <div style="flex:1;min-width:0">
-        <div style="font-size:13px;font-weight:600;color:var(--text)">${escHtml(item.th)}</div>
-        <div style="font-size:11px;color:var(--gray);margin-top:1px">${escHtml(item.srv)}${srcBadge}</div>
-      </div>
-      <div style="text-align:right;flex-shrink:0">
-        <div style="font-size:13px;font-weight:700;color:var(--primary-dark)">${item.kcal} kcal</div>
-        <div style="font-size:10px;color:var(--gray)">C${item.c} P${item.p} F${item.f}</div>
-      </div>
-    </div>`;
-  }).join('');
-}
-function selectFood(foodId){
-  selFood=FOOD_MAP[foodId];
-  if(!selFood)return;
-  const srcBadge=selFood.src==='estimated'
-    ?`<span style="font-size:10px;color:#B45309;background:#FEF3C7;padding:1px 6px;border-radius:6px">โดยประมาณ</span>`
-    :`<span style="font-size:10px;color:#065F46;background:#D1FAE5;padding:1px 6px;border-radius:6px">ข้อมูลทางการ</span>`;
-  document.getElementById('rest-sel-rest').textContent='🏪 '+(REST_META[selFood.rid]?.name||selFood.r);
-  document.getElementById('rest-sel-name').textContent=selFood.th;
-  document.getElementById('rest-sel-detail').innerHTML=`
-    <div style="font-size:11px;color:var(--gray);margin-bottom:8px;display:flex;align-items:center;gap:6px">${escHtml(selFood.srv)} ${srcBadge}</div>
-    <div style="display:flex;gap:10px;flex-wrap:wrap">
-      <span style="font-size:13px;font-weight:700;color:#92400E">คาร์บ ${selFood.c}g</span>
-      <span style="font-size:13px;font-weight:700;color:#1D4ED8">โปรตีน ${selFood.p}g</span>
-      <span style="font-size:13px;font-weight:700;color:#166534">ไขมัน ${selFood.f}g</span>
-      <span style="font-size:13px;font-weight:700;color:var(--primary-dark);margin-left:auto">⚡ ${selFood.kcal} kcal</span>
-    </div>`;
-  document.getElementById('rest-selected-area').style.display='block';
-}
-function restBack(){
-  document.getElementById('rest-step-restaurants').style.display='block';
-  document.getElementById('rest-step-menu').style.display='none';
-  selRestId=null;
-  renderRestGrid();
-}
-function restClearSel(){
-  selFood=null;
-  document.getElementById('rest-selected-area').style.display='none';
-}
 function calcHandCorrMacros(id){
   const s=cState[id]?._sub;
   if(!s)return{C:0,P:0,F:0,kcal:0};
@@ -4879,18 +4639,14 @@ function calcHandCorrMacros(id){
   const protQty=st.protQty!==undefined?st.protQty:(hd.protein||1);
   const cookMethod=st.cookMethod||hd.cookMethod||'none';
   const visFat=st.visFat!==undefined?st.visFat:(hd.visibleFat||0);
-  const eggWhole=st.eggWhole!==undefined?st.eggWhole:(hd.eggWhole||0);
-  const eggWhite=st.eggWhite!==undefined?st.eggWhite:(hd.eggWhite||0);
-  const avo=st.avo!==undefined?st.avo:(hd.avo||0);
-  const fruitLadles=st.fruitLadles!==undefined?st.fruitLadles:(hd.fruitLadles||0);
   const cd=CARB_D[density]||CARB_D.normal;
   const pt=PROT_T[protType]||PROT_T.lean;
   const ck=COOK_M[cookMethod]||COOK_M.none;
-  const eggsC=eggWhole*EGG_W.c+eggWhite*EGG_WH.c;
-  const eggsP=eggWhole*EGG_W.p+eggWhite*EGG_WH.p;
-  const eggsF=eggWhole*EGG_W.f;
-  const avoC=avo*AVO.c,avoP=avo*AVO.p,avoF=avo*AVO.f;
-  const fruitC=fruitLadles*15;
+  const eggsC=(hd.eggWhole||0)*EGG_W.c+(hd.eggWhite||0)*EGG_WH.c;
+  const eggsP=(hd.eggWhole||0)*EGG_W.p+(hd.eggWhite||0)*EGG_WH.p;
+  const eggsF=(hd.eggWhole||0)*EGG_W.f;
+  const avoC=(hd.avo||0)*AVO.c,avoP=(hd.avo||0)*AVO.p,avoF=(hd.avo||0)*AVO.f;
+  const fruitC=(hd.fruitLadles||0)*15;
   const C=Math.round(cd.c*carbQty+pt.c*protQty+eggsC+avoC+fruitC);
   const P=Math.round(cd.p*carbQty+pt.p*protQty+eggsP+avoP);
   const F=Math.round(cd.f*carbQty+pt.f*protQty+ck.f+visFat*VIS_FAT_G+eggsF+avoF);
@@ -5446,8 +5202,12 @@ function calcSmartMsg(totC,totP,totF,totKcal){
     return`💪 Protein ดีมากเลย! มื้อถัดไปเพิ่ม Carb อีก ${TARGETS.c-totC}g นะคะ`;
   if(pctP<60)
     return`⚠️ ยังขาด Protein อีก ${TARGETS.p-totP}g อย่าลืมมื้อถัดไปนะคะ`;
-  if(pctC>=90&&pctP>=90)
-    return`✨ Carb และ Protein ดีมาก! Fat ยังเหลืออีก ${TARGETS.f-totF}g ค่ะ`;
+  if(pctC>=90&&pctP>=90){
+    const fatDiff=Math.round(TARGETS.f-totF);
+    if(fatDiff<-5)return`✨ Carb และ Protein ดีมาก! แต่ Fat เกินเป้า ${Math.abs(fatDiff)}g นะคะ`;
+    if(fatDiff>5)return`✨ Carb และ Protein ดีมาก! Fat ยังเหลืออีก ${fatDiff}g ค่ะ`;
+    return`✨ Carb, Protein และ Fat ครบพอดีเลยค่ะ 🎯`;
+  }
   const lacking=[];
   if(TARGETS.c-totC>10)lacking.push(`Carb ${TARGETS.c-totC}g`);
   if(TARGETS.p-totP>5)lacking.push(`Protein ${TARGETS.p-totP}g`);
