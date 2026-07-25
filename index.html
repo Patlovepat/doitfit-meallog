@@ -2901,7 +2901,7 @@ function selStudentTab(tab, el){
   document.getElementById('panel-health').style.display=tab==='health'?'block':'none';
   document.getElementById('panel-dashboard').style.display=tab==='dashboard'?'block':'none';
   document.getElementById('panel-plan').style.display=tab==='plan'?'block':'none';
-  if(tab==='plan')renderPlanPanel();;
+  if(tab==='plan')loadPlanFromFirestore();;
   document.getElementById('submit-wrap').style.display=tab==='log'?'block':'none';
   if(tab==='history')loadHistory();
   if(tab==='dashboard')loadDashboard();
@@ -4400,11 +4400,13 @@ function buildCoachCommentCard(s,comment,tone,withPhoto){
   const T=TONES[tone]||TONES.good;
   const m=getSubMacros(s);
   const mealLabel=`มื้อ${s.meal||''} · ${s.mealDate||''}`;
-  const heroBlock=(withPhoto&&s.photoBase64)?[{"type":"image","url":s.photoBase64,"size":"full","aspectRatio":"20:13","aspectMode":"cover"}]:[];
+  // photoBase64 = Data URL → LINE rejects it; only include if public HTTPS URL exists
+  const photoUrl=(withPhoto&&s.photoUrl&&s.photoUrl.startsWith('https://'))?s.photoUrl:null;
+  const heroBlock=photoUrl?{"type":"image","url":photoUrl,"size":"full","aspectRatio":"20:13","aspectMode":"cover"}:null;
   return{
     "type":"flex","altText":T.title,
     "contents":{"type":"bubble","size":"kilo",
-      "hero":heroBlock.length?{"type":"box","layout":"vertical","contents":heroBlock}:undefined,
+      ...(heroBlock?{"hero":heroBlock}:{}),
       "header":{"type":"box","layout":"vertical","backgroundColor":T.bg,"paddingAll":"14px","contents":[
         {"type":"text","text":T.title,"color":"#FFFFFF","weight":"bold","size":"md"},
         {"type":"text","text":mealLabel,"color":T.subtint,"size":"xs","margin":"xs"}
@@ -4507,7 +4509,6 @@ function renderPlanPanel(){
       <div style="font-size:11px;font-weight:700;color:#1D4ED8;margin-bottom:4px">💬 Feedback จากโค้ช</div>
       <div id="plan-coach-comment-text" style="font-size:13px;color:#374151;line-height:1.6"></div>
     </div>`;
-  loadPlanFromFirestore();
 }
 function showAddPlanItem(){
   const f=document.getElementById('add-plan-form');
@@ -4676,7 +4677,7 @@ function buildProgramSection(uid, prog){
         <input type="text" id="prog-disc-code-${uid}" class="prog-input" value="${prog.discountCode||''}" placeholder="เช่น DOITFIT20">
       </div>
     </div>
-    ${hasProgram&&prog.pausedDays>0?`<div style="font-size:10px;color:var(--gray);margin-bottom:6px">พักสะสม ${prog.pausedDays} วัน · วันจบจริง ${end?formatDateTH(end.toISOString().split('T')[0]):'-'}</div>`:''}
+    ${hasProgram&&prog.pausedDays>0?`<div style="font-size:10px;color:var(--gray);margin-bottom:6px">พักสะสม ${prog.pausedDays} วัน · วันจบจริง ${end?(()=>{const pad=n=>String(n).padStart(2,'0');return formatDateTH(`${end.getFullYear()}-${pad(end.getMonth()+1)}-${pad(end.getDate())}`);})():'-'}</div>`:''}
     <button onclick="saveProgramSettings('${uid}')"
       style="width:100%;padding:8px;background:#1D4ED8;color:white;border:none;border-radius:9px;font-size:13px;font-weight:600;font-family:'Prompt',sans-serif;cursor:pointer;margin-bottom:6px">
       💾 บันทึกข้อมูลคอร์ส
@@ -4707,7 +4708,7 @@ async function pauseStudentProgram(uid){
     if(currentStudentData&&currentStudentData.userId===uid)openStudentDetail(uid);
   }catch(e){showToast('เกิดข้อผิดพลาด: '+e.message);}
 }
-async function resumeStudentProgram(uid){
+async async function resumeStudentProgram(uid){
   try{
     // calculate days paused
     const doc=await db.collection('students').doc(uid).get();
@@ -5162,10 +5163,12 @@ async function sendCorrection(id){
   }
   const note=document.getElementById(`cc-note-${id}`)?.value.trim()||'';
   try{
-    const orig=await db.collection('submissions').doc(id).get();
-    const origM=orig.exists?getSubMacros({...orig.data(),id}):{c:0,p:0,f:0,kcal:0};
+    // ใช้ข้อมูลที่โหลดมาแล้วจาก cState แทน (ไม่ต้อง Firestore read เพิ่ม)
+    const existingSub=cState[id]?._sub||{};
+    const origM=getSubMacros({...existingSub,id});
+    const prevHistory=existingSub.editHistory||[];
     const editHistory=[
-      ...(orig.data()?.editHistory||[]),
+      ...prevHistory,
       {at:new Date().toISOString(),fields:[
         ...(Math.abs(origM.c-carb)>0.5?[{k:'Carb',from:origM.c,to:carb}]:[]),
         ...(Math.abs(origM.p-prot)>0.5?[{k:'Protein',from:origM.p,to:prot}]:[]),
