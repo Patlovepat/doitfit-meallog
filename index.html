@@ -2659,6 +2659,7 @@ let user=null, isCoach=false, curMeal='เช้า', curMode='hand', studentTab
 let photoBase64=null, coachTab='pending', allSubs=[], cState={};
 let coachFilter='all';
 let studentTodaySubs=[];
+let studentSubsCache=null; // cache submissions ไม่ต้อง query ซ้ำ
 let histCache=null;
 const GROQ_KEY='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';
 let aiParsedData=null;
@@ -2744,17 +2745,11 @@ function getWeekDots(subs){
   return dots;
 }
 
-async function loadStreak(){
-  try{
-    const snap=await db.collection('submissions').where('userId','==',user.userId).limit(60).get();
-    const subs=snap.docs.map(d=>({id:d.id,...d.data()}));
-    const streak=calcStreak(subs);
-    const pill=document.getElementById('streak-pill');
-    if(streak>0){
-      pill.innerHTML=`🔥 ${streak} วันติด`;
-      pill.style.display='flex';
-    }
-  }catch(e){console.log('streak load err',e);}
+function renderStreak(){
+  const streak=calcStreak(studentSubsCache||[]);
+  const pill=document.getElementById('streak-pill');
+  if(streak>0){pill.innerHTML=`🔥 ${streak} วันติด`;pill.style.display='flex';}
+  else{pill.style.display='none';}
 }
 
 // DATE HELPERS
@@ -2807,36 +2802,42 @@ function startStudent(){
   if(user.pictureUrl){pic.src=user.pictureUrl;}else{pic.style.display='none';}
   document.getElementById('user-id-bar').style.display='block';
   document.getElementById('user-id-txt').textContent=user.userId;
-  loadStreak();
   renderCarbSlots();
   initFruitGrid();
   updateHandSummary();
   buildDateStrip();
-  loadStudentTargets(); // โหลด target จริงจาก Firestore
-  loadTodayProgress(); // โหลด progress bar
-  loadSavedMenus().then(()=>refreshAllChips()); // โหลด saved menus
+  loadStudentData(); // โหลด submissions + targets + savedMenus ในรอบเดียว
+}
+async function loadStudentData(){
+  try{
+    const [snap,td,savedSnap]=await Promise.all([
+      db.collection('submissions').where('userId','==',user.userId).limit(60).get(),
+      db.collection('students').doc(user.userId).get().catch(()=>null),
+      db.collection('users').doc(user.userId).collection('savedMenus').orderBy('createdAt','desc').limit(12).get().catch(()=>null)
+    ]);
+    studentSubsCache=snap.docs.map(d=>({id:d.id,...d.data()}));
+    applyTargets(td);
+    if(savedSnap){savedMenusCache=savedSnap.docs.map(d=>({id:d.id,...d.data()}));}
+    renderStreak();
+    renderTodayProgress();
+    refreshAllChips();
+  }catch(e){console.log('loadStudentData err',e);}
 }
 
-async function loadStudentTargets(){
-  try{
-    const doc=await db.collection('students').doc(user.userId).get();
-    if(doc.exists&&doc.data().targets){
-      const t=doc.data().targets;
-      if(t.kcal)TARGETS.kcal=t.kcal;
-      if(t.c)TARGETS.c=t.c;
-      if(t.p)TARGETS.p=t.p;
-      if(t.f)TARGETS.f=t.f;
-    }
-  }catch(e){console.log('target load err',e);}
+function applyTargets(doc){
+  if(doc&&doc.exists&&doc.data().targets){
+    const t=doc.data().targets;
+    if(t.kcal)TARGETS.kcal=t.kcal;
+    if(t.c)TARGETS.c=t.c;
+    if(t.p)TARGETS.p=t.p;
+    if(t.f)TARGETS.f=t.f;
+  }
 }
 
-async function loadTodayProgress(){
-  try{
-    const today=todayStr();
-    const snap=await db.collection('submissions').where('userId','==',user.userId).limit(50).get();
-    studentTodaySubs=snap.docs.map(d=>({id:d.id,...d.data()})).filter(s=>subDate(s)===today);
-    renderDailyProgress();
-  }catch(e){console.log('progress load err',e);}
+function renderTodayProgress(){
+  const today=todayStr();
+  studentTodaySubs=(studentSubsCache||[]).filter(s=>subDate(s)===today);
+  renderDailyProgress();
 }
 function renderDailyProgress(){
   const bar=document.getElementById('daily-progress');
@@ -3746,11 +3747,12 @@ async function submitMeal(){
       isTest:testMode||false,
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
-    // update today's progress bar locally
+    // update cache locally (ไม่ต้อง re-query)
     const newSubLocal={mode:curMode,mealDate:selectedDate,handData,labelData,weighData,status:'pending'};
     studentTodaySubs.push(newSubLocal);
+    if(studentSubsCache)studentSubsCache.unshift(newSubLocal);
     renderDailyProgress();
-    histCache=null; // invalidate history cache
+    histCache=null; // invalidate history cache (force re-sort)
     dashCache=null; // invalidate dashboard cache
     showSuccess(curMode,handData,labelData,weighData);
     const bss=document.getElementById('btn-save-success');
@@ -3816,15 +3818,12 @@ async function loadHistory(){
     list.innerHTML=histCache.map(s=>buildHistCard(s)).join('');
     return;
   }
-  list.innerHTML='<div style="padding:32px;text-align:center;color:var(--gray)"><div style="font-size:32px;margin-bottom:8px">⏳</div>กำลังโหลด...</div>';
-  try{
-    const snap=await db.collection('submissions').where('userId','==',user.userId).limit(30).get();
-    const subs=snap.docs.map(d=>({id:d.id,...d.data()}))
-      .sort((a,b)=>{const ta=a.createdAt?.toDate?.()?.getTime?.()||0,tb=b.createdAt?.toDate?.()?.getTime?.()||0;return tb-ta;});
-    histCache=subs;
-    if(!subs.length){list.innerHTML='<div class="hist-empty"><div class="he-icon">📭</div><p>ยังไม่มีประวัติการส่งค่ะ<br>ลองบันทึกมื้อแรกเลย!</p></div>';return;}
-    list.innerHTML=subs.map(s=>buildHistCard(s)).join('');
-  }catch(e){list.innerHTML='<div style="padding:24px;text-align:center;color:#EF4444">โหลดไม่ได้: '+e.message+'</div>';}
+  // ใช้ cache ที่มีอยู่แล้ว ไม่ต้อง query ใหม่
+  const subs=(studentSubsCache||[])
+    .slice().sort((a,b)=>{const ta=a.createdAt?.toDate?.()?.getTime?.()||0,tb=b.createdAt?.toDate?.()?.getTime?.()||0;return tb-ta;});
+  histCache=subs;
+  if(!subs.length){list.innerHTML='<div class="hist-empty"><div class="he-icon">📭</div><p>ยังไม่มีประวัติการส่งค่ะ<br>ลองบันทึกมื้อแรกเลย!</p></div>';return;}
+  list.innerHTML=subs.map(s=>buildHistCard(s)).join('');
 }
 
 function buildHistCard(s){
@@ -3905,18 +3904,17 @@ async function loadDashboard(forceRefresh=false){
   }
   content.innerHTML='<div style="padding:32px;text-align:center;color:var(--gray)"><div style="font-size:32px;margin-bottom:8px">⏳</div>กำลังโหลด...</div>';
   try{
-    // รัน queries ทั้งหมดพร้อมกัน (parallel)
-    const [snap,td,hs,wc,ws]=await Promise.all([
-      db.collection('submissions').where('userId','==',user.userId).limit(50).get(),
-      db.collection('students').doc(user.userId).get().catch(()=>null),
+    // ใช้ studentSubsCache + TARGETS ที่โหลดไว้แล้ว ยิงแค่ 3 queries ที่ยังไม่มี
+    const [hs,wc,ws]=await Promise.all([
       db.collection('healthLogs').doc(user.userId).collection('days').limit(14).get().catch(()=>null),
       db.collection('weeklyChecks').doc(user.userId).collection('entries').orderBy('date','asc').limit(20).get().catch(()=>null),
       db.collection('students').doc(user.userId).collection('weeklySummaries').orderBy('weekStart','desc').limit(8).get().catch(()=>null),
     ]);
-    const subs=snap.docs.map(d=>({id:d.id,...d.data()}));
+    const subs=studentSubsCache||[];
     let targets={kcal:TARGETS.kcal,c:TARGETS.c,p:TARGETS.p,f:TARGETS.f};
     let coachNotes='';
-    if(td&&td.exists){const dd=td.data();if(dd.targets)targets={...targets,...dd.targets};if(dd.coachNotes)coachNotes=dd.coachNotes;}
+    // reload coachNotes เฉพาะถ้ายังไม่มี (เบา)
+    try{const td2=await db.collection('students').doc(user.userId).get();if(td2.exists){const dd=td2.data();if(dd.coachNotes)coachNotes=dd.coachNotes;}}catch(e){}
     let healthLogs={};
     if(hs)hs.docs.forEach(d=>{healthLogs[d.id]=d.data();});
     let weeklyChecks=[];
