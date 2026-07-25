@@ -282,7 +282,7 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
 .summary-chips{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-bottom:24px}
 .chip{background:var(--light);border:1.5px solid var(--border);border-radius:20px;padding:6px 14px;font-size:13px;color:var(--primary-dark);font-weight:600}
 .btn-again{padding:12px 32px;background:var(--primary);color:white;border:none;border-radius:12px;font-size:15px;font-weight:700;font-family:'Prompt',sans-serif;cursor:pointer}
-#user-id-bar{position:fixed;bottom:56px;left:0;right:0;background:#1F2937;color:#9CA3AF;font-size:10px;padding:4px 10px;z-index:100;display:none}
+#user-id-bar{position:fixed;top:8px;right:8px;left:auto;background:#1F2937;color:#9CA3AF;font-size:10px;padding:3px 10px 3px 8px;border-radius:14px;z-index:1000;display:none;cursor:pointer;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #user-id-bar span{color:#F9FAFB;font-size:10px}
 
 /* COACH VIEW */
@@ -838,7 +838,7 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
   <div id="sd-content"></div>
 </div>
 
-<div id="user-id-bar">LINE ID: <span id="user-id-txt"></span></div>
+<div id="user-id-bar" onclick="var id=document.getElementById('user-id-txt').textContent;navigator.clipboard&&navigator.clipboard.writeText(id).then(function(){showToast('คัดลอก ID แล้ว ✓')});"> 🆔 <span id="user-id-txt"></span> <span onclick="event.stopPropagation();this.parentElement.style.display='none'" style="margin-left:4px;color:#6B7280">✕</span></div>
 
 <script>
 const LIFF_ID = '2010684007-Uw1Ep1pT';
@@ -2703,6 +2703,11 @@ let nearEndSentDate=null;  // วันที่ส่ง near-end card แล�
 let histCache=null;
 let mealPlan=[]; // [{name,c,p,f}] current plan items
 let mealPlanDate=""; // date being planned
+let planAddMode='hand'; // 'hand'|'fill'|'ai'
+let planCookMethod='none'; // 'none'|'stirfry'|'deep'
+let planHandCarbQty=1.5;
+let planHandProtQty=1.0;
+let planAIData=null; // {c,p,f,name} from AI result
 const GROQ_KEY='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';
 let aiParsedData=null;
 let _photoProcessing=false;
@@ -3939,12 +3944,12 @@ function getSubMacros(s){
   if(s.mode==='hand'&&s.handData){c=s.handData.totalCarb||0;p=s.handData.totalProtein||0;f=s.handData.totalFat||0;}
   else if(s.mode==='label'&&s.labelData){c=s.labelData.carb||0;p=s.labelData.protein||0;f=s.labelData.fat||0;}
   else if(s.mode==='weigh'&&s.weighData){c=s.weighData.carb||0;p=s.weighData.protein||0;f=s.weighData.fat||0;}
-  if(s.status==='corrected'&&s.correction){
+  if(s.correction){
     if(s.correction.carb!==undefined)c=s.correction.carb;
     if(s.correction.protein!==undefined)p=s.correction.protein;
     if(s.correction.fat!==undefined)f=s.correction.fat;
   }
-  const kcal=(s.mode==='weigh'&&s.weighData&&s.weighData.kcal&&!(s.status==='corrected'&&s.correction))?s.weighData.kcal:Math.round(c*4+p*4+f*9);
+  const kcal=(s.mode==='weigh'&&s.weighData&&s.weighData.kcal&&!s.correction)?s.weighData.kcal:Math.round(c*4+p*4+f*9);
   return{kcal,c,p,f};
 }
 
@@ -4405,15 +4410,34 @@ async function checkCoachComments(){
 function buildCoachCommentCard(s,comment,tone,withPhoto){
   const TONES={
     good:{bg:'#059669',title:'✅ โค้ชตรวจแล้วค่ะ',subtint:'#A7F3D0'},
-    fix:{bg:'#D97706',title:'📝 โค้ชแก้ไขให้แล้วค่ะ',subtint:'#FDE68A'},
+    fix:{bg:'#059669',title:'✅ โค้ชตรวจและปรับค่าให้แล้วค่ะ',subtint:'#A7F3D0'},
     warn:{bg:'#DC2626',title:'⚠️ โค้ชมีข้อความถึงคุณ',subtint:'#FECACA'}
   };
   const T=TONES[tone]||TONES.good;
   const m=getSubMacros(s);
   const mealLabel=`มื้อ${s.meal||''} · ${s.mealDate||''}`;
-  // photoBase64 = Data URL → LINE rejects it; only include if public HTTPS URL exists
   const photoUrl=(withPhoto&&s.photoUrl&&s.photoUrl.startsWith('https://'))?s.photoUrl:null;
   const heroBlock=photoUrl?{"type":"image","url":photoUrl,"size":"full","aspectRatio":"20:13","aspectMode":"cover"}:null;
+  // ถ้ามีการแก้ค่า — หา original macro ก่อนแก้
+  const hasCorrected=tone==='fix'&&s.correction;
+  const origM=hasCorrected?getSubMacros({...s,correction:null,status:'pending'}):null;
+  const corrRows=hasCorrected?[
+    {"type":"box","layout":"horizontal","margin":"sm","contents":[
+      {"type":"text","text":"เดิม","size":"xs","color":"#9CA3AF","flex":0},
+      {"type":"text","text":`C ${origM.c}g · P ${origM.p}g · F ${origM.f}g`,"size":"xs","color":"#9CA3AF","flex":1,"margin":"sm","decoration":"line-through"}
+    ]},
+    {"type":"box","layout":"horizontal","margin":"xs","contents":[
+      {"type":"text","text":"ใหม่","size":"xs","color":"#059669","flex":0,"weight":"bold"},
+      {"type":"text","text":`C ${m.c}g · P ${m.p}g · F ${m.f}g`,"size":"xs","color":"#059669","flex":1,"margin":"sm","weight":"bold"}
+    ]}
+  ]:[
+    {"type":"box","layout":"horizontal","margin":"none","contents":[
+      {"type":"text","text":`⚡ ${m.kcal}`,"size":"xs","color":"#6B7280","flex":1},
+      {"type":"text","text":`C ${m.c}g`,"size":"xs","color":"#1D4ED8","flex":1},
+      {"type":"text","text":`P ${m.p}g`,"size":"xs","color":"#059669","flex":1},
+      {"type":"text","text":`F ${m.f}g`,"size":"xs","color":"#C2410C","flex":1}
+    ]}
+  ];
   return{
     "type":"flex","altText":T.title,
     "contents":{"type":"bubble","size":"kilo",
@@ -4423,12 +4447,7 @@ function buildCoachCommentCard(s,comment,tone,withPhoto){
         {"type":"text","text":mealLabel,"color":T.subtint,"size":"xs","margin":"xs"}
       ]},
       "body":{"type":"box","layout":"vertical","paddingAll":"14px","spacing":"none","contents":[
-        {"type":"box","layout":"horizontal","margin":"none","contents":[
-          {"type":"text","text":`⚡ ${m.kcal}`,"size":"xs","color":"#6B7280","flex":1},
-          {"type":"text","text":`C ${m.c}g`,"size":"xs","color":"#1D4ED8","flex":1},
-          {"type":"text","text":`P ${m.p}g`,"size":"xs","color":"#059669","flex":1},
-          {"type":"text","text":`F ${m.f}g`,"size":"xs","color":"#C2410C","flex":1}
-        ]},
+        ...corrRows,
         {"type":"separator","margin":"sm"},
         {"type":"text","text":comment,"size":"sm","color":"#374151","margin":"sm","wrap":true}
       ]}
@@ -4453,11 +4472,14 @@ function renderPlanPanel(){
   const pct=(v,max)=>Math.min(100,Math.round(v/max*100));
   const bar=(v,max,col)=>`<div style="background:#E5E7EB;border-radius:4px;height:5px;overflow:hidden;flex:1"><div style="height:100%;background:${col};border-radius:4px;width:${pct(v,max)}%"></div></div>`;
   container.innerHTML=`
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-      <div style="font-size:14px;font-weight:700;color:var(--text)">📋 แผนมื้ออาหาร</div>
-      <input type="date" id="plan-date-input" value="${mealPlanDate}"
-        onchange="mealPlanDate=this.value;loadPlanFromFirestore()"
-        style="border:1.5px solid var(--border);border-radius:8px;padding:4px 8px;font-size:12px;font-family:'Prompt',sans-serif">
+    <div style="margin-bottom:12px">
+      <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:6px">📋 วางแผนมื้ออาหารล่วงหน้า</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:12px;color:var(--gray)">วันที่วางแผน:</span>
+        <input type="date" id="plan-date-input" value="${mealPlanDate}"
+          onchange="mealPlanDate=this.value;loadPlanFromFirestore()"
+          style="border:1.5px solid var(--border);border-radius:8px;padding:4px 8px;font-size:12px;font-family:'Prompt',sans-serif;flex:1">
+      </div>
     </div>
     <div class="plan-total-bar">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
@@ -4474,42 +4496,120 @@ function renderPlanPanel(){
       <div class="plan-item">
         <div style="display:flex;justify-content:space-between;align-items:flex-start">
           <div>
-            <div style="font-size:13px;font-weight:600;color:var(--text)">${escHtml(item.name||'ไม่ระบุชื่อ')}</div>
+            <div style="font-size:13px;font-weight:600;color:var(--text)">${item.meal?`<span style="font-size:10px;background:#F3F4F6;color:var(--gray);border-radius:6px;padding:1px 6px;margin-right:5px">${item.meal}</span>`:''}${escHtml(item.name||'ไม่ระบุชื่อ')}</div>
             <div style="font-size:11px;color:var(--gray);margin-top:2px">C ${item.c}g · P ${item.p}g · F ${item.f}g · ⚡${Math.round(item.c*4+item.p*4+item.f*9)} kcal</div>
           </div>
           <button onclick="removePlanItem(${i})" style="border:none;background:none;color:#9CA3AF;font-size:16px;cursor:pointer;padding:0 4px">✕</button>
         </div>
-      </div>`).join(''):'<div style="text-align:center;padding:20px;color:var(--gray);font-size:13px">ยังไม่มีรายการ กดเพิ่มด้านล่างเลยค่ะ</div>'}
+      </div>`).join(''):`<div style="text-align:center;padding:24px 16px;color:var(--gray)">
+        <div style="font-size:28px;margin-bottom:8px">🍽️</div>
+        <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px">ยังไม่มีรายการค่ะ</div>
+        <div style="font-size:12px">กดปุ่ม "+ เพิ่มมื้ออาหาร" ด้านล่าง<br>เพื่อวางแผนว่าจะกินอะไร</div>
+      </div>`}
     <button onclick="showAddPlanItem()" id="btn-add-plan"
-      style="width:100%;padding:10px;background:var(--primary);color:white;border:none;border-radius:10px;font-size:13px;font-weight:600;font-family:'Prompt',sans-serif;cursor:pointer;margin-top:8px">
+      style="width:100%;padding:11px;background:var(--primary);color:white;border:none;border-radius:10px;font-size:14px;font-weight:700;font-family:'Prompt',sans-serif;cursor:pointer;margin-top:8px">
       + เพิ่มมื้ออาหาร
     </button>
     <div id="add-plan-form" style="display:none;background:white;border:1.5px solid var(--border);border-radius:12px;padding:14px;margin-top:8px">
-      <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:10px">เพิ่มมื้ออาหาร</div>
-      <div style="margin-bottom:8px">
-        <div style="font-size:10px;color:var(--gray);margin-bottom:3px">ชื่อเมนู</div>
-        <input type="text" id="plan-name" class="plan-input" placeholder="เช่น ข้าวกับไข่ต้ม">
+      <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:10px">➕ เพิ่มรายการอาหาร</div>
+      <!-- Mode Tabs -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:3px;background:#F3F4F6;border-radius:10px;padding:3px;margin-bottom:12px">
+        <button id="plan-tab-hand" onclick="setPlanMode('hand')" style="padding:7px 4px;border:none;border-radius:8px;font-size:12px;font-weight:600;font-family:'Prompt',sans-serif;cursor:pointer;background:var(--primary);color:white">👊 Hand</button>
+        <button id="plan-tab-fill" onclick="setPlanMode('fill')" style="padding:7px 4px;border:none;border-radius:8px;font-size:12px;font-weight:600;font-family:'Prompt',sans-serif;cursor:pointer;background:transparent;color:var(--gray)">✍️ กรอก</button>
+        <button id="plan-tab-ai" onclick="setPlanMode('ai')" style="padding:7px 4px;border:none;border-radius:8px;font-size:12px;font-weight:600;font-family:'Prompt',sans-serif;cursor:pointer;background:transparent;color:var(--gray)">✨ AI</button>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:10px">
-        <div><div style="font-size:10px;color:var(--gray);margin-bottom:3px">Carb (g)</div><input type="number" id="plan-carb" class="plan-input" placeholder="0" min="0"></div>
-        <div><div style="font-size:10px;color:var(--gray);margin-bottom:3px">Protein (g)</div><input type="number" id="plan-prot" class="plan-input" placeholder="0" min="0"></div>
-        <div><div style="font-size:10px;color:var(--gray);margin-bottom:3px">Fat (g)</div><input type="number" id="plan-fat" class="plan-input" placeholder="0" min="0"></div>
-      </div>
-      ${savedMenusCache&&savedMenusCache.length?`<div style="margin-bottom:10px">
-        <div style="font-size:10px;color:var(--gray);margin-bottom:5px">เมนูบันทึกไว้</div>
-        <div style="display:flex;flex-wrap:wrap;gap:5px">
-          ${savedMenusCache.slice(0,6).map(m=>{
-            const mc=m.labelData||m.handData;
-            const mC=m.labelData?m.labelData.carb:0;const mP=m.labelData?m.labelData.protein:0;const mF=m.labelData?m.labelData.fat:0;
-            return`<button onclick="quickFillPlanItem('${escHtml(m.name||'เมนู')}',${mC||0},${mP||0},${mF||0})"
-              style="font-size:11px;padding:4px 8px;border-radius:8px;border:1px solid #E5E7EB;background:#F9FAFB;color:var(--text);cursor:pointer">
-              ${escHtml(m.name||'เมนู')}</button>`;
-          }).join('')}
+      <!-- Meal + Name always visible -->
+      <div style="display:grid;grid-template-columns:auto 1fr;gap:6px;margin-bottom:10px">
+        <div>
+          <div style="font-size:10px;color:var(--gray);margin-bottom:3px">มื้อ</div>
+          <select id="plan-meal" class="plan-input" style="width:80px">
+            <option>เช้า</option><option>กลางวัน</option><option>เย็น</option><option>ขนม</option>
+          </select>
         </div>
-      </div>`:''}
+        <div>
+          <div style="font-size:10px;color:var(--gray);margin-bottom:3px">ชื่อเมนู</div>
+          <input type="text" id="plan-name" class="plan-input" placeholder="เช่น ก๋วยเตี๋ยวหมู">
+        </div>
+      </div>
+      <!-- HAND MODE -->
+      <div id="plan-mode-hand">
+        <div style="margin-bottom:8px">
+          <div style="font-size:10px;color:var(--gray);margin-bottom:5px;font-weight:600">🍚 คาร์บ</div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <select id="ph-carb-density" onchange="updatePlanHandPreview()" class="plan-input" style="flex:1;font-size:12px">
+              <option value="veggie">🟢 ผัก</option><option value="light">🔵 เบา</option>
+              <option value="normal" selected>🟡 ปกติ</option><option value="dense">🟠 แน่น</option>
+              <option value="heavy">🔴 ตัวตึง</option>
+            </select>
+            <div style="display:flex;align-items:center;gap:4px;background:#F9FAFB;border:1px solid #E5E7EB;border-radius:8px;padding:2px 8px">
+              <button onclick="adjPlanHand('carb',-0.5)" style="border:none;background:none;font-size:18px;cursor:pointer;color:var(--primary);line-height:1;padding:0">−</button>
+              <span id="ph-carb-qty" style="font-size:13px;font-weight:600;min-width:28px;text-align:center">1.5</span>
+              <button onclick="adjPlanHand('carb',0.5)" style="border:none;background:none;font-size:18px;cursor:pointer;color:var(--primary);line-height:1;padding:0">+</button>
+            </div>
+            <span style="font-size:11px;color:var(--gray)">ทัพพี</span>
+          </div>
+        </div>
+        <div style="margin-bottom:8px">
+          <div style="font-size:10px;color:var(--gray);margin-bottom:5px;font-weight:600">🍗 โปรตีน</div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <select id="ph-prot-type" onchange="updatePlanHandPreview()" class="plan-input" style="flex:1;font-size:12px">
+              <option value="lean">ไขมันต่ำ</option><option value="semilean">ปกติ</option>
+            </select>
+            <div style="display:flex;align-items:center;gap:4px;background:#F9FAFB;border:1px solid #E5E7EB;border-radius:8px;padding:2px 8px">
+              <button onclick="adjPlanHand('prot',-0.5)" style="border:none;background:none;font-size:18px;cursor:pointer;color:var(--primary);line-height:1;padding:0">−</button>
+              <span id="ph-prot-qty" style="font-size:13px;font-weight:600;min-width:28px;text-align:center">1.0</span>
+              <button onclick="adjPlanHand('prot',0.5)" style="border:none;background:none;font-size:18px;cursor:pointer;color:var(--primary);line-height:1;padding:0">+</button>
+            </div>
+            <span style="font-size:11px;color:var(--gray)">ฝ่ามือ</span>
+          </div>
+        </div>
+        <div style="margin-bottom:10px">
+          <div style="font-size:10px;color:var(--gray);margin-bottom:5px;font-weight:600">🍳 วิธีปรุง</div>
+          <div style="display:flex;gap:5px">
+            <button id="ph-cook-none" onclick="setPlanCook('none')" style="flex:1;padding:6px 4px;border-radius:8px;font-size:11px;cursor:pointer;border:1.5px solid var(--primary);background:var(--primary);color:white;font-family:'Prompt',sans-serif">ต้ม/นึ่ง</button>
+            <button id="ph-cook-stirfry" onclick="setPlanCook('stirfry')" style="flex:1;padding:6px 4px;border-radius:8px;font-size:11px;cursor:pointer;border:1.5px solid #E5E7EB;background:white;color:var(--text);font-family:'Prompt',sans-serif">ผัด</button>
+            <button id="ph-cook-deep" onclick="setPlanCook('deep')" style="flex:1;padding:6px 4px;border-radius:8px;font-size:11px;cursor:pointer;border:1.5px solid #E5E7EB;background:white;color:var(--text);font-family:'Prompt',sans-serif">ทอด</button>
+          </div>
+        </div>
+        <div id="ph-preview" style="background:#F0FDF4;border-radius:8px;padding:9px 12px;margin-bottom:10px;font-size:13px;color:#065F46;font-weight:600">
+          <span id="ph-preview-text">C 24g · P 25g · F 3g · ⚡ 228 kcal</span>
+        </div>
+      </div>
+      <!-- กรอก MODE -->
+      <div id="plan-mode-fill" style="display:none">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:10px">
+          <div><div style="font-size:10px;color:var(--gray);margin-bottom:3px">Carb (g)</div><input type="number" id="plan-carb" class="plan-input" placeholder="0" min="0"></div>
+          <div><div style="font-size:10px;color:var(--gray);margin-bottom:3px">Protein (g)</div><input type="number" id="plan-prot" class="plan-input" placeholder="0" min="0"></div>
+          <div><div style="font-size:10px;color:var(--gray);margin-bottom:3px">Fat (g)</div><input type="number" id="plan-fat" class="plan-input" placeholder="0" min="0"></div>
+        </div>
+        ${savedMenusCache&&savedMenusCache.length?`<div style="margin-bottom:10px">
+          <div style="font-size:10px;color:var(--gray);margin-bottom:5px">เมนูบันทึกไว้</div>
+          <div style="display:flex;flex-wrap:wrap;gap:5px">
+            ${savedMenusCache.slice(0,6).map(m=>{
+              const mC=m.labelData?m.labelData.carb:0;const mP=m.labelData?m.labelData.protein:0;const mF=m.labelData?m.labelData.fat:0;
+              return`<button onclick="quickFillPlanItem('${escHtml(m.name||'เมนู')}',${mC||0},${mP||0},${mF||0})" style="font-size:11px;padding:4px 8px;border-radius:8px;border:1px solid #E5E7EB;background:#F9FAFB;color:var(--text);cursor:pointer">${escHtml(m.name||'เมนู')}</button>`;
+            }).join('')}
+          </div>
+        </div>`:''}
+      </div>
+      <!-- AI MODE -->
+      <div id="plan-mode-ai" style="display:none">
+        <div style="border:1.5px dashed #D1D5DB;border-radius:10px;padding:14px;text-align:center;margin-bottom:8px;cursor:pointer;background:#FAFAFA" onclick="document.getElementById('plan-ai-photo').click()">
+          <input type="file" id="plan-ai-photo" accept="image/*" capture="environment" style="display:none" onchange="handlePlanAIPhoto(this)">
+          <div id="plan-ai-photo-preview" style="display:none;text-align:center"><img id="plan-ai-photo-img" style="max-height:120px;border-radius:8px;margin-bottom:4px"></div>
+          <div id="plan-ai-photo-placeholder"><div style="font-size:28px">📷</div><div style="font-size:12px;color:var(--gray);margin-top:4px">ถ่ายรูปหรืออธิบายอาหาร<br>หรือพิมพ์ชื่อเมนูในช่องบน</div></div>
+        </div>
+        <input type="text" id="plan-ai-text" class="plan-input" placeholder="หรือพิมพ์เมนูให้ AI คำนวณ เช่น ก๋วยเตี๋ยวหมู 1 ชาม" style="margin-bottom:8px">
+        <button onclick="runPlanAI()" id="btn-plan-ai" style="width:100%;padding:9px;background:#7C3AED;color:white;border:none;border-radius:8px;font-size:13px;font-weight:600;font-family:'Prompt',sans-serif;cursor:pointer;margin-bottom:8px">✨ AI คำนวณ</button>
+        <div id="plan-ai-result" style="display:none;background:#F0FDF4;border-radius:8px;padding:9px 12px;margin-bottom:8px;font-size:13px">
+          <div style="font-size:11px;color:#059669;font-weight:600;margin-bottom:3px">✨ AI คำนวณแล้วค่ะ</div>
+          <div id="plan-ai-result-text" style="color:#065F46;font-weight:600"></div>
+        </div>
+      </div>
+      <!-- Buttons -->
       <div style="display:flex;gap:6px">
-        <button onclick="addPlanItem()" style="flex:1;padding:8px;background:var(--primary);color:white;border:none;border-radius:8px;font-size:13px;font-weight:600;font-family:'Prompt',sans-serif;cursor:pointer">เพิ่ม</button>
-        <button onclick="document.getElementById('add-plan-form').style.display='none'" style="padding:8px 12px;background:#F3F4F6;border:none;border-radius:8px;font-size:12px;font-family:'Prompt',sans-serif;cursor:pointer">ยกเลิก</button>
+        <button onclick="addPlanItem()" style="flex:1;padding:9px;background:var(--primary);color:white;border:none;border-radius:8px;font-size:13px;font-weight:600;font-family:'Prompt',sans-serif;cursor:pointer">เพิ่ม</button>
+        <button onclick="document.getElementById('add-plan-form').style.display='none'" style="padding:9px 14px;background:#F3F4F6;border:none;border-radius:8px;font-size:12px;font-family:'Prompt',sans-serif;cursor:pointer">ยกเลิก</button>
       </div>
     </div>
     ${mealPlan.length?`<button onclick="savePlanToFirestore()"
@@ -4523,20 +4623,133 @@ function renderPlanPanel(){
 }
 function showAddPlanItem(){
   const f=document.getElementById('add-plan-form');
-  if(f){f.style.display=f.style.display==='none'?'block':'none';}
+  if(!f)return;
+  const opening=f.style.display==='none';
+  f.style.display=opening?'block':'none';
+  if(opening){setPlanMode(planAddMode);updatePlanHandPreview();}
 }
 function quickFillPlanItem(name,c,p,f){
   const ni=document.getElementById('plan-name');const ci=document.getElementById('plan-carb');
   const pi=document.getElementById('plan-prot');const fi=document.getElementById('plan-fat');
   if(ni)ni.value=name;if(ci)ci.value=c||0;if(pi)pi.value=p||0;if(fi)fi.value=f||0;
 }
+function setPlanMode(mode){
+  planAddMode=mode;
+  ['hand','fill','ai'].forEach(m=>{
+    const tab=document.getElementById('plan-tab-'+m);
+    const panel=document.getElementById('plan-mode-'+m);
+    if(tab){tab.style.background=m===mode?'var(--primary)':'transparent';tab.style.color=m===mode?'white':'var(--gray)';}
+    if(panel)panel.style.display=m===mode?'block':'none';
+  });
+  if(mode==='hand')updatePlanHandPreview();
+}
+function adjPlanHand(which,delta){
+  if(which==='carb'){
+    planHandCarbQty=Math.max(0,Math.round((planHandCarbQty+delta)*2)/2);
+    const el=document.getElementById('ph-carb-qty');if(el)el.textContent=planHandCarbQty.toFixed(1);
+  }else{
+    planHandProtQty=Math.max(0,Math.round((planHandProtQty+delta)*2)/2);
+    const el=document.getElementById('ph-prot-qty');if(el)el.textContent=planHandProtQty.toFixed(1);
+  }
+  updatePlanHandPreview();
+}
+function setPlanCook(method){
+  planCookMethod=method;
+  ['none','stirfry','deep'].forEach(m=>{
+    const b=document.getElementById('ph-cook-'+m);if(!b)return;
+    const active=m===method;
+    b.style.background=active?'var(--primary)':'white';
+    b.style.color=active?'white':'var(--text)';
+    b.style.border=`1.5px solid ${active?'var(--primary)':'#E5E7EB'}`;
+  });
+  updatePlanHandPreview();
+}
+function updatePlanHandPreview(){
+  const density=document.getElementById('ph-carb-density')?.value||'normal';
+  const protType=document.getElementById('ph-prot-type')?.value||'lean';
+  const cd=CARB_D[density]||CARB_D.normal;const pt=PROT_T[protType]||PROT_T.lean;const cm=COOK_M[planCookMethod]||COOK_M.none;
+  const c=Math.round(cd.c*planHandCarbQty+pt.c*planHandProtQty);
+  const p=Math.round(cd.p*planHandCarbQty+pt.p*planHandProtQty);
+  const f=Math.round(cd.f*planHandCarbQty+pt.f*planHandProtQty+cm.f);
+  const kcal=c*4+p*4+f*9;
+  const el=document.getElementById('ph-preview-text');
+  if(el)el.textContent=`C ${c}g · P ${p}g · F ${f}g · ⚡ ${kcal} kcal`;
+}
+function handlePlanAIPhoto(input){
+  const file=input.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=function(e){
+    const img=document.getElementById('plan-ai-photo-img');
+    const preview=document.getElementById('plan-ai-photo-preview');
+    const placeholder=document.getElementById('plan-ai-photo-placeholder');
+    if(img)img.src=e.target.result;
+    if(preview)preview.style.display='block';
+    if(placeholder)placeholder.style.display='none';
+  };
+  reader.readAsDataURL(file);
+}
+async function runPlanAI(){
+  const text=document.getElementById('plan-ai-text')?.value.trim();
+  const name=document.getElementById('plan-name')?.value.trim();
+  const photoImg=document.getElementById('plan-ai-photo-img');
+  const photoSrc=(photoImg?.src&&!photoImg.src.endsWith(window.location.href))?photoImg.src:null;
+  const query=text||(name?`${name} 1 จาน`:'');
+  if(!query&&!photoSrc){showToast('พิมพ์ชื่อเมนูหรือถ่ายรูปก่อนนะคะ');return;}
+  const btn=document.getElementById('btn-plan-ai');
+  if(btn){btn.textContent='⏳ AI กำลังคิด...';btn.disabled=true;}
+  try{
+    const isVision=!!photoSrc;
+    const model=isVision?'meta-llama/llama-4-scout-17b-16e-instruct':'llama-3.3-70b-versatile';
+    const userContent=isVision?[
+      {type:'image_url',image_url:{url:photoSrc}},
+      {type:'text',text:`วิเคราะห์อาหารในรูป${query?` (${query})`:''}แล้วตอบเป็น JSON เท่านั้น: {"name":"ชื่อ","carb":0,"protein":0,"fat":0} (กรัม)`}
+    ]:`วิเคราะห์อาหาร: "${query}" แล้วตอบเป็น JSON เท่านั้น: {"name":"ชื่ออาหาร","carb":0,"protein":0,"fat":0} (กรัมต่อ 1 จาน)`;
+    const res=await fetch('https://api.groq.com/openai/v1/chat/completions',{
+      method:'POST',
+      headers:{'Authorization':'Bearer '+GROQ_KEY,'Content-Type':'application/json'},
+      body:JSON.stringify({model,messages:[{role:'user',content:userContent}],max_tokens:200,temperature:0.2})
+    });
+    const data=await res.json();
+    const raw=data.choices?.[0]?.message?.content||'{}';
+    const match=raw.match(/\{[\s\S]*?\}/);
+    const parsed=JSON.parse(match?match[0]:'{}');
+    if(!parsed.carb&&!parsed.protein&&!parsed.fat)throw new Error('ไม่ได้ข้อมูล macro');
+    planAIData={c:Math.round(parsed.carb||0),p:Math.round(parsed.protein||0),f:Math.round(parsed.fat||0),name:parsed.name||query};
+    const resultEl=document.getElementById('plan-ai-result');
+    const resultText=document.getElementById('plan-ai-result-text');
+    if(resultEl)resultEl.style.display='block';
+    if(resultText){
+      const kcal=planAIData.c*4+planAIData.p*4+planAIData.f*9;
+      resultText.innerHTML=`<strong>${escHtml(planAIData.name)}</strong><br>C ${planAIData.c}g · P ${planAIData.p}g · F ${planAIData.f}g · ⚡ ${kcal} kcal`;
+    }
+    const ni=document.getElementById('plan-name');if(ni&&!ni.value)ni.value=planAIData.name;
+  }catch(e){showToast('AI คำนวณไม่ได้: '+e.message);}
+  if(btn){btn.textContent='✨ AI คำนวณ';btn.disabled=false;}
+}
 function addPlanItem(){
-  const name=document.getElementById('plan-name')?.value.trim()||'';
-  const c=parseFloat(document.getElementById('plan-carb')?.value)||0;
-  const p=parseFloat(document.getElementById('plan-prot')?.value)||0;
-  const f=parseFloat(document.getElementById('plan-fat')?.value)||0;
-  if(!c&&!p&&!f){alert('กรอก macro อย่างน้อย 1 ช่องนะคะ');return;}
-  mealPlan.push({name,c,p,f});
+  const meal=document.getElementById('plan-meal')?.value||'';
+  let c=0,p=0,f=0,autoName='';
+  if(planAddMode==='hand'){
+    const density=document.getElementById('ph-carb-density')?.value||'normal';
+    const protType=document.getElementById('ph-prot-type')?.value||'lean';
+    const cd=CARB_D[density]||CARB_D.normal;const pt=PROT_T[protType]||PROT_T.lean;const cm=COOK_M[planCookMethod]||COOK_M.none;
+    c=Math.round(cd.c*planHandCarbQty+pt.c*planHandProtQty);
+    p=Math.round(cd.p*planHandCarbQty+pt.p*planHandProtQty);
+    f=Math.round(cd.f*planHandCarbQty+pt.f*planHandProtQty+cm.f);
+    autoName=`${cd.label} ${planHandCarbQty}ทัพพี + โปรตีน ${planHandProtQty}ฝ่ามือ`;
+  }else if(planAddMode==='fill'){
+    c=parseFloat(document.getElementById('plan-carb')?.value)||0;
+    p=parseFloat(document.getElementById('plan-prot')?.value)||0;
+    f=parseFloat(document.getElementById('plan-fat')?.value)||0;
+    if(!c&&!p&&!f){showToast('กรอก macro อย่างน้อย 1 ช่องนะคะ');return;}
+  }else if(planAddMode==='ai'){
+    if(!planAIData){showToast('กด ✨ AI คำนวณ ก่อนนะคะ');return;}
+    c=planAIData.c;p=planAIData.p;f=planAIData.f;autoName=planAIData.name||'';
+  }
+  const name=document.getElementById('plan-name')?.value.trim()||autoName||'อาหาร';
+  mealPlan.push({name,meal,c,p,f,mode:planAddMode});
+  // reset state
+  planHandCarbQty=1.5;planHandProtQty=1.0;planCookMethod='none';planAIData=null;
   renderPlanPanel();
 }
 function removePlanItem(i){mealPlan.splice(i,1);renderPlanPanel();}
@@ -4662,33 +4875,24 @@ function buildProgramSection(uid, prog){
     ?`<button class="pause-btn resume" onclick="resumeStudentProgram('${uid}')">▶ กลับมาเทรนต่อ — คำนวณวันจบใหม่</button>`
     :`<button class="pause-btn pause" onclick="pauseStudentProgram('${uid}')">⏸ พักเทรน — ขยายวันจบ</button>`
   ):'';
+  const endDateStr=end?(()=>{const pad=n=>String(n).padStart(2,'0');return formatDateTH(`${end.getFullYear()}-${pad(end.getMonth()+1)}-${pad(end.getDate())}`)})():'—';
   return`<div class="sd-prog-section">
     <div class="sd-prog-title">📅 ข้อมูลคอร์ส</div>
     <div id="prog-status-${uid}" style="font-size:12px;color:var(--text);margin-bottom:6px;font-weight:600">${statusLine}</div>
     ${progBarHtml}
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px">
-      <div>
-        <div style="font-size:10px;color:var(--gray);margin-bottom:2px">วันเริ่มเทรน</div>
-        <input type="date" id="prog-start-${uid}" class="prog-input" value="${prog.programStart||''}">
-      </div>
-      <div>
-        <div style="font-size:10px;color:var(--gray);margin-bottom:2px">ระยะเวลา</div>
-        <select id="prog-weeks-${uid}" class="prog-input">
-          ${[4,8,12,16,20,24].map(w=>`<option value="${w}"${prog.programWeeks===w?' selected':''}>${w} สัปดาห์</option>`).join('')}
-        </select>
-      </div>
+    <div style="margin-bottom:8px">
+      <div style="font-size:10px;color:var(--gray);margin-bottom:2px">วันเริ่มเทรน</div>
+      <input type="date" id="prog-start-${uid}" class="prog-input" value="${prog.programStart||''}" oninput="updateProgEndPreview('${uid}')">
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px">
-      <div>
-        <div style="font-size:10px;color:var(--gray);margin-bottom:2px">ส่วนลดต่อคอร์ส (%)</div>
-        <input type="number" id="prog-disc-pct-${uid}" class="prog-input" value="${prog.discountPercent||''}" placeholder="เช่น 20" min="0" max="100">
-      </div>
-      <div>
-        <div style="font-size:10px;color:var(--gray);margin-bottom:2px">Discount Code</div>
-        <input type="text" id="prog-disc-code-${uid}" class="prog-input" value="${prog.discountCode||''}" placeholder="เช่น DOITFIT20">
-      </div>
+    <div style="margin-bottom:8px">
+      <div style="font-size:10px;color:var(--gray);margin-bottom:2px">ระยะเวลา</div>
+      <select id="prog-weeks-${uid}" class="prog-input" onchange="updateProgEndPreview('${uid}')">
+        ${[4,8,12,16,20,24].map(w=>`<option value="${w}"${prog.programWeeks===w?' selected':''}>${w} สัปดาห์</option>`).join('')}
+      </select>
     </div>
-    ${hasProgram&&prog.pausedDays>0?`<div style="font-size:10px;color:var(--gray);margin-bottom:6px">พักสะสม ${prog.pausedDays} วัน · วันจบจริง ${end?(()=>{const pad=n=>String(n).padStart(2,'0');return formatDateTH(`${end.getFullYear()}-${pad(end.getMonth()+1)}-${pad(end.getDate())}`);})():'-'}</div>`:''}
+    <div id="prog-end-preview-${uid}" style="font-size:12px;color:#1D4ED8;background:#EFF6FF;border-radius:8px;padding:7px 10px;margin-bottom:10px">
+      📅 วันจบคอร์ส: <strong>${endDateStr}</strong>${hasProgram&&prog.pausedDays>0?` <span style="font-size:10px;color:var(--gray)">· พักสะสม ${prog.pausedDays} วัน</span>`:''}
+    </div>
     <button onclick="saveProgramSettings('${uid}')"
       style="width:100%;padding:8px;background:#1D4ED8;color:white;border:none;border-radius:9px;font-size:13px;font-weight:600;font-family:'Prompt',sans-serif;cursor:pointer;margin-bottom:6px">
       💾 บันทึกข้อมูลคอร์ส
@@ -4696,18 +4900,28 @@ function buildProgramSection(uid, prog){
     ${pauseBtn}
   </div>`;
 }
+function updateProgEndPreview(uid){
+  const startEl=document.getElementById(`prog-start-${uid}`);
+  const weeksEl=document.getElementById(`prog-weeks-${uid}`);
+  const previewEl=document.getElementById(`prog-end-preview-${uid}`);
+  if(!startEl||!weeksEl||!previewEl)return;
+  const startVal=startEl.value;
+  const weeks=parseInt(weeksEl.value)||12;
+  if(!startVal){previewEl.innerHTML='📅 วันจบคอร์ส: <strong>—</strong>';return;}
+  const start=new Date(startVal+'T00:00:00');
+  const end=new Date(start);end.setDate(start.getDate()+weeks*7);
+  const pad=n=>String(n).padStart(2,'0');
+  const endStr=formatDateTH(`${end.getFullYear()}-${pad(end.getMonth()+1)}-${pad(end.getDate())}`);
+  previewEl.innerHTML=`📅 วันจบคอร์ส: <strong>${endStr}</strong>`;
+}
 async function saveProgramSettings(uid){
   const startEl=document.getElementById(`prog-start-${uid}`);
   const weeksEl=document.getElementById(`prog-weeks-${uid}`);
-  const codeEl=document.getElementById(`prog-disc-code-${uid}`);
-  const pctEl=document.getElementById(`prog-disc-pct-${uid}`);
   if(!startEl||!weeksEl)return;
-  const payload={programStart:startEl.value,programWeeks:parseInt(weeksEl.value),
-    discountCode:codeEl.value.trim().toUpperCase(),discountPercent:parseInt(pctEl.value)||0};
+  const payload={programStart:startEl.value,programWeeks:parseInt(weeksEl.value)};
   try{
     await db.collection('students').doc(uid).set(payload,{merge:true});
     showToast('บันทึกข้อมูลคอร์สแล้วค่ะ ✅');
-    // refresh detail
     if(currentStudentData&&currentStudentData.userId===uid)openStudentDetail(uid);
   }catch(e){showToast('บันทึกไม่ได้: '+e.message);}
 }
@@ -4949,9 +5163,9 @@ function buildCard(s){
   const m=getSubMacros(s);
   const macroBar=`<div class="macro-summary"><div class="ms-item">${m.c}g<span>คาร์บ</span></div><div class="ms-item">${m.p}g<span>โปรตีน</span></div><div class="ms-item">${m.f}g<span>ไขมัน</span></div><div class="ms-kcal">⚡ ${m.kcal} kcal</div></div>`;
   const statusBadge={pending:'<span class="status-badge pending">รออนุมัติ</span>',approved:'<span class="status-badge approved">✓ อนุมัติ</span>',corrected:'<span class="status-badge corrected">✏️ แก้ไข</span>'}[s.status]||'';
-  const timeStr=s.createdAt?formatTime(s.createdAt.toDate()):'';
+  const timeStr=s.createdAt?(s.createdAt.toDate?formatTime(s.createdAt.toDate()):formatTime(new Date(s.createdAt))):'';
   const dateLabel=s.mealDate?formatDateTH(s.mealDate)+' · ':'';
-  const corrNote=(s.status==='corrected'&&s.correction)?`<div class="corr-note">✏️ C ${s.correction.carb} · P ${s.correction.protein} · F ${s.correction.fat}${s.correction.note?'<br>💬 '+escHtml(s.correction.note):''}</div>`:'';
+  const corrNote=s.correction?`<div class="corr-note">✏️ ปรับค่า → C ${s.correction.carb} · P ${s.correction.protein} · F ${s.correction.fat}${s.correction.note?'<br>💬 '+escHtml(s.correction.note):''}</div>`:'';
   const photoHtml=s.photoBase64?`<img class="card-photo" src="${s.photoBase64}" loading="lazy">`:'';
   const avatarHtml=s.pictureUrl?`<img src="${s.pictureUrl}" onerror="this.src=''" alt="">`:`<div style="width:38px;height:38px;border-radius:50%;background:var(--light);display:flex;align-items:center;justify-content:center;font-size:18px">👤</div>`;
   let actions='';
@@ -4970,7 +5184,7 @@ function buildCard(s){
     <textarea id="approve-comment-${s.id}" rows="3"
       style="width:100%;border:1.5px solid #BBF7D0;border-radius:8px;padding:8px;font-size:12px;font-family:'Prompt',sans-serif;background:white;resize:none;box-sizing:border-box"
       placeholder="ข้อความสำหรับนักเรียน...">${TONE_DEFAULTS[cs._tone||'good']}</textarea>
-    ${s.photoBase64?`<label style="display:flex;align-items:center;gap:6px;font-size:11px;color:#374151;margin-top:6px">
+    ${(s.photoBase64||s.photoUrl)?`<label style="display:flex;align-items:center;gap:6px;font-size:11px;color:#374151;margin-top:6px">
       <input type="checkbox" id="approve-photo-${s.id}" checked> แนบรูปอาหารไปด้วย</label>`:''}
     <div style="display:flex;gap:6px;margin-top:8px">
       <button onclick="doApprove('${s.id}')" style="flex:1;padding:8px;background:#059669;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;font-family:'Prompt',sans-serif;cursor:pointer">ส่ง Card + อนุมัติ ✓</button>
@@ -5152,13 +5366,30 @@ async function doApprove(id){
   const tone=cState[id]?._tone||'good';
   const comment=(document.getElementById(`approve-comment-${id}`)?.value||'').trim();
   const withPhoto=document.getElementById(`approve-photo-${id}`)?.checked||false;
+  const s=allSubs.find(x=>x.id===id);
   try{
     await db.collection('submissions').doc(id).update({
       status:'approved',coachComment:comment,coachCommentTone:tone,
       coachCommentSent:false,coachCommentWithPhoto:withPhoto
     });
+    // ลองส่ง Card ทันทีจาก LIFF ของโค้ช
+    // ถ้าโค้ชเปิด LIFF จากใน chat เดียวกับนักเรียน → ส่งถึงนักเรียนเลย
+    let sentNow=false;
+    if(s&&liff.isInClient()){
+      try{
+        const cardData=Object.assign({},s,{coachComment:comment,coachCommentTone:tone,coachCommentWithPhoto:withPhoto,status:'approved'});
+        const card=buildCoachCommentCard(cardData,comment,tone,withPhoto);
+        await liff.sendMessages([card]);
+        await db.collection('submissions').doc(id).update({coachCommentSent:true});
+        sentNow=true;
+      }catch(sendErr){
+        // ไม่ได้อยู่ใน chat → นักเรียนจะรับ Card ครั้งหน้าที่เปิดแอป
+        console.log('coach send card err',sendErr);
+      }
+    }
     if(cState[id])cState[id].approveOpen=false;
     renderCoach();
+    showToast(sentNow?'✅ ส่ง Card ให้นักเรียนแล้วค่ะ':'✅ อนุมัติแล้ว — Card จะส่งเมื่อนักเรียนเปิดแอปค่ะ');
   }catch(e){alert('Error: '+e.message);}
 }
 async function sendCorrection(id){
@@ -5187,8 +5418,8 @@ async function sendCorrection(id){
       ]}
     ].filter(h=>h.fields.length);
     await db.collection('submissions').doc(id).update({
-      status:'corrected',correction:{carb,protein:prot,fat,note},
-      coachComment:note,coachCommentTone:'fix',coachCommentSent:false,coachCommentWithPhoto:false,
+      status:'approved',correction:{carb,protein:prot,fat,note},
+      coachComment:note||'โค้ชปรับค่า macro ให้แล้วนะคะ',coachCommentTone:'fix',coachCommentSent:false,coachCommentWithPhoto:false,
       editHistory
     });
     cState[id]={};
@@ -5202,6 +5433,15 @@ function formatTime(date){
   return date.toLocaleDateString('th-TH',{day:'numeric',month:'short'});
 }
 function escHtml(str){if(!str)return'';return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function showToast(msg,dur){
+  dur=dur||2500;
+  var t=document.getElementById('_toast');
+  if(!t){t=document.createElement('div');t.id='_toast';
+    t.style.cssText='position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#1F2937;color:white;padding:10px 18px;border-radius:10px;font-size:13px;font-family:\'Prompt\',sans-serif;z-index:9999;opacity:0;transition:opacity 0.3s;pointer-events:none;max-width:80vw;text-align:center;white-space:pre-wrap';
+    document.body.appendChild(t);}
+  t.textContent=msg;t.style.opacity='1';
+  clearTimeout(t._timer);t._timer=setTimeout(function(){t.style.opacity='0';},dur);
+}
 
 // ===== ZIGZAG CALORIES =====
 const ZIGZAG_TEXTS={
