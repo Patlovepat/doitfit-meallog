@@ -2917,7 +2917,7 @@ function selStudentTab(tab, el){
   document.getElementById('panel-health').style.display=tab==='health'?'block':'none';
   document.getElementById('panel-dashboard').style.display=tab==='dashboard'?'block':'none';
   document.getElementById('panel-plan').style.display=tab==='plan'?'block':'none';
-  if(tab==='plan')loadPlanFromFirestore();;
+  if(tab==='plan'){renderPlanPanel();loadPlanFromFirestore();}
   document.getElementById('submit-wrap').style.display=tab==='log'?'block':'none';
   if(tab==='history')loadHistory();
   if(tab==='dashboard')loadDashboard();
@@ -4572,7 +4572,7 @@ function renderPlanPanel(){
           </div>
         </div>
         <div id="ph-preview" style="background:#F0FDF4;border-radius:8px;padding:9px 12px;margin-bottom:10px;font-size:13px;color:#065F46;font-weight:600">
-          <span id="ph-preview-text">C 24g · P 25g · F 3g · ⚡ 228 kcal</span>
+          <span id="ph-preview-text">C 24g · P 28g · F 3g · ⚡ 235 kcal</span>
         </div>
       </div>
       <!-- กรอก MODE -->
@@ -4587,7 +4587,8 @@ function renderPlanPanel(){
           <div style="display:flex;flex-wrap:wrap;gap:5px">
             ${savedMenusCache.slice(0,6).map(m=>{
               const mC=m.labelData?m.labelData.carb:0;const mP=m.labelData?m.labelData.protein:0;const mF=m.labelData?m.labelData.fat:0;
-              return`<button onclick="quickFillPlanItem('${escHtml(m.name||'เมนู')}',${mC||0},${mP||0},${mF||0})" style="font-size:11px;padding:4px 8px;border-radius:8px;border:1px solid #E5E7EB;background:#F9FAFB;color:var(--text);cursor:pointer">${escHtml(m.name||'เมนู')}</button>`;
+              const safeName=JSON.stringify(m.name||'เมนู').replace(/"/g,'&quot;');
+              return`<button onclick="quickFillPlanItem(${safeName},${mC||0},${mP||0},${mF||0})" style="font-size:11px;padding:4px 8px;border-radius:8px;border:1px solid #E5E7EB;background:#F9FAFB;color:var(--text);cursor:pointer">${escHtml(m.name||'เมนู')}</button>`;
             }).join('')}
           </div>
         </div>`:''}
@@ -4692,7 +4693,7 @@ async function runPlanAI(){
   const text=document.getElementById('plan-ai-text')?.value.trim();
   const name=document.getElementById('plan-name')?.value.trim();
   const photoImg=document.getElementById('plan-ai-photo-img');
-  const photoSrc=(photoImg?.src&&!photoImg.src.endsWith(window.location.href))?photoImg.src:null;
+  const photoSrc=(photoImg?.src&&photoImg.src.startsWith('data:'))?photoImg.src:null;
   const query=text||(name?`${name} 1 จาน`:'');
   if(!query&&!photoSrc){showToast('พิมพ์ชื่อเมนูหรือถ่ายรูปก่อนนะคะ');return;}
   const btn=document.getElementById('btn-plan-ai');
@@ -4736,6 +4737,7 @@ function addPlanItem(){
     c=Math.round(cd.c*planHandCarbQty+pt.c*planHandProtQty);
     p=Math.round(cd.p*planHandCarbQty+pt.p*planHandProtQty);
     f=Math.round(cd.f*planHandCarbQty+pt.f*planHandProtQty+cm.f);
+    if(!c&&!p&&!f){showToast('ปรับ qty คาร์บหรือโปรตีนก่อนนะคะ');return;}
     autoName=`${cd.label} ${planHandCarbQty}ทัพพี + โปรตีน ${planHandProtQty}ฝ่ามือ`;
   }else if(planAddMode==='fill'){
     c=parseFloat(document.getElementById('plan-carb')?.value)||0;
@@ -4767,6 +4769,8 @@ async function savePlanToFirestore(){
   if(btn){btn.textContent='💾 บันทึกแผนอาหาร';btn.disabled=false;}
 }
 async function loadPlanFromFirestore(){
+  if(!mealPlanDate)mealPlanDate=tomorrowStr(); // guard: Firestore ไม่รับ empty doc ID
+  mealPlan=[];renderPlanPanel(); // clear ทันทีก่อน query — ไม่ให้เห็นข้อมูลวันเก่า
   try{
     const doc=await db.collection('mealPlans').doc(user.userId).collection('plans').doc(mealPlanDate).get();
     if(doc.exists){
@@ -4778,7 +4782,7 @@ async function loadPlanFromFirestore(){
       if(cc&&ct&&d.coachComment){ct.textContent=d.coachComment;cc.style.display='block';}
     }else{mealPlan=[];}
     renderPlanPanel();
-  }catch(e){console.log('load plan err',e);}
+  }catch(e){console.log('load plan err',e);mealPlan=[];renderPlanPanel();} // render even on error
 }
 
 // ===== PROGRAM HELPERS =====
