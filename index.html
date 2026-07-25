@@ -4708,7 +4708,7 @@ async function pauseStudentProgram(uid){
     if(currentStudentData&&currentStudentData.userId===uid)openStudentDetail(uid);
   }catch(e){showToast('เกิดข้อผิดพลาด: '+e.message);}
 }
-async async function resumeStudentProgram(uid){
+async function resumeStudentProgram(uid){
   try{
     // calculate days paused
     const doc=await db.collection('students').doc(uid).get();
