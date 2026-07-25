@@ -32,6 +32,18 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
 .app-header .user-pic{width:36px;height:36px;border-radius:50%;object-fit:cover;margin-left:auto;border:2px solid var(--border)}
 .coach-badge{background:var(--primary);color:white;font-size:11px;font-weight:600;padding:2px 8px;border-radius:12px;margin-left:auto}
 .streak-pill{background:#FFF7ED;border:1.5px solid #FED7AA;border-radius:20px;padding:4px 10px;font-size:12px;font-weight:700;color:#C2410C;margin-left:auto;display:none;align-items:center;gap:3px;white-space:nowrap}
+.prog-bar-wrap{display:none;background:white;border-bottom:1px solid var(--border);padding:8px 14px;align-items:center;gap:8px}
+.prog-track{flex:1;background:#E5E7EB;border-radius:6px;height:6px;overflow:hidden}
+.prog-fill{height:100%;background:var(--primary);border-radius:6px}
+.prog-badge{font-size:12px;font-weight:700;color:var(--primary-dark);white-space:nowrap}
+.prog-label{font-size:10px;color:var(--gray);white-space:nowrap}
+.prog-paused{font-size:10px;background:#FEF3C7;color:#92400E;border-radius:8px;padding:1px 6px;font-weight:600}
+.sd-prog-section{background:#EFF6FF;border:1.5px solid #BFDBFE;border-radius:12px;padding:12px;margin-bottom:12px}
+.sd-prog-title{font-size:13px;font-weight:700;color:#1D4ED8;margin-bottom:8px}
+.prog-input{border:1.5px solid var(--border);border-radius:8px;padding:6px 8px;font-size:13px;font-family:"Prompt",sans-serif;width:100%;box-sizing:border-box;background:white}
+.pause-btn{width:100%;margin-top:8px;padding:8px;border-radius:9px;font-size:13px;font-weight:600;font-family:"Prompt",sans-serif;cursor:pointer;border:none}
+.pause-btn.pause{background:#FEF3C7;color:#92400E;border:1.5px solid #FDE68A}
+.pause-btn.resume{background:#D1FAE5;color:#065F46;border:1.5px solid #6EE7B7}
 .milestone-box{background:#FFF7ED;border:1.5px solid #FED7AA;border-radius:12px;padding:14px;text-align:center;margin-bottom:16px;display:none}
 .milestone-box .mfire{font-size:32px;margin-bottom:4px}
 .milestone-box .mt{font-size:15px;font-weight:700;color:#C2410C}
@@ -212,6 +224,15 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
 .hist-card-head{padding:10px 14px;border-bottom:1px solid #F3F4F6}
 .hist-card-body{padding:10px 14px}
 .hist-corr{background:#FEF3C7;border-radius:8px;padding:8px 10px;font-size:12px;color:#92400E;margin-top:8px;line-height:1.5}
+.hist-edit-log{background:#FFF7ED;border-radius:8px;padding:8px 10px;font-size:11px;color:#78716C;margin-top:6px}
+.hist-edit-row{display:flex;align-items:center;gap:5px;margin-bottom:2px}
+.hist-edit-from{color:#EF4444;text-decoration:line-through}
+.hist-edit-to{color:#059669;font-weight:700}
+.hist-coach-comment{background:#EFF6FF;border-radius:8px;padding:8px 10px;font-size:12px;color:#1D4ED8;margin-top:6px;line-height:1.6}
+.tone-btn{border:none;border-radius:8px;padding:5px 10px;font-size:12px;font-family:"Prompt",sans-serif;cursor:pointer;transition:all .15s;background:#F3F4F6;color:var(--text)}
+.plan-item{background:white;border:0.5px solid #E5E7EB;border-radius:10px;padding:10px 12px;margin-bottom:8px;position:relative}
+.plan-total-bar{background:#EFF6FF;border-radius:10px;padding:10px 14px;margin-bottom:10px;border:1px solid #BFDBFE}
+.plan-input{border:1.5px solid var(--border);border-radius:8px;padding:5px 8px;font-size:12px;font-family:"Prompt",sans-serif;background:white;width:100%}
 
 /* DASHBOARD */
 #panel-dashboard{padding:12px;display:none}
@@ -456,6 +477,8 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
     <img id="user-pic" class="user-pic" src="" alt="">
   </div>
 
+  <!-- PROGRAM BAR -->
+  <div id="program-bar" class="prog-bar-wrap"></div>
   <!-- DATE STRIP (log mode only) -->
   <div class="date-strip" id="date-strip"></div>
 
@@ -733,6 +756,7 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
   </div>
 
   <!-- STUDENT BOTTOM NAV -->
+  <div id="panel-plan" style="display:none;padding:12px"></div>
   <div class="student-nav">
     <button class="nav-tab active" onclick="selStudentTab('log',this)">
       <span class="nav-icon">🍽️</span>Food log
@@ -745,6 +769,9 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
     </button>
     <button class="nav-tab" onclick="selStudentTab('dashboard',this)">
       <span class="nav-icon">📊</span>Dashboard
+    </button>
+    <button class="nav-tab" onclick="selStudentTab('plan',this)">
+      <span class="nav-icon">📋</span>วางแผน
     </button>
   </div>
 </div>
@@ -2660,7 +2687,11 @@ let photoBase64=null, coachTab='pending', allSubs=[], cState={};
 let coachFilter='all';
 let studentTodaySubs=[];
 let studentSubsCache=null; // cache submissions ไม่ต้อง query ซ้ำ
+let studentProgramData=null; // program info (start/end/pause)
+let nearEndSentDate=null;  // วันที่ส่ง near-end card แล้ว
 let histCache=null;
+let mealPlan=[]; // [{name,c,p,f}] current plan items
+let mealPlanDate=""; // date being planned
 const GROQ_KEY='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';
 let aiParsedData=null;
 let _photoProcessing=false;
@@ -2817,10 +2848,14 @@ async function loadStudentData(){
     ]);
     studentSubsCache=snap.docs.map(d=>({id:d.id,...d.data()}));
     applyTargets(td);
+    if(td&&td.exists){const d=td.data();studentProgramData={programStart:d.programStart||'',programWeeks:d.programWeeks||12,pausedDays:d.pausedDays||0,isPaused:d.isPaused||false,discountCode:d.discountCode||'',discountPercent:d.discountPercent||0};}
     if(savedSnap){savedMenusCache=savedSnap.docs.map(d=>({id:d.id,...d.data()}));}
     renderStreak();
     renderTodayProgress();
     refreshAllChips();
+    renderProgramBar();
+    checkNearEnd();
+    checkCoachComments();
   }catch(e){console.log('loadStudentData err',e);}
 }
 
@@ -2865,6 +2900,8 @@ function selStudentTab(tab, el){
   document.getElementById('panel-history').style.display=tab==='history'?'block':'none';
   document.getElementById('panel-health').style.display=tab==='health'?'block':'none';
   document.getElementById('panel-dashboard').style.display=tab==='dashboard'?'block':'none';
+  document.getElementById('panel-plan').style.display=tab==='plan'?'block':'none';
+  if(tab==='plan')renderPlanPanel();;
   document.getElementById('submit-wrap').style.display=tab==='log'?'block':'none';
   if(tab==='history')loadHistory();
   if(tab==='dashboard')loadDashboard();
@@ -3856,6 +3893,11 @@ function buildHistCard(s){
     chips+=`<span class="chip">⚡ ${wMacros.kcal} kcal</span>`;
   }
   const photoHtml=s.photoBase64?`<img style="width:100%;max-height:160px;object-fit:cover;border-radius:8px;margin-bottom:8px" src="${s.photoBase64}" loading="lazy">`:'';
+  const editHistHtml=(s.editHistory&&s.editHistory.length)?`<div class="hist-edit-log">
+    <div style="font-size:10px;font-weight:700;color:#92400E;margin-bottom:4px">✏️ โค้ชแก้ไข</div>
+    ${s.editHistory.flatMap(h=>h.fields.map(f=>`<div class="hist-edit-row"><span style="color:#6B7280;min-width:48px">${f.k}</span><span class="hist-edit-from">${f.from}g</span><span style="color:#9CA3AF">→</span><span class="hist-edit-to">${f.to}g</span></div>`)).join('')}
+  </div>`:'';
+  const coachCommentHtml=s.coachComment?`<div class="hist-coach-comment">💬 ${escHtml(s.coachComment)}</div>`:'';
   let corrHtml='';
   if(s.status==='corrected'&&s.correction){
     corrHtml=`<div class="hist-corr">✏️ โค้ชแก้ไข: C ${s.correction.carb} · P ${s.correction.protein} · F ${s.correction.fat}${s.correction.note?'<br>💬 '+escHtml(s.correction.note):''}</div>`;
@@ -3866,7 +3908,7 @@ function buildHistCard(s){
       <div><div style="font-size:13px;font-weight:600">${dateLabel} · มื้อ${s.meal}</div><div style="font-size:11px;color:var(--gray);margin-top:2px">${modeLabel}${s.photoBase64?' · 📸':''}</div></div>
       ${statusHtml}
     </div>
-    <div class="hist-card-body">${photoHtml}<div class="est-chips" style="margin-bottom:0">${chips}</div>${corrHtml}${delBtn}</div>
+    <div class="hist-card-body">${photoHtml}<div class="est-chips" style="margin-bottom:0">${chips}</div>${corrHtml}${editHistHtml||""}${coachCommentHtml||""}${delBtn}</div>
   </div>`;
 }
 
@@ -4245,6 +4287,12 @@ async function openStudentDetail(userId){
       const d=td.data();
       if(d.targets)targets=d.targets;
       if(d.coachNotes)targets.coachNotes=d.coachNotes;
+      targets.programStart=d.programStart||'';
+      targets.programWeeks=d.programWeeks||12;
+      targets.pausedDays=d.pausedDays||0;
+      targets.isPaused=d.isPaused||false;
+      targets.discountCode=d.discountCode||'';
+      targets.discountPercent=d.discountPercent||0;
     }
   }catch(e){}
   // load health logs
@@ -4309,11 +4357,384 @@ function buildMacro7Html(MON, TH_SHORT, byDate, targets){
   </div>`;
 }
 
+
+
+// ===== COACH FEEDBACK CARD =====
+function setToneBtn(id,tone){
+  if(!cState[id])cState[id]={};
+  cState[id]._tone=tone;
+  const DEFAULTS={
+    good:'ดีมากเลยค่ะ! ทำได้ดีมาก 💪\nมื้อถัดไปปรับได้ตาม target เลยนะคะ',
+    fix:'โค้ชปรับค่า macro ให้แล้วนะคะ\nลองสังเกตครั้งหน้าด้วยนะคะ 🙏',
+    warn:'Fat/Carb วันนี้เกินเป้านะคะ\nมื้อถัดไปลดของทอด+แป้งด้วยนะคะ ⚠️'
+  };
+  ['good','fix','warn'].forEach(t=>{
+    const btn=document.getElementById(`tone-${t}-${id}`);
+    if(!btn)return;
+    if(t===tone){btn.style.background=t==='good'?'#059669':t==='fix'?'#D97706':'#DC2626';btn.style.color='white';btn.style.fontWeight='700';}
+    else{btn.style.background='#F3F4F6';btn.style.color='var(--text)';btn.style.fontWeight='400';}
+  });
+  const ta=document.getElementById(`approve-comment-${id}`);
+  if(ta&&!ta._userEdited)ta.value=DEFAULTS[tone];
+}
+async function checkCoachComments(){
+  if(!studentSubsCache)return;
+  const unnotified=studentSubsCache.filter(s=>s.coachComment&&!s.coachCommentSent&&(s.status==='approved'||s.status==='corrected'));
+  if(!unnotified.length)return;
+  if(!liff.isInClient())return;
+  for(const s of unnotified){
+    try{
+      const card=buildCoachCommentCard(s,s.coachComment,s.coachCommentTone||'good',s.coachCommentWithPhoto);
+      await liff.sendMessages([card]);
+      await db.collection('submissions').doc(s.id).update({coachCommentSent:true});
+      s.coachCommentSent=true;
+    }catch(e){console.log('send coach comment err',e);}
+  }
+}
+function buildCoachCommentCard(s,comment,tone,withPhoto){
+  const TONES={
+    good:{bg:'#059669',title:'✅ โค้ชตรวจแล้วค่ะ',subtint:'#A7F3D0'},
+    fix:{bg:'#D97706',title:'📝 โค้ชแก้ไขให้แล้วค่ะ',subtint:'#FDE68A'},
+    warn:{bg:'#DC2626',title:'⚠️ โค้ชมีข้อความถึงคุณ',subtint:'#FECACA'}
+  };
+  const T=TONES[tone]||TONES.good;
+  const m=getSubMacros(s);
+  const mealLabel=`มื้อ${s.meal||''} · ${s.mealDate||''}`;
+  const heroBlock=(withPhoto&&s.photoBase64)?[{"type":"image","url":s.photoBase64,"size":"full","aspectRatio":"20:13","aspectMode":"cover"}]:[];
+  return{
+    "type":"flex","altText":T.title,
+    "contents":{"type":"bubble","size":"kilo",
+      "hero":heroBlock.length?{"type":"box","layout":"vertical","contents":heroBlock}:undefined,
+      "header":{"type":"box","layout":"vertical","backgroundColor":T.bg,"paddingAll":"14px","contents":[
+        {"type":"text","text":T.title,"color":"#FFFFFF","weight":"bold","size":"md"},
+        {"type":"text","text":mealLabel,"color":T.subtint,"size":"xs","margin":"xs"}
+      ]},
+      "body":{"type":"box","layout":"vertical","paddingAll":"14px","spacing":"none","contents":[
+        {"type":"box","layout":"horizontal","margin":"none","contents":[
+          {"type":"text","text":`⚡ ${m.kcal}`,"size":"xs","color":"#6B7280","flex":1},
+          {"type":"text","text":`C ${m.c}g`,"size":"xs","color":"#1D4ED8","flex":1},
+          {"type":"text","text":`P ${m.p}g`,"size":"xs","color":"#059669","flex":1},
+          {"type":"text","text":`F ${m.f}g`,"size":"xs","color":"#C2410C","flex":1}
+        ]},
+        {"type":"separator","margin":"sm"},
+        {"type":"text","text":comment,"size":"sm","color":"#374151","margin":"sm","wrap":true}
+      ]}
+    }
+  };
+}
+
+// ===== MEAL PLANNING =====
+function tomorrowStr(){
+  const d=new Date();d.setDate(d.getDate()+1);
+  const pad=n=>String(n).padStart(2,'0');
+  return`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+}
+function renderPlanPanel(){
+  if(!mealPlanDate)mealPlanDate=tomorrowStr();
+  const container=document.getElementById('panel-plan');
+  if(!container)return;
+  const totC=mealPlan.reduce((a,x)=>a+x.c,0);
+  const totP=mealPlan.reduce((a,x)=>a+x.p,0);
+  const totF=mealPlan.reduce((a,x)=>a+x.f,0);
+  const totK=Math.round(totC*4+totP*4+totF*9);
+  const pct=(v,max)=>Math.min(100,Math.round(v/max*100));
+  const bar=(v,max,col)=>`<div style="background:#E5E7EB;border-radius:4px;height:5px;overflow:hidden;flex:1"><div style="height:100%;background:${col};border-radius:4px;width:${pct(v,max)}%"></div></div>`;
+  container.innerHTML=`
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <div style="font-size:14px;font-weight:700;color:var(--text)">📋 แผนมื้ออาหาร</div>
+      <input type="date" id="plan-date-input" value="${mealPlanDate}"
+        onchange="mealPlanDate=this.value;loadPlanFromFirestore()"
+        style="border:1.5px solid var(--border);border-radius:8px;padding:4px 8px;font-size:12px;font-family:'Prompt',sans-serif">
+    </div>
+    <div class="plan-total-bar">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <span style="font-size:12px;font-weight:700;color:#1D4ED8">⚡ ${totK} kcal</span>
+        <span style="font-size:10px;color:var(--gray)">เป้า ${TARGETS.kcal} kcal</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
+        <div style="font-size:10px;color:#1D4ED8">C ${totC}/${TARGETS.c}g${bar(totC,TARGETS.c,'#3B82F6')}</div>
+        <div style="font-size:10px;color:#059669">P ${totP}/${TARGETS.p}g${bar(totP,TARGETS.p,'#10B981')}</div>
+        <div style="font-size:10px;color:#C2410C">F ${totF}/${TARGETS.f}g${bar(totF,TARGETS.f,'#F59E0B')}</div>
+      </div>
+    </div>
+    ${mealPlan.length?mealPlan.map((item,i)=>`
+      <div class="plan-item">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div>
+            <div style="font-size:13px;font-weight:600;color:var(--text)">${escHtml(item.name||'ไม่ระบุชื่อ')}</div>
+            <div style="font-size:11px;color:var(--gray);margin-top:2px">C ${item.c}g · P ${item.p}g · F ${item.f}g · ⚡${Math.round(item.c*4+item.p*4+item.f*9)} kcal</div>
+          </div>
+          <button onclick="removePlanItem(${i})" style="border:none;background:none;color:#9CA3AF;font-size:16px;cursor:pointer;padding:0 4px">✕</button>
+        </div>
+      </div>`).join(''):'<div style="text-align:center;padding:20px;color:var(--gray);font-size:13px">ยังไม่มีรายการ กดเพิ่มด้านล่างเลยค่ะ</div>'}
+    <button onclick="showAddPlanItem()" id="btn-add-plan"
+      style="width:100%;padding:10px;background:var(--primary);color:white;border:none;border-radius:10px;font-size:13px;font-weight:600;font-family:'Prompt',sans-serif;cursor:pointer;margin-top:8px">
+      + เพิ่มมื้ออาหาร
+    </button>
+    <div id="add-plan-form" style="display:none;background:white;border:1.5px solid var(--border);border-radius:12px;padding:14px;margin-top:8px">
+      <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:10px">เพิ่มมื้ออาหาร</div>
+      <div style="margin-bottom:8px">
+        <div style="font-size:10px;color:var(--gray);margin-bottom:3px">ชื่อเมนู</div>
+        <input type="text" id="plan-name" class="plan-input" placeholder="เช่น ข้าวกับไข่ต้ม">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:10px">
+        <div><div style="font-size:10px;color:var(--gray);margin-bottom:3px">Carb (g)</div><input type="number" id="plan-carb" class="plan-input" placeholder="0" min="0"></div>
+        <div><div style="font-size:10px;color:var(--gray);margin-bottom:3px">Protein (g)</div><input type="number" id="plan-prot" class="plan-input" placeholder="0" min="0"></div>
+        <div><div style="font-size:10px;color:var(--gray);margin-bottom:3px">Fat (g)</div><input type="number" id="plan-fat" class="plan-input" placeholder="0" min="0"></div>
+      </div>
+      ${savedMenusCache&&savedMenusCache.length?`<div style="margin-bottom:10px">
+        <div style="font-size:10px;color:var(--gray);margin-bottom:5px">เมนูบันทึกไว้</div>
+        <div style="display:flex;flex-wrap:wrap;gap:5px">
+          ${savedMenusCache.slice(0,6).map(m=>{
+            const mc=m.labelData||m.handData;
+            const mC=m.labelData?m.labelData.carb:0;const mP=m.labelData?m.labelData.protein:0;const mF=m.labelData?m.labelData.fat:0;
+            return`<button onclick="quickFillPlanItem('${escHtml(m.name||'เมนู')}',${mC||0},${mP||0},${mF||0})"
+              style="font-size:11px;padding:4px 8px;border-radius:8px;border:1px solid #E5E7EB;background:#F9FAFB;color:var(--text);cursor:pointer">
+              ${escHtml(m.name||'เมนู')}</button>`;
+          }).join('')}
+        </div>
+      </div>`:''}
+      <div style="display:flex;gap:6px">
+        <button onclick="addPlanItem()" style="flex:1;padding:8px;background:var(--primary);color:white;border:none;border-radius:8px;font-size:13px;font-weight:600;font-family:'Prompt',sans-serif;cursor:pointer">เพิ่ม</button>
+        <button onclick="document.getElementById('add-plan-form').style.display='none'" style="padding:8px 12px;background:#F3F4F6;border:none;border-radius:8px;font-size:12px;font-family:'Prompt',sans-serif;cursor:pointer">ยกเลิก</button>
+      </div>
+    </div>
+    ${mealPlan.length?`<button onclick="savePlanToFirestore()"
+      style="width:100%;margin-top:10px;padding:10px;background:#059669;color:white;border:none;border-radius:10px;font-size:13px;font-weight:600;font-family:'Prompt',sans-serif;cursor:pointer">
+      💾 บันทึกแผนอาหาร
+    </button>`:''}
+    <div id="plan-coach-comment" style="display:none;background:#EFF6FF;border-radius:10px;padding:12px;margin-top:10px;border:1px solid #BFDBFE">
+      <div style="font-size:11px;font-weight:700;color:#1D4ED8;margin-bottom:4px">💬 Feedback จากโค้ช</div>
+      <div id="plan-coach-comment-text" style="font-size:13px;color:#374151;line-height:1.6"></div>
+    </div>`;
+  loadPlanFromFirestore();
+}
+function showAddPlanItem(){
+  const f=document.getElementById('add-plan-form');
+  if(f){f.style.display=f.style.display==='none'?'block':'none';}
+}
+function quickFillPlanItem(name,c,p,f){
+  const ni=document.getElementById('plan-name');const ci=document.getElementById('plan-carb');
+  const pi=document.getElementById('plan-prot');const fi=document.getElementById('plan-fat');
+  if(ni)ni.value=name;if(ci)ci.value=c||0;if(pi)pi.value=p||0;if(fi)fi.value=f||0;
+}
+function addPlanItem(){
+  const name=document.getElementById('plan-name')?.value.trim()||'';
+  const c=parseFloat(document.getElementById('plan-carb')?.value)||0;
+  const p=parseFloat(document.getElementById('plan-prot')?.value)||0;
+  const f=parseFloat(document.getElementById('plan-fat')?.value)||0;
+  if(!c&&!p&&!f){alert('กรอก macro อย่างน้อย 1 ช่องนะคะ');return;}
+  mealPlan.push({name,c,p,f});
+  renderPlanPanel();
+}
+function removePlanItem(i){mealPlan.splice(i,1);renderPlanPanel();}
+async function savePlanToFirestore(){
+  if(!mealPlan.length){alert('ยังไม่มีรายการค่ะ');return;}
+  const btn=document.querySelector('#panel-plan button[onclick="savePlanToFirestore()"]');
+  if(btn){btn.textContent='⏳ กำลังบันทึก...';btn.disabled=true;}
+  try{
+    await db.collection('mealPlans').doc(user.userId).collection('plans').doc(mealPlanDate).set({
+      items:mealPlan,date:mealPlanDate,userId:user.userId,
+      updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    showToast('บันทึกแผนอาหารแล้วค่ะ ✅');
+  }catch(e){showToast('บันทึกไม่ได้: '+e.message);}
+  if(btn){btn.textContent='💾 บันทึกแผนอาหาร';btn.disabled=false;}
+}
+async function loadPlanFromFirestore(){
+  try{
+    const doc=await db.collection('mealPlans').doc(user.userId).collection('plans').doc(mealPlanDate).get();
+    if(doc.exists){
+      const d=doc.data();
+      mealPlan=d.items||[];
+      // show coach comment if any
+      const cc=document.getElementById('plan-coach-comment');
+      const ct=document.getElementById('plan-coach-comment-text');
+      if(cc&&ct&&d.coachComment){ct.textContent=d.coachComment;cc.style.display='block';}
+    }else{mealPlan=[];}
+    renderPlanPanel();
+  }catch(e){console.log('load plan err',e);}
+}
+
+// ===== PROGRAM HELPERS =====
+function calcProgramEndDate(prog){
+  if(!prog||!prog.programStart)return null;
+  const start=new Date(prog.programStart+'T00:00:00');
+  const totalDays=(prog.programWeeks||12)*7+(prog.pausedDays||0);
+  const end=new Date(start);
+  end.setDate(start.getDate()+totalDays);
+  return end;
+}
+function getProgramDaysLeft(prog){
+  const end=calcProgramEndDate(prog);
+  if(!end)return null;
+  const now=new Date();now.setHours(0,0,0,0);
+  return Math.ceil((end-now)/(1000*60*60*24));
+}
+function formatDateTH(dateStr){
+  if(!dateStr)return'-';
+  const [y,m,d]=dateStr.split('-');
+  const months=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+  return`${parseInt(d)} ${months[parseInt(m)-1]} ${parseInt(y)+543}`;
+}
+function renderProgramBar(){
+  const bar=document.getElementById('program-bar');if(!bar)return;
+  const prog=studentProgramData;
+  if(!prog||!prog.programStart){bar.style.display='none';return;}
+  const end=calcProgramEndDate(prog);if(!end){bar.style.display='none';return;}
+  const start=new Date(prog.programStart+'T00:00:00');
+  const totalDays=(prog.programWeeks||12)*7+(prog.pausedDays||0);
+  const elapsed=Math.max(0,Math.floor((new Date()-start)/(1000*60*60*24)));
+  const pct=Math.min(100,Math.round(elapsed/totalDays*100));
+  const left=getProgramDaysLeft(prog);
+  const leftLabel=left===null?'':(left<=0?'✅ จบคอร์สแล้ว':left===1?'🔥 เหลือ 1 วัน':`⏰ เหลือ ${left} วัน`);
+  const pauseTag=prog.isPaused?'<span class="prog-paused">⏸ พักเทรน</span>':'';
+  bar.innerHTML=`<div class="prog-badge">${leftLabel}</div><div class="prog-track"><div class="prog-fill" style="width:${pct}%"></div></div><div class="prog-label">${pct}% ${pauseTag}</div>`;
+  bar.style.display='flex';
+}
+async function checkNearEnd(){
+  const prog=studentProgramData;
+  if(!prog||!prog.programStart)return;
+  if(prog.isPaused)return;
+  const left=getProgramDaysLeft(prog);
+  if(left===null||left>7||left<=0)return;
+  const today=todayStr();
+  if(nearEndSentDate===today)return;
+  if(!liff.isInClient())return;
+  nearEndSentDate=today;
+  const end=calcProgramEndDate(prog);
+  const endStr=`${end.getDate()}/${end.getMonth()+1}/${end.getFullYear()+543}`;
+  try{await liff.sendMessages([buildNearEndCard(left,endStr,prog.discountCode||'',prog.discountPercent||0)]);}
+  catch(e){console.log('near-end card err',e);}
+}
+function buildNearEndCard(daysLeft,endDate,code,pct){
+  const codeBlock=code?[
+    {"type":"separator","margin":"md"},
+    {"type":"box","layout":"vertical","margin":"md","paddingAll":"10px","backgroundColor":"#F0FDF4","cornerRadius":"8px","contents":[
+      {"type":"text","text":"🎁 ส่วนลดต่อคอร์สใหม่","size":"sm","weight":"bold","color":"#059669"},
+      {"type":"text","text":`ลด ${pct}% เมื่อสมัครคอร์สถัดไป`,"size":"sm","color":"#6B7280","margin":"xs"},
+      {"type":"box","layout":"horizontal","margin":"sm","contents":[
+        {"type":"text","text":"Code:","size":"sm","color":"#374151","flex":0},
+        {"type":"text","text":code,"size":"md","weight":"bold","color":"#7C3AED","flex":1,"align":"end"}
+      ]}
+    ]}
+  ]:[];
+  return{"type":"flex","altText":`⏰ เหลืออีก ${daysLeft} วันจะจบคอร์สแล้วค่ะ!`,
+    "contents":{"type":"bubble","size":"kilo",
+      "header":{"type":"box","layout":"vertical","backgroundColor":"#1D4ED8","paddingAll":"14px","contents":[
+        {"type":"text","text":"⏰ ใกล้จบคอร์สแล้วค่ะ!","color":"#FFFFFF","weight":"bold","size":"md"},
+        {"type":"text","text":`วันสุดท้าย ${endDate}`,"color":"#BFDBFE","size":"xs","margin":"xs"}
+      ]},
+      "body":{"type":"box","layout":"vertical","paddingAll":"14px","spacing":"none","contents":[
+        {"type":"text","text":`เหลืออีกแค่ ${daysLeft} วัน!`,"weight":"bold","size":"xl","color":"#1D4ED8"},
+        {"type":"text","text":"คุณทำได้ดีมากตลอดคอร์สนี้ 💪","size":"sm","color":"#6B7280","margin":"sm"},
+        ...codeBlock
+      ]}
+    }
+  };
+}
+function buildProgramSection(uid, prog){
+  const hasProgram=!!prog.programStart;
+  const end=hasProgram?calcProgramEndDate(prog):null;
+  const left=hasProgram?getProgramDaysLeft(prog):null;
+  const totalDays=hasProgram?(prog.programWeeks||12)*7+(prog.pausedDays||0):0;
+  const start=hasProgram?new Date(prog.programStart+'T00:00:00'):null;
+  const elapsed=start?Math.max(0,Math.floor((new Date()-start)/(1000*60*60*24))):0;
+  const pct=totalDays>0?Math.min(100,Math.round(elapsed/totalDays*100)):0;
+  const statusLine=!hasProgram?'ยังไม่ได้ตั้งค่าคอร์ส':
+    left===null?'-':left<=0?'✅ จบคอร์สแล้ว':
+    `เหลือ ${left} วัน (${pct}%)${prog.isPaused?' ⏸ พักเทรน':''}`;
+  const progBarHtml=hasProgram?`<div style="background:#E5E7EB;border-radius:6px;height:8px;overflow:hidden;margin:8px 0">
+    <div style="height:100%;background:#1D4ED8;border-radius:6px;width:${pct}%"></div></div>`:'';
+  const pauseBtn=hasProgram?(prog.isPaused
+    ?`<button class="pause-btn resume" onclick="resumeStudentProgram('${uid}')">▶ กลับมาเทรนต่อ — คำนวณวันจบใหม่</button>`
+    :`<button class="pause-btn pause" onclick="pauseStudentProgram('${uid}')">⏸ พักเทรน — ขยายวันจบ</button>`
+  ):'';
+  return`<div class="sd-prog-section">
+    <div class="sd-prog-title">📅 ข้อมูลคอร์ส</div>
+    <div id="prog-status-${uid}" style="font-size:12px;color:var(--text);margin-bottom:6px;font-weight:600">${statusLine}</div>
+    ${progBarHtml}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px">
+      <div>
+        <div style="font-size:10px;color:var(--gray);margin-bottom:2px">วันเริ่มเทรน</div>
+        <input type="date" id="prog-start-${uid}" class="prog-input" value="${prog.programStart||''}">
+      </div>
+      <div>
+        <div style="font-size:10px;color:var(--gray);margin-bottom:2px">ระยะเวลา</div>
+        <select id="prog-weeks-${uid}" class="prog-input">
+          ${[4,8,12,16,20,24].map(w=>`<option value="${w}"${prog.programWeeks===w?' selected':''}>${w} สัปดาห์</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px">
+      <div>
+        <div style="font-size:10px;color:var(--gray);margin-bottom:2px">ส่วนลดต่อคอร์ส (%)</div>
+        <input type="number" id="prog-disc-pct-${uid}" class="prog-input" value="${prog.discountPercent||''}" placeholder="เช่น 20" min="0" max="100">
+      </div>
+      <div>
+        <div style="font-size:10px;color:var(--gray);margin-bottom:2px">Discount Code</div>
+        <input type="text" id="prog-disc-code-${uid}" class="prog-input" value="${prog.discountCode||''}" placeholder="เช่น DOITFIT20">
+      </div>
+    </div>
+    ${hasProgram&&prog.pausedDays>0?`<div style="font-size:10px;color:var(--gray);margin-bottom:6px">พักสะสม ${prog.pausedDays} วัน · วันจบจริง ${end?formatDateTH(end.toISOString().split('T')[0]):'-'}</div>`:''}
+    <button onclick="saveProgramSettings('${uid}')"
+      style="width:100%;padding:8px;background:#1D4ED8;color:white;border:none;border-radius:9px;font-size:13px;font-weight:600;font-family:'Prompt',sans-serif;cursor:pointer;margin-bottom:6px">
+      💾 บันทึกข้อมูลคอร์ส
+    </button>
+    ${pauseBtn}
+  </div>`;
+}
+async function saveProgramSettings(uid){
+  const startEl=document.getElementById(`prog-start-${uid}`);
+  const weeksEl=document.getElementById(`prog-weeks-${uid}`);
+  const codeEl=document.getElementById(`prog-disc-code-${uid}`);
+  const pctEl=document.getElementById(`prog-disc-pct-${uid}`);
+  if(!startEl||!weeksEl)return;
+  const payload={programStart:startEl.value,programWeeks:parseInt(weeksEl.value),
+    discountCode:codeEl.value.trim().toUpperCase(),discountPercent:parseInt(pctEl.value)||0};
+  try{
+    await db.collection('students').doc(uid).set(payload,{merge:true});
+    showToast('บันทึกข้อมูลคอร์สแล้วค่ะ ✅');
+    // refresh detail
+    if(currentStudentData&&currentStudentData.userId===uid)openStudentDetail(uid);
+  }catch(e){showToast('บันทึกไม่ได้: '+e.message);}
+}
+async function pauseStudentProgram(uid){
+  if(!confirm('พักเทรนนักเรียนคนนี้? วันจบจะถูกเลื่อนออกไปทุกวันที่พัก'))return;
+  try{
+    await db.collection('students').doc(uid).set({isPaused:true,pauseStartDate:todayStr()},{merge:true});
+    showToast('⏸ พักเทรนแล้วค่ะ วันจบจะถูกคำนวณใหม่');
+    if(currentStudentData&&currentStudentData.userId===uid)openStudentDetail(uid);
+  }catch(e){showToast('เกิดข้อผิดพลาด: '+e.message);}
+}
+async function resumeStudentProgram(uid){
+  try{
+    // calculate days paused
+    const doc=await db.collection('students').doc(uid).get();
+    const d=doc.data()||{};
+    let extra=0;
+    if(d.pauseStartDate){
+      const pauseStart=new Date(d.pauseStartDate+'T00:00:00');
+      extra=Math.max(0,Math.floor((new Date()-pauseStart)/(1000*60*60*24)));
+    }
+    const prevPaused=d.pausedDays||0;
+    await db.collection('students').doc(uid).set({isPaused:false,pauseStartDate:null,pausedDays:prevPaused+extra},{merge:true});
+    showToast(`▶ กลับมาเทรนต่อแล้วค่ะ เพิ่มเวลา ${extra} วัน`);
+    if(currentStudentData&&currentStudentData.userId===uid)openStudentDetail(uid);
+  }catch(e){showToast('เกิดข้อผิดพลาด: '+e.message);}
+}
+
 function renderStudentDetail(u, targets, healthLogs, weeklySummaries={}, weeklyChecks=[]){
   const MON=getMonWeekDates();
   const TH_SHORT=['จ','อ','พ','พฤ','ศ','ส','อา'];
   const byDate={};
   u.subs.forEach(s=>{const k=subDate(s);if(!byDate[k])byDate[k]=[];byDate[k].push(s);});
+
+  // --- PROGRAM ---
+  const progData={programStart:targets.programStart||'',programWeeks:targets.programWeeks||12,
+    pausedDays:targets.pausedDays||0,isPaused:targets.isPaused||false,
+    discountCode:targets.discountCode||'',discountPercent:targets.discountPercent||0};
+  const progHtml=buildProgramSection(uid,progData);
 
   // --- COACH NOTES ---
   const uid=u.userId;
@@ -4374,7 +4795,7 @@ function renderStudentDetail(u, targets, healthLogs, weeklySummaries={}, weeklyC
   const weeklyHtml=buildWeeklySummaryAccordion(u, byDate, targets, healthLogs, weeklySummaries);
 
   const progressHtml=buildProgressSection(weeklyChecks, u.userId);
-  document.getElementById('sd-content').innerHTML=notesHtml+targHtml+macro7Html+progressHtml+zigzagHtml+lifestyleHtml+weeklyHtml;
+  document.getElementById('sd-content').innerHTML=progHtml+notesHtml+targHtml+macro7Html+progressHtml+zigzagHtml+lifestyleHtml+weeklyHtml;
 }
 
 // ===== LIFESTYLE 7 วัน (bar charts) =====
@@ -4522,7 +4943,30 @@ function buildCard(s){
   const photoHtml=s.photoBase64?`<img class="card-photo" src="${s.photoBase64}" loading="lazy">`:'';
   const avatarHtml=s.pictureUrl?`<img src="${s.pictureUrl}" onerror="this.src=''" alt="">`:`<div style="width:38px;height:38px;border-radius:50%;background:var(--light);display:flex;align-items:center;justify-content:center;font-size:18px">👤</div>`;
   let actions='';
-  if(s.status==='pending')actions=`<div class="card-actions"><button class="btn-approve" onclick="approveCard('${s.id}')">✓ ถูกต้อง</button><button class="btn-correct" onclick="toggleCorr('${s.id}')">${showCorr?'✕ ยกเลิก':'✏️ แก้ไข'}</button></div>`;
+  const showApprove=cs.approveOpen||false;
+  const TONE_DEFAULTS={
+    good:'ดีมากเลยค่ะ! ทำได้ดีมาก 💪\nมื้อถัดไปปรับได้ตาม target เลยนะคะ',
+    fix:'โค้ชปรับค่า macro ให้แล้วนะคะ\nลองสังเกตครั้งหน้าด้วยนะคะ 🙏',
+    warn:'Fat/Carb วันนี้เกินเป้านะคะ\nมื้อถัดไปลดของทอด+แป้งด้วยนะคะ ⚠️'
+  };
+  const approvePanel=showApprove?`<div style="background:#F0FDF4;border-radius:10px;padding:12px;margin-top:8px;border:1px solid #BBF7D0">
+    <div style="font-size:11px;font-weight:700;color:#065F46;margin-bottom:8px">💬 ข้อความถึงนักเรียน</div>
+    <div style="display:flex;gap:5px;margin-bottom:8px">
+      ${['good','fix','warn'].map(t=>`<button class="tone-btn" id="tone-${t}-${s.id}" onclick="setToneBtn('${s.id}','${t}')"
+        style="${(cs._tone||'good')===t?'background:'+(t==='good'?'#059669':t==='fix'?'#D97706':'#DC2626')+';color:white;font-weight:700':''}">${{good:'✅ ชม',fix:'📝 แนะนำ',warn:'⚠️ เตือน'}[t]}</button>`).join('')}
+    </div>
+    <textarea id="approve-comment-${s.id}" rows="3"
+      style="width:100%;border:1.5px solid #BBF7D0;border-radius:8px;padding:8px;font-size:12px;font-family:'Prompt',sans-serif;background:white;resize:none;box-sizing:border-box"
+      placeholder="ข้อความสำหรับนักเรียน...">${TONE_DEFAULTS[cs._tone||'good']}</textarea>
+    ${s.photoBase64?`<label style="display:flex;align-items:center;gap:6px;font-size:11px;color:#374151;margin-top:6px">
+      <input type="checkbox" id="approve-photo-${s.id}" checked> แนบรูปอาหารไปด้วย</label>`:''}
+    <div style="display:flex;gap:6px;margin-top:8px">
+      <button onclick="doApprove('${s.id}')" style="flex:1;padding:8px;background:#059669;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;font-family:'Prompt',sans-serif;cursor:pointer">ส่ง Card + อนุมัติ ✓</button>
+      <button onclick="approveCard('${s.id}')" style="padding:8px 12px;background:#F3F4F6;border:none;border-radius:8px;font-size:12px;font-family:'Prompt',sans-serif;cursor:pointer;color:var(--text)">ยกเลิก</button>
+    </div>
+  </div>`:'';
+  const commentBadge=s.coachComment&&s.status!=='pending'?`<div class="hist-coach-comment" style="background:#F0FDF4;color:#065F46;margin-top:6px">💬 ${escHtml(s.coachComment)}</div>`:'';
+  if(s.status==='pending')actions=`<div class="card-actions"><button class="btn-approve" onclick="approveCard('${s.id}')">${showApprove?'✕ ปิด':'✓ อนุมัติ + ส่ง Card'}</button><button class="btn-correct" onclick="toggleCorr('${s.id}')">${showCorr?'✕ ยกเลิก':'✏️ แก้ไข'}</button></div>${approvePanel}`;
   const corrPanel=showCorr?buildCorrPanel(s,cs):'';
   const testBadge=s.isTest?'<span style="background:#EDE9FE;color:#7C3AED;border-radius:6px;padding:1px 7px;font-size:11px;margin-left:4px">🧪 ทดสอบ</span>':'';
   return`<div class="card" id="card-${s.id}"><div class="card-header">${avatarHtml}<div><div class="card-name">${escHtml(s.displayName||'นักเรียน')}<span class="mode-tag ${s.mode}">${modeLabel}</span>${testBadge}</div><div class="card-meta">${dateLabel}มื้อ${s.meal} &nbsp;${statusBadge}</div></div><div class="card-time">${timeStr}</div></div>${photoHtml}<div class="card-body"><div class="est-chips">${chips}</div>${macroBar}${corrNote}${actions}</div>${corrPanel}</div>`;
@@ -4691,7 +5135,20 @@ function updateHandCorrPreview(id){
   const el=document.getElementById(`hc-preview-${id}`);
   if(el)el.textContent=`C ${C}g · P ${P}g · F ${F}g → ⚡ ${kcal} kcal`;
 }
-async function approveCard(id){try{await db.collection('submissions').doc(id).update({status:'approved'});}catch(e){alert('Error: '+e.message);}}
+function approveCard(id){if(!cState[id])cState[id]={};cState[id].approveOpen=!cState[id].approveOpen;renderCoach();}
+async function doApprove(id){
+  const tone=cState[id]?._tone||'good';
+  const comment=(document.getElementById(`approve-comment-${id}`)?.value||'').trim();
+  const withPhoto=document.getElementById(`approve-photo-${id}`)?.checked||false;
+  try{
+    await db.collection('submissions').doc(id).update({
+      status:'approved',coachComment:comment,coachCommentTone:tone,
+      coachCommentSent:false,coachCommentWithPhoto:withPhoto
+    });
+    if(cState[id])cState[id].approveOpen=false;
+    renderCoach();
+  }catch(e){alert('Error: '+e.message);}
+}
 async function sendCorrection(id){
   let carb,prot,fat;
   const s=cState[id]?._sub;
@@ -4704,8 +5161,24 @@ async function sendCorrection(id){
     fat=parseFloat(document.getElementById(`cc-fat-${id}`)?.value)||0;
   }
   const note=document.getElementById(`cc-note-${id}`)?.value.trim()||'';
-  try{await db.collection('submissions').doc(id).update({status:'corrected',correction:{carb,protein:prot,fat,note}});cState[id]={};}
-  catch(e){alert('Error: '+e.message);}
+  try{
+    const orig=await db.collection('submissions').doc(id).get();
+    const origM=orig.exists?getSubMacros({...orig.data(),id}):{c:0,p:0,f:0,kcal:0};
+    const editHistory=[
+      ...(orig.data()?.editHistory||[]),
+      {at:new Date().toISOString(),fields:[
+        ...(Math.abs(origM.c-carb)>0.5?[{k:'Carb',from:origM.c,to:carb}]:[]),
+        ...(Math.abs(origM.p-prot)>0.5?[{k:'Protein',from:origM.p,to:prot}]:[]),
+        ...(Math.abs(origM.f-fat)>0.5?[{k:'Fat',from:origM.f,to:fat}]:[])
+      ]}
+    ].filter(h=>h.fields.length);
+    await db.collection('submissions').doc(id).update({
+      status:'corrected',correction:{carb,protein:prot,fat,note},
+      coachComment:note,coachCommentTone:'fix',coachCommentSent:false,coachCommentWithPhoto:false,
+      editHistory
+    });
+    cState[id]={};
+  }catch(e){alert('Error: '+e.message);}
 }
 
 function formatTime(date){
