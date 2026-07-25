@@ -7,6 +7,17 @@
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script>
+window.onerror=function(msg,src,line,col,err){
+  var el=document.getElementById('loading');
+  if(el)el.innerHTML='<div style="padding:20px;text-align:center"><div style="font-size:32px">⚠️</div>'
+    +'<p style="margin-top:8px;font-size:13px;color:#EF4444;font-weight:700">'+msg+'</p>'
+    +'<p style="margin-top:6px;font-size:11px;color:#6B7280">'+src+' line '+line+'</p>'
+    +(err&&err.stack?'<pre style="margin-top:8px;font-size:10px;text-align:left;white-space:pre-wrap;color:#374151">'+err.stack+'</pre>':'')
+    +'</div>';
+  return false;
+};
+</script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 :root{
@@ -4732,13 +4743,13 @@ function renderStudentDetail(u, targets, healthLogs, weeklySummaries={}, weeklyC
   u.subs.forEach(s=>{const k=subDate(s);if(!byDate[k])byDate[k]=[];byDate[k].push(s);});
 
   // --- PROGRAM ---
+  const uid=u.userId;
   const progData={programStart:targets.programStart||'',programWeeks:targets.programWeeks||12,
     pausedDays:targets.pausedDays||0,isPaused:targets.isPaused||false,
     discountCode:targets.discountCode||'',discountPercent:targets.discountPercent||0};
   const progHtml=buildProgramSection(uid,progData);
 
   // --- COACH NOTES ---
-  const uid=u.userId;
   const notesHtml=`<div class="sd-section">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
       <div class="sd-section-title" style="margin-bottom:0">📋 โน้ตเกี่ยวกับนักเรียน</div>
