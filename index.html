@@ -2826,6 +2826,10 @@ function subDate(s){
 }
 
 // INIT
+const CACHE_KEY='doitfit_user_v1';
+function getCachedUser(){try{return JSON.parse(localStorage.getItem(CACHE_KEY)||'null');}catch{return null;}}
+function setCachedUser(u){try{localStorage.setItem(CACHE_KEY,JSON.stringify({userId:u.userId,displayName:u.displayName,pictureUrl:u.pictureUrl||'',isCoach:isCoach}));}catch{}}
+
 async function init(){
   const debugParam=new URLSearchParams(window.location.search).get('debug');
   if(debugParam==='student'||debugParam==='coach'){
@@ -2835,6 +2839,29 @@ async function init(){
     isCoach?startCoach():startStudent();
     return;
   }
+
+  // ⚡ Fast-path: ถ้ามี cache → เปิด UI ทันที แล้วค่อย refresh profile ใน background
+  const cached=getCachedUser();
+  if(cached){
+    user={userId:cached.userId,displayName:cached.displayName,pictureUrl:cached.pictureUrl||''};
+    isCoach=cached.isCoach||['Ud83289516016ac0d07ac9394bfd6137a','U105e1c5b5d6d2dc54d07d1de16ec4939'].includes(user.userId);
+    document.getElementById('loading').style.display='none';
+    isCoach?startCoach():startStudent();
+    // refresh profile ใน background (ไม่ block UI)
+    liff.init({liffId:LIFF_ID}).then(()=>{
+      if(!liff.isLoggedIn())return;
+      return liff.getProfile().then(p=>{
+        user=p;
+        db.collection('coaches').doc(p.userId).get().then(d=>{
+          isCoach=d.exists||['Ud83289516016ac0d07ac9394bfd6137a','U105e1c5b5d6d2dc54d07d1de16ec4939'].includes(p.userId);
+          setCachedUser(p);
+        }).catch(()=>{});
+      });
+    }).catch(()=>{});
+    return;
+  }
+
+  // First visit — normal flow
   try{
     await liff.init({liffId:LIFF_ID});
     if(!liff.isLoggedIn()){liff.login();return;}
@@ -2842,6 +2869,7 @@ async function init(){
     user=profile;
     const coachDoc=await db.collection('coaches').doc(user.userId).get();
     isCoach=coachDoc.exists||['Ud83289516016ac0d07ac9394bfd6137a','U105e1c5b5d6d2dc54d07d1de16ec4939'].includes(user.userId);
+    setCachedUser(user);
     document.getElementById('loading').style.display='none';
     isCoach?startCoach():startStudent();
   }catch(e){
@@ -2865,11 +2893,12 @@ function startStudent(){
 async function loadStudentData(){
   try{
     const [snap,td,savedSnap]=await Promise.all([
-      db.collection('submissions').where('userId','==',user.userId).orderBy('createdAt','desc').limit(30).get(),
+      db.collection('submissions').where('userId','==',user.userId).limit(30).get(),
       db.collection('students').doc(user.userId).get().catch(()=>null),
-      db.collection('users').doc(user.userId).collection('savedMenus').orderBy('createdAt','desc').limit(12).get().catch(()=>null)
+      db.collection('users').doc(user.userId).collection('savedMenus').limit(12).get().catch(()=>null)
     ]);
-    studentSubsCache=snap.docs.map(d=>({id:d.id,...d.data()}));
+    // sort client-side หลัง fetch — ไม่ต้องใช้ composite index
+    studentSubsCache=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
     applyTargets(td);
     if(td&&td.exists){const d=td.data();studentProgramData={programStart:d.programStart||'',programWeeks:d.programWeeks||12,pausedDays:d.pausedDays||0,isPaused:d.isPaused||false,discountCode:d.discountCode||'',discountPercent:d.discountPercent||0};}
     if(savedSnap){savedMenusCache=savedSnap.docs.map(d=>({id:d.id,...d.data()}));}
@@ -3869,7 +3898,7 @@ function showSuccess(mode,handData,labelData,weighData){
 
 async function showMilestone(){
   try{
-    const snap=await db.collection('submissions').where('userId','==',user.userId).orderBy('createdAt','desc').limit(30).get();
+    const snap=await db.collection('submissions').where('userId','==',user.userId).limit(30).get();
     const subs=snap.docs.map(d=>({id:d.id,...d.data()}));
     const streak=calcStreak(subs);
     const pill=document.getElementById('streak-pill');
