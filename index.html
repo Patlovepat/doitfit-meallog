@@ -209,6 +209,15 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
 .ai-edit-input{width:44px;border:1px solid #FDE68A;border-radius:6px;text-align:center;font-size:12px;font-family:'Prompt',sans-serif;padding:2px 3px;-moz-appearance:textfield;background:white}
 .ai-edit-input::-webkit-inner-spin-button,.ai-edit-input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
 .ai-del-btn{background:none;border:none;cursor:pointer;font-size:14px;padding:0 2px;color:#EF4444;line-height:1;flex-shrink:0}
+.ai-amount-input{font-size:11px;color:var(--gray);border:none;border-bottom:1px dashed #D1D5DB;background:transparent;font-family:'Prompt',sans-serif;width:80px;padding:0 1px;outline:none;cursor:text}
+.ai-amount-input:focus{border-bottom-color:var(--primary);color:var(--primary-dark)}
+.feedback-chips{overflow-x:auto;white-space:nowrap;padding:4px 0 8px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.feedback-chips::-webkit-scrollbar{display:none}
+.fchip{display:inline-block;padding:5px 10px;border-radius:16px;font-size:11px;font-family:'Prompt',sans-serif;cursor:pointer;border:1.5px solid transparent;margin-right:6px;font-weight:600;white-space:nowrap;user-select:none;-webkit-user-select:none}
+.fchip-green{background:#DCFCE7;color:#15803D;border-color:#86EFAC}
+.fchip-yellow{background:#FEF9C3;color:#854D0E;border-color:#FDE047}
+.fchip-gray{background:#F3F4F6;color:#6B7280;border-color:#D1D5DB}
+.fchip:active{opacity:0.7}
 /* Daily progress bar */
 .daily-progress{background:white;padding:8px 16px;border-bottom:1px solid #E5E7EB}
 .dp-label{font-size:11px;color:var(--gray);margin-bottom:4px;display:flex;justify-content:space-between}
@@ -2715,6 +2724,7 @@ let planAIData=null; // {c,p,f,name} from AI result
 let planHandCarbDensity='normal'; // carb chip selection
 let planHandProtType='lean';      // protein toggle
 let planVisibleFat=0;             // visible fat tsp
+let planEggWhole=0, planEggWhite=0, planAvoQty=0, planFruitLadles=0;
 let GROQ_KEY=null; // โหลดจาก Firestore config/app.groqKey (ไม่เก็บใน source code)
 let aiParsedData=null;
 let _photoProcessing=false;
@@ -3658,7 +3668,7 @@ function renderAIResult(data){
   const area=document.getElementById('ai-result-area');
   if(!data||!data.items){area.innerHTML='<div class="ai-error">ไม่สามารถวิเคราะห์ได้ค่ะ</div>';area.style.display='block';return;}
   const rows=data.items.map((it,i)=>`<div class="ai-item-row" data-idx="${i}">
-    <div class="ai-item-name">${escHtml(it.name||'')}<br><span style="font-size:11px;color:var(--gray)">${escHtml(it.amount||'')}</span></div>
+    <div class="ai-item-name">${escHtml(it.name||'')}<br><input type="text" class="ai-amount-input" value="${escHtml(it.amount||'')}" placeholder="ปริมาณ" onchange="updateAIAmount(${i},this.value)"></div>
     <div class="ai-item-mac" style="display:flex;align-items:center;gap:2px;flex-shrink:0">
       C<input type="number" class="ai-edit-input" value="${it.c}" step="0.1" min="0" oninput="updateAIItem(${i},'c',this.value)">
       P<input type="number" class="ai-edit-input" value="${it.p}" step="0.1" min="0" oninput="updateAIItem(${i},'p',this.value)">
@@ -3685,6 +3695,27 @@ function updateAIItem(idx,field,val){
 function deleteAIItem(idx){
   if(!aiParsedData)return;
   aiParsedData.items.splice(idx,1);
+  renderAIResult(aiParsedData);
+}
+function updateAIAmount(idx,val){
+  if(!aiParsedData||!aiParsedData.items[idx])return;
+  const it=aiParsedData.items[idx];
+  // บันทึกค่าเดิมก่อน edit ครั้งแรก
+  if(!it._orig){
+    const origNum=parseFloat((it.amount||'').match(/[\d.]+/)?.[0])||0;
+    it._orig={c:it.c,p:it.p,f:it.f,num:origNum};
+  }
+  // คำนวณ scale จากตัวเลขในปริมาณ (เช่น "100g"→100, "2 ทัพพี"→2)
+  const newNum=parseFloat((val||'').match(/[\d.]+/)?.[0])||0;
+  if(it._orig.num>0&&newNum>0){
+    const scale=newNum/it._orig.num;
+    it.c=Math.round(it._orig.c*scale*10)/10;
+    it.p=Math.round(it._orig.p*scale*10)/10;
+    it.f=Math.round(it._orig.f*scale*10)/10;
+    it.kcal=Math.round(it.c*4+it.p*4+it.f*9);
+  }
+  it.amount=val;
+  recalcAITotal();
   renderAIResult(aiParsedData);
 }
 function recalcAITotal(){
@@ -4706,6 +4737,41 @@ function renderPlanPanel(){
           <span class="hunit">ช้อนชา</span>
           <button onclick="adjPlanHand('fat',0.5)">+</button>
         </div>
+        <div class="hmb-subtitle" style="margin-bottom:4px">🥚 ไข่ (ถ้ามี)</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:14px">
+          <div style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;padding:8px;text-align:center">
+            <div style="font-size:11px;font-weight:600;color:var(--text);margin-bottom:1px">ไข่ทั้งฟอง</div>
+            <div style="font-size:10px;color:var(--gray);margin-bottom:5px">C1·P6·F5 (~70kcal)</div>
+            <div class="hmb-stepper-sm"><button onclick="adjPlanHand('egg',-1)">−</button><span id="ph-egg-qty" class="hval-sm">${planEggWhole}</span><span class="hunit-sm">ฟอง</span><button onclick="adjPlanHand('egg',1)">+</button></div>
+          </div>
+          <div style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;padding:8px;text-align:center">
+            <div style="font-size:11px;font-weight:600;color:var(--text);margin-bottom:1px">ไข่ขาวอย่างเดียว</div>
+            <div style="font-size:10px;color:var(--gray);margin-bottom:5px">P3.6 (~17kcal)</div>
+            <div class="hmb-stepper-sm"><button onclick="adjPlanHand('eggw',-1)">−</button><span id="ph-eggw-qty" class="hval-sm">${planEggWhite}</span><span class="hunit-sm">ฟอง</span><button onclick="adjPlanHand('eggw',1)">+</button></div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:14px">
+          <div>
+            <div class="hmb-subtitle" style="margin-bottom:4px">🥑 อะโวคาโด</div>
+            <div style="font-size:10px;color:var(--gray);margin-bottom:4px">C4·P1·F8 ต่อชิ้น (~80kcal)</div>
+            <div class="hmb-stepper">
+              <button onclick="adjPlanHand('avo',-1)">−</button>
+              <span id="ph-avo-qty" class="hval">${planAvoQty}</span>
+              <span class="hunit">ชิ้น</span>
+              <button onclick="adjPlanHand('avo',1)">+</button>
+            </div>
+          </div>
+          <div>
+            <div class="hmb-subtitle" style="margin-bottom:4px">🍎 ผลไม้</div>
+            <div style="font-size:10px;color:var(--gray);margin-bottom:4px">~15g คาร์บ/ทัพพี</div>
+            <div class="hmb-stepper">
+              <button onclick="adjPlanHand('fruit',-0.5)">−</button>
+              <span id="ph-fruit-qty" class="hval">${planFruitLadles.toFixed(1)}</span>
+              <span class="hunit">ทัพพี</span>
+              <button onclick="adjPlanHand('fruit',0.5)">+</button>
+            </div>
+          </div>
+        </div>
         <div id="ph-preview" style="background:#F0FDF4;border-radius:10px;padding:10px 14px;margin-bottom:10px;font-size:14px;font-weight:700;color:#065F46;text-align:center">
           <span id="ph-preview-text">C 24g · P 28g · F 3g → ⚡ 235 kcal</span>
         </div>
@@ -4783,6 +4849,18 @@ function adjPlanHand(which,delta){
   }else if(which==='fat'){
     planVisibleFat=Math.max(0,Math.round((planVisibleFat+delta)*2)/2);
     const el=document.getElementById('ph-fat-qty');if(el)el.textContent=planVisibleFat.toFixed(1);
+  }else if(which==='egg'){
+    planEggWhole=Math.max(0,planEggWhole+delta);
+    const el=document.getElementById('ph-egg-qty');if(el)el.textContent=planEggWhole;
+  }else if(which==='eggw'){
+    planEggWhite=Math.max(0,planEggWhite+delta);
+    const el=document.getElementById('ph-eggw-qty');if(el)el.textContent=planEggWhite;
+  }else if(which==='avo'){
+    planAvoQty=Math.max(0,planAvoQty+delta);
+    const el=document.getElementById('ph-avo-qty');if(el)el.textContent=planAvoQty;
+  }else if(which==='fruit'){
+    planFruitLadles=Math.max(0,Math.round((planFruitLadles+delta)*2)/2);
+    const el=document.getElementById('ph-fruit-qty');if(el)el.textContent=planFruitLadles.toFixed(1);
   }
   updatePlanHandPreview();
 }
@@ -4808,9 +4886,9 @@ function updatePlanHandPreview(){
   const cd=CARB_D[planHandCarbDensity]||CARB_D.normal;
   const pt=PROT_T[planHandProtType]||PROT_T.lean;
   const cm=COOK_M[planCookMethod]||COOK_M.none;
-  const c=Math.round(cd.c*planHandCarbQty+pt.c*planHandProtQty);
-  const p=Math.round(cd.p*planHandCarbQty+pt.p*planHandProtQty);
-  const f=Math.round(cd.f*planHandCarbQty+pt.f*planHandProtQty+cm.f+planVisibleFat*VIS_FAT_G);
+  const c=Math.round(cd.c*planHandCarbQty+pt.c*planHandProtQty+EGG_W.c*planEggWhole+EGG_WH.c*planEggWhite+AVO.c*planAvoQty+planFruitLadles*15);
+  const p=Math.round(cd.p*planHandCarbQty+pt.p*planHandProtQty+EGG_W.p*planEggWhole+EGG_WH.p*planEggWhite+AVO.p*planAvoQty);
+  const f=Math.round(cd.f*planHandCarbQty+pt.f*planHandProtQty+cm.f+planVisibleFat*VIS_FAT_G+EGG_W.f*planEggWhole+AVO.f*planAvoQty);
   const kcal=c*4+p*4+f*9;
   const el=document.getElementById('ph-preview-text');
   if(el)el.textContent=`C ${c}g · P ${p}g · F ${f}g → ⚡ ${kcal} kcal`;
@@ -4873,9 +4951,9 @@ function addPlanItem(){
     const cd=CARB_D[planHandCarbDensity]||CARB_D.normal;
     const pt=PROT_T[planHandProtType]||PROT_T.lean;
     const cm=COOK_M[planCookMethod]||COOK_M.none;
-    c=Math.round(cd.c*planHandCarbQty+pt.c*planHandProtQty);
-    p=Math.round(cd.p*planHandCarbQty+pt.p*planHandProtQty);
-    f=Math.round(cd.f*planHandCarbQty+pt.f*planHandProtQty+cm.f+planVisibleFat*VIS_FAT_G);
+    c=Math.round(cd.c*planHandCarbQty+pt.c*planHandProtQty+EGG_W.c*planEggWhole+EGG_WH.c*planEggWhite+AVO.c*planAvoQty+planFruitLadles*15);
+    p=Math.round(cd.p*planHandCarbQty+pt.p*planHandProtQty+EGG_W.p*planEggWhole+EGG_WH.p*planEggWhite+AVO.p*planAvoQty);
+    f=Math.round(cd.f*planHandCarbQty+pt.f*planHandProtQty+cm.f+planVisibleFat*VIS_FAT_G+EGG_W.f*planEggWhole+AVO.f*planAvoQty);
     if(!c&&!p&&!f){showToast('ปรับ qty คาร์บหรือโปรตีนก่อนนะคะ');return;}
     autoName=`${cd.emoji} ${cd.label} ${planHandCarbQty}ทัพพี + ${planHandProtType==='lean'?'💪':'🍗'} โปรตีน ${planHandProtQty}ฝ่ามือ`;
   }else if(planAddMode==='fill'){
@@ -4892,6 +4970,7 @@ function addPlanItem(){
   // reset state
   planHandCarbQty=1.5;planHandProtQty=1.0;planCookMethod='none';planAIData=null;
   planHandCarbDensity='normal';planHandProtType='lean';planVisibleFat=0;
+  planEggWhole=0;planEggWhite=0;planAvoQty=0;planFruitLadles=0;
   renderPlanPanel();
 }
 function removePlanItem(i){mealPlan.splice(i,1);renderPlanPanel();}
@@ -5390,15 +5469,20 @@ function buildCorrPanel(s,cs){
     const cd=CARB_D[density]||CARB_D.normal;
     const pt=PROT_T[protType]||PROT_T.lean;
     const ck=COOK_M[cookMethod]||COOK_M.none;
-    const eggsC=(hd.eggWhole||0)*EGG_W.c+(hd.eggWhite||0)*EGG_WH.c;
-    const eggsP=(hd.eggWhole||0)*EGG_W.p+(hd.eggWhite||0)*EGG_WH.p;
-    const eggsF=(hd.eggWhole||0)*EGG_W.f;
-    const avoC=(hd.avo||0)*AVO.c,avoP=(hd.avo||0)*AVO.p,avoF=(hd.avo||0)*AVO.f;
-    const fruitC=(hd.fruitLadles||0)*15;
+    const eggWhole=cs.eggWhole!==undefined?cs.eggWhole:(hd.eggWhole||0);
+    const eggWhite=cs.eggWhite!==undefined?cs.eggWhite:(hd.eggWhite||0);
+    const avoQty=cs.avoQty!==undefined?cs.avoQty:(hd.avo||0);
+    const fruitLadles=cs.fruitLadles!==undefined?cs.fruitLadles:(hd.fruitLadles||0);
+    const eggsC=eggWhole*EGG_W.c+eggWhite*EGG_WH.c;
+    const eggsP=eggWhole*EGG_W.p+eggWhite*EGG_WH.p;
+    const eggsF=eggWhole*EGG_W.f;
+    const avoC=avoQty*AVO.c,avoP=avoQty*AVO.p,avoF=avoQty*AVO.f;
+    const fruitC=fruitLadles*15;
     const preC=Math.round(cd.c*carbQty+pt.c*protQty+eggsC+avoC+fruitC);
     const preP=Math.round(cd.p*carbQty+pt.p*protQty+eggsP+avoP);
     const preF=Math.round(cd.f*carbQty+pt.f*protQty+ck.f+visFat*VIS_FAT_G+eggsF+avoF);
     const preKcal=Math.round(preC*4+preP*4+preF*9);
+    const origTotal=s.total||{c:0,p:0,f:0,kcal:0};
     const dBtn=(d)=>`<button class="dens-btn${d===density?' active':''}" data-d="${d}" onclick="setHCorrCarbD('${s.id}','${d}')">${CARB_D[d].emoji} ${CARB_D[d].label}</button>`;
     const ptBtn=(t,lbl,sub)=>`<button class="ptype-btn${t===protType?' active':''}" data-pt="${t}" onclick="setHCorrProtT('${s.id}','${t}')">${lbl}<span class="ptype-sub">${sub}</span></button>`;
     const ckBtn=(m,lbl,sub)=>`<button class="cook-btn${m===cookMethod?' active':''}" data-ck="${m}" onclick="setHCorrCookM('${s.id}','${m}')">${lbl}<span class="dens-kcal">${sub}</span></button>`;
@@ -5422,7 +5506,36 @@ function buildCorrPanel(s,cs){
   <div class="hmb-subtitle" style="margin-bottom:4px">น้ำมันมองเห็น (ช้อนชา)</div>
   <div class="corr-s-row"><button onclick="adjHCorr('${s.id}','visFat',-0.5)">−</button><input type="number" class="corr-input" id="hc-visFat-${s.id}" value="${visFat}" min="0" step="0.5" onchange="syncHCorr('${s.id}','visFat')"><button onclick="adjHCorr('${s.id}','visFat',0.5)">+</button></div>
 </div>
-<div id="hc-preview-${s.id}" style="background:#F0FDF4;border-radius:8px;padding:8px 12px;margin:6px 0 4px;font-size:13px;font-weight:700;color:#15803D;text-align:center">C ${preC}g · P ${preP}g · F ${preF}g → ⚡ ${preKcal} kcal</div>
+<div style="margin-bottom:10px">
+  <div class="hmb-subtitle" style="margin-bottom:5px">🥚 ไข่ (เพิ่มเติม)</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
+    <div style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;padding:6px;text-align:center">
+      <div style="font-size:11px;font-weight:600;color:var(--text);margin-bottom:1px">ไข่ทั้งฟอง</div>
+      <div style="font-size:10px;color:var(--gray);margin-bottom:4px">C1·P6·F5 (~70kcal)</div>
+      <div class="corr-s-row"><button onclick="adjHCorr('${s.id}','eggWhole',-1)">−</button><input type="number" class="corr-input" id="hc-eggWhole-${s.id}" value="${eggWhole}" min="0" step="1" onchange="syncHCorr('${s.id}','eggWhole')"><button onclick="adjHCorr('${s.id}','eggWhole',1)">+</button></div>
+    </div>
+    <div style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;padding:6px;text-align:center">
+      <div style="font-size:11px;font-weight:600;color:var(--text);margin-bottom:1px">ไข่ขาวอย่างเดียว</div>
+      <div style="font-size:10px;color:var(--gray);margin-bottom:4px">P3.6 (~17kcal)</div>
+      <div class="corr-s-row"><button onclick="adjHCorr('${s.id}','eggWhite',-1)">−</button><input type="number" class="corr-input" id="hc-eggWhite-${s.id}" value="${eggWhite}" min="0" step="1" onchange="syncHCorr('${s.id}','eggWhite')"><button onclick="adjHCorr('${s.id}','eggWhite',1)">+</button></div>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+    <div>
+      <div style="font-size:11px;font-weight:600;color:var(--text);margin-bottom:2px">🥑 อะโวคาโด</div>
+      <div style="font-size:10px;color:var(--gray);margin-bottom:4px">C4·P1·F8 ต่อชิ้น</div>
+      <div class="corr-s-row"><button onclick="adjHCorr('${s.id}','avoQty',-1)">−</button><input type="number" class="corr-input" id="hc-avoQty-${s.id}" value="${avoQty}" min="0" step="1" onchange="syncHCorr('${s.id}','avoQty')"><button onclick="adjHCorr('${s.id}','avoQty',1)">+</button></div>
+    </div>
+    <div>
+      <div style="font-size:11px;font-weight:600;color:var(--text);margin-bottom:2px">🍎 ผลไม้ (ทัพพี)</div>
+      <div style="font-size:10px;color:var(--gray);margin-bottom:4px">~15g คาร์บ/ทัพพี</div>
+      <div class="corr-s-row"><button onclick="adjHCorr('${s.id}','fruitLadles',-0.5)">−</button><input type="number" class="corr-input" id="hc-fruitLadles-${s.id}" value="${fruitLadles}" min="0" step="0.5" onchange="syncHCorr('${s.id}','fruitLadles')"><button onclick="adjHCorr('${s.id}','fruitLadles',0.5)">+</button></div>
+    </div>
+  </div>
+</div>
+<div id="hc-preview-${s.id}" style="background:#F0FDF4;border-radius:8px;padding:8px 12px;margin:6px 0 2px;font-size:13px;font-weight:700;color:#15803D;text-align:center">C ${preC}g · P ${preP}g · F ${preF}g → ⚡ ${preKcal} kcal</div>
+<div id="hc-summary-${s.id}" style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:6px 12px;margin:2px 0 8px;font-size:11px;color:#64748B;text-align:center">นักเรียนกรอก: <del>C${origTotal.c}g · P${origTotal.p}g · F${origTotal.f}g = ${origTotal.kcal}kcal</del><br>แก้เป็น: <span style="color:#059669">C${preC}g · P${preP}g · F${preF}g = ${preKcal}kcal</span></div>
+<div class="feedback-chips"><span class="fchip fchip-green" onclick="setCoachChip('${s.id}','✅ กรอกถูกแล้ว เก่งมากเลย!')">✅ กรอกถูกแล้ว</span><span class="fchip fchip-green" onclick="setCoachChip('${s.id}','✏️ โค้ชแก้ให้แล้ว เช็คดูได้เลยนะคะ')">✏️ โค้ชแก้ให้แล้ว</span><span class="fchip fchip-yellow" onclick="setCoachChip('${s.id}','🍚 คาร์บเยอะไปนิด ลองลดหน่อยนะคะ')">🍚 คาร์บเยอะไปนิด</span><span class="fchip fchip-yellow" onclick="setCoachChip('${s.id}','💪 โปรตีนน้อยไป ครั้งหน้าเพิ่มได้เลย')">💪 โปรตีนน้อยไป</span><span class="fchip fchip-yellow" onclick="setCoachChip('${s.id}','🥑 ไขมันเกินนิดนึง ระวังด้วยนะคะ')">🥑 ไขมันเกิน</span><span class="fchip fchip-gray" onclick="setCoachChip('${s.id}','🎉 วันนี้ทำได้ดีมาก! Keep going!')">🎉 ทำได้ดีมาก!</span><span class="fchip fchip-gray" onclick="setCoachChip('${s.id}','🥗 อย่าลืมเพิ่มผักด้วยนะคะ')">🥗 อย่าลืมผัก</span><span class="fchip fchip-gray" onclick="setCoachChip('${s.id}','💧 ดื่มน้ำให้ครบด้วยนะคะ')">💧 ดื่มน้ำให้ครบ</span></div>
 <textarea class="corr-note-ta" id="cc-note-${s.id}" rows="2" placeholder="ข้อความถึงนักเรียน (ไม่บังคับ)...">${escHtml(cs.note||'')}</textarea>
 <div style="display:flex;gap:8px;margin-top:6px"><button class="btn-send-corr" style="flex:1" onclick="sendCorrection('${s.id}','save')">💾 บันทึก</button><button class="btn-send-corr" style="flex:1;background:#2563EB" onclick="sendCorrection('${s.id}','copy')">📋 Copy ข้อความ</button></div>
 </div>`;
@@ -5457,6 +5570,7 @@ function buildCorrPanel(s,cs){
 <div class="corr-s-item"><label>🟢 ไขมัน (g) <span id="badge-fat-${s.id}">${mBadge(fat-origF,9)}</span></label><div class="corr-s-row"><button onclick="adjCorr('${s.id}','fat',-1)">−</button><input type="number" class="corr-input" id="cc-fat-${s.id}" value="${fat}" min="0" step="1" onchange="syncCorr('${s.id}','fat')"><button onclick="adjCorr('${s.id}','fat',1)">+</button></div></div>
 </div>
 <div id="corr-preview-${s.id}" data-origc="${origC}" data-origp="${origP}" data-origf="${origF}" style="background:#F0FDF4;border-radius:8px;padding:8px 12px;margin:6px 0 4px;font-size:13px;font-weight:700;color:#15803D;text-align:center">C ${carb}g · P ${prot}g · F ${fat}g → ⚡ ${prevKcal} kcal${kcalDiffBadge}</div>
+<div class="feedback-chips"><span class="fchip fchip-green" onclick="setCoachChip('${s.id}','✅ กรอกถูกแล้ว เก่งมากเลย!')">✅ กรอกถูกแล้ว</span><span class="fchip fchip-green" onclick="setCoachChip('${s.id}','✏️ โค้ชแก้ให้แล้ว เช็คดูได้เลยนะคะ')">✏️ โค้ชแก้ให้แล้ว</span><span class="fchip fchip-yellow" onclick="setCoachChip('${s.id}','🍚 คาร์บเยอะไปนิด ลองลดหน่อยนะคะ')">🍚 คาร์บเยอะไปนิด</span><span class="fchip fchip-yellow" onclick="setCoachChip('${s.id}','💪 โปรตีนน้อยไป ครั้งหน้าเพิ่มได้เลย')">💪 โปรตีนน้อยไป</span><span class="fchip fchip-yellow" onclick="setCoachChip('${s.id}','🥑 ไขมันเกินนิดนึง ระวังด้วยนะคะ')">🥑 ไขมันเกิน</span><span class="fchip fchip-gray" onclick="setCoachChip('${s.id}','🎉 วันนี้ทำได้ดีมาก! Keep going!')">🎉 ทำได้ดีมาก!</span><span class="fchip fchip-gray" onclick="setCoachChip('${s.id}','🥗 อย่าลืมเพิ่มผักด้วยนะคะ')">🥗 อย่าลืมผัก</span><span class="fchip fchip-gray" onclick="setCoachChip('${s.id}','💧 ดื่มน้ำให้ครบด้วยนะคะ')">💧 ดื่มน้ำให้ครบ</span></div>
 <textarea class="corr-note-ta" id="cc-note-${s.id}" rows="2" placeholder="ข้อความถึงนักเรียน (ไม่บังคับ)...">${escHtml(cs.note||'')}</textarea>
 <div style="display:flex;gap:8px;margin-top:6px"><button class="btn-send-corr" style="flex:1" onclick="sendCorrection('${s.id}','save')">💾 บันทึก</button><button class="btn-send-corr" style="flex:1;background:#2563EB" onclick="sendCorrection('${s.id}','copy')">📋 Copy ข้อความ</button></div></div>`;
 }
@@ -5544,11 +5658,15 @@ function calcHandCorrMacros(id){
   const cd=CARB_D[density]||CARB_D.normal;
   const pt=PROT_T[protType]||PROT_T.lean;
   const ck=COOK_M[cookMethod]||COOK_M.none;
-  const eggsC=(hd.eggWhole||0)*EGG_W.c+(hd.eggWhite||0)*EGG_WH.c;
-  const eggsP=(hd.eggWhole||0)*EGG_W.p+(hd.eggWhite||0)*EGG_WH.p;
-  const eggsF=(hd.eggWhole||0)*EGG_W.f;
-  const avoC=(hd.avo||0)*AVO.c,avoP=(hd.avo||0)*AVO.p,avoF=(hd.avo||0)*AVO.f;
-  const fruitC=(hd.fruitLadles||0)*15;
+  const eggW=st.eggWhole!==undefined?st.eggWhole:(hd.eggWhole||0);
+  const eggWh=st.eggWhite!==undefined?st.eggWhite:(hd.eggWhite||0);
+  const avoQ=st.avoQty!==undefined?st.avoQty:(hd.avo||0);
+  const fruitL=st.fruitLadles!==undefined?st.fruitLadles:(hd.fruitLadles||0);
+  const eggsC=eggW*EGG_W.c+eggWh*EGG_WH.c;
+  const eggsP=eggW*EGG_W.p+eggWh*EGG_WH.p;
+  const eggsF=eggW*EGG_W.f;
+  const avoC=avoQ*AVO.c,avoP=avoQ*AVO.p,avoF=avoQ*AVO.f;
+  const fruitC=fruitL*15;
   const C=Math.round(cd.c*carbQty+pt.c*protQty+eggsC+avoC+fruitC);
   const P=Math.round(cd.p*carbQty+pt.p*protQty+eggsP+avoP);
   const F=Math.round(cd.f*carbQty+pt.f*protQty+ck.f+visFat*VIS_FAT_G+eggsF+avoF);
@@ -5558,6 +5676,15 @@ function updateHandCorrPreview(id){
   const{C,P,F,kcal}=calcHandCorrMacros(id);
   const el=document.getElementById(`hc-preview-${id}`);
   if(el)el.textContent=`C ${C}g · P ${P}g · F ${F}g → ⚡ ${kcal} kcal`;
+  const summaryEl=document.getElementById(`hc-summary-${id}`);
+  if(summaryEl){
+    const orig=cState[id]?._sub?.total||{c:0,p:0,f:0,kcal:0};
+    summaryEl.innerHTML=`นักเรียนกรอก: <del>C${orig.c}g · P${orig.p}g · F${orig.f}g = ${orig.kcal}kcal</del><br>แก้เป็น: <span style="color:#059669">C${C}g · P${P}g · F${F}g = ${kcal}kcal</span>`;
+  }
+}
+function setCoachChip(id,text){
+  const ta=document.getElementById(`cc-note-${id}`);
+  if(ta){ta.value=text;ta.focus();}
 }
 function approveCard(id){if(!cState[id])cState[id]={};cState[id].approveOpen=!cState[id].approveOpen;renderCoach();}
 async function doApproveQuiet(id){
