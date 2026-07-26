@@ -853,6 +853,8 @@ firebase.initializeApp({
 });
 const db = firebase.firestore();
 const storage = firebase.storage();
+// Offline persistence — reload ครั้งที่ 2+ โหลดจาก cache ทันที
+db.enablePersistence({synchronizeTabs:true}).catch(e=>{console.warn('Persistence:',e.code);});
 
 const _REMOVED=[
   {name:'ข้าวขาวสุก',c:28,p:2.7,f:0.3,src:'th'},
@@ -2863,7 +2865,7 @@ function startStudent(){
 async function loadStudentData(){
   try{
     const [snap,td,savedSnap]=await Promise.all([
-      db.collection('submissions').where('userId','==',user.userId).limit(60).get(),
+      db.collection('submissions').where('userId','==',user.userId).orderBy('createdAt','desc').limit(30).get(),
       db.collection('students').doc(user.userId).get().catch(()=>null),
       db.collection('users').doc(user.userId).collection('savedMenus').orderBy('createdAt','desc').limit(12).get().catch(()=>null)
     ]);
@@ -3806,14 +3808,14 @@ async function submitMeal(){
       try{
         const ref=storage.ref(`photos/${user.userId}/${Date.now()}.jpg`);
         const uploadPromise=ref.putString(photoBase64,'data_url').then(()=>ref.getDownloadURL());
-        const timeoutPromise=new Promise((_,rej)=>setTimeout(()=>rej(new Error('upload timeout')),8000));
+        const timeoutPromise=new Promise((_,rej)=>setTimeout(()=>rej(new Error('upload timeout')),20000));
         photoUrl=await Promise.race([uploadPromise,timeoutPromise]);
       }catch(uploadErr){console.log('photo upload skipped:',uploadErr.message);}
     }
     await db.collection('submissions').add({
       userId:user.userId,displayName:user.displayName,pictureUrl:user.pictureUrl||null,
       meal:curMeal,mode:curMode,mealDate:selectedDate,
-      handData,labelData,weighData,photoBase64:photoBase64||null,photoUrl:photoUrl||null,
+      handData,labelData,weighData,photoUrl:photoUrl||null,
       status:'pending',correction:null,
       isTest:testMode||false,
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
@@ -3867,7 +3869,7 @@ function showSuccess(mode,handData,labelData,weighData){
 
 async function showMilestone(){
   try{
-    const snap=await db.collection('submissions').where('userId','==',user.userId).limit(60).get();
+    const snap=await db.collection('submissions').where('userId','==',user.userId).orderBy('createdAt','desc').limit(30).get();
     const subs=snap.docs.map(d=>({id:d.id,...d.data()}));
     const streak=calcStreak(subs);
     const pill=document.getElementById('streak-pill');
@@ -3926,7 +3928,8 @@ function buildHistCard(s){
     chips+=`<span class="chip">C ${wMacros.c}g · P ${wMacros.p}g · F ${wMacros.f}g</span>`;
     chips+=`<span class="chip">⚡ ${wMacros.kcal} kcal</span>`;
   }
-  const photoHtml=s.photoBase64?`<img style="width:100%;max-height:160px;object-fit:cover;border-radius:8px;margin-bottom:8px" src="${s.photoBase64}" loading="lazy">`:'';
+  const photoSrc=s.photoBase64||s.photoUrl||null;
+  const photoHtml=photoSrc?`<img style="width:100%;max-height:160px;object-fit:cover;border-radius:8px;margin-bottom:8px" src="${photoSrc}" loading="lazy">`:'';
   const editHistHtml=(s.editHistory&&s.editHistory.length)?`<div class="hist-edit-log">
     <div style="font-size:10px;font-weight:700;color:#92400E;margin-bottom:4px">✏️ โค้ชแก้ไข</div>
     ${s.editHistory.flatMap(h=>h.fields.map(f=>`<div class="hist-edit-row"><span style="color:#6B7280;min-width:48px">${f.k}</span><span class="hist-edit-from">${f.from}g</span><span style="color:#9CA3AF">→</span><span class="hist-edit-to">${f.to}g</span></div>`)).join('')}
@@ -3939,7 +3942,7 @@ function buildHistCard(s){
   const delBtn=`<button onclick="deleteHistSub('${s.id}')" style="width:100%;margin-top:8px;padding:6px;background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;color:#B91C1C;font-size:12px;font-family:'Prompt',sans-serif;cursor:pointer">🗑️ ลบรายการนี้</button>`;
   return`<div class="hist-card">
     <div class="hist-card-head" style="display:flex;align-items:flex-start;justify-content:space-between">
-      <div><div style="font-size:13px;font-weight:600">${dateLabel} · มื้อ${s.meal}</div><div style="font-size:11px;color:var(--gray);margin-top:2px">${modeLabel}${s.photoBase64?' · 📸':''}</div></div>
+      <div><div style="font-size:13px;font-weight:600">${dateLabel} · มื้อ${s.meal}</div><div style="font-size:11px;color:var(--gray);margin-top:2px">${modeLabel}${(s.photoBase64||s.photoUrl)?' · 📸':''}</div></div>
       ${statusHtml}
     </div>
     <div class="hist-card-body">${photoHtml}<div class="est-chips" style="margin-bottom:0">${chips}</div>${corrHtml}${editHistHtml||""}${coachCommentHtml||""}${delBtn}</div>
@@ -5261,7 +5264,7 @@ function buildCard(s){
   const timeStr=s.createdAt?(s.createdAt.toDate?formatTime(s.createdAt.toDate()):formatTime(new Date(s.createdAt))):'';
   const dateLabel=s.mealDate?formatDateTH(s.mealDate)+' · ':'';
   const corrNote=s.correction?`<div class="corr-note">✏️ ปรับค่า → C ${s.correction.carb} · P ${s.correction.protein} · F ${s.correction.fat}${s.correction.note?'<br>💬 '+escHtml(s.correction.note):''}</div>`:'';
-  const photoHtml=s.photoBase64?`<img class="card-photo" src="${s.photoBase64}" loading="lazy">`:'';
+  const photoHtml=(s.photoBase64||s.photoUrl)?`<img class="card-photo" src="${s.photoBase64||s.photoUrl}" loading="lazy">`:'';
   const avatarHtml=s.pictureUrl?`<img src="${s.pictureUrl}" onerror="this.src=''" alt="">`:`<div style="width:38px;height:38px;border-radius:50%;background:var(--light);display:flex;align-items:center;justify-content:center;font-size:18px">👤</div>`;
   let actions='';
   const showApprove=cs.approveOpen||false;
