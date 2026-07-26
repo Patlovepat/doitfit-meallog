@@ -3854,6 +3854,7 @@ async function saveCurrentMenu(){
     C+=pm.c*protQty;P+=pm.p*protQty;F+=pm.f*protQty;
     F+=ck.f+visibleFat*VIS_FAT_G;
     C+=EGG_W.c*eggWhole+EGG_WH.c*eggWhite;P+=EGG_W.p*eggWhole+EGG_WH.p*eggWhite;F+=EGG_W.f*eggWhole;
+    C+=AVO.c*avoQty;P+=AVO.p*avoQty;F+=AVO.f*avoQty;
     C+=getFruitLadles()*15;
     C=Math.round(C);P=Math.round(P);F=Math.round(F);
     data.handData={carbSlots:carbSlots.map(s=>({density:s.density,qty:s.qty})),protein:protQty,protType,eggWhole,eggWhite,cookMethod,visibleFat,avo:avoQty,fruits:{...fruitCounts},fruitLadles:getFruitLadles()};
@@ -4090,7 +4091,7 @@ async function deleteHistSub(id){
 // DASHBOARD
 function getSubMacros(s){
   let c=0,p=0,f=0;
-  if(s.mode==='hand'&&s.handData){c=s.handData.totalCarb||0;p=s.handData.totalProtein||0;f=s.handData.totalFat||0;}
+  if(s.mode==='hand'&&s.handData){c=s.handData.totalCarb??s.total?.c??0;p=s.handData.totalProtein??s.total?.p??0;f=s.handData.totalFat??s.total?.f??0;}
   else if(s.mode==='label'&&s.labelData){c=s.labelData.carb||0;p=s.labelData.protein||0;f=s.labelData.fat||0;}
   else if(s.mode==='weigh'&&s.weighData){c=s.weighData.carb||0;p=s.weighData.protein||0;f=s.weighData.fat||0;}
   if(s.correction){
@@ -4103,7 +4104,7 @@ function getSubMacros(s){
 }
 function getSubOrigMacros(s){
   let c=0,p=0,f=0;
-  if(s.mode==='hand'&&s.handData){c=s.handData.totalCarb||0;p=s.handData.totalProtein||0;f=s.handData.totalFat||0;}
+  if(s.mode==='hand'&&s.handData){c=s.handData.totalCarb??s.total?.c??0;p=s.handData.totalProtein??s.total?.p??0;f=s.handData.totalFat??s.total?.f??0;}
   else if(s.mode==='label'&&s.labelData){c=s.labelData.carb||0;p=s.labelData.protein||0;f=s.labelData.fat||0;}
   else if(s.mode==='weigh'&&s.weighData){c=s.weighData.carb||0;p=s.weighData.protein||0;f=s.weighData.fat||0;}
   return{c:Math.round(c),p:Math.round(p),f:Math.round(f)};
@@ -5490,7 +5491,8 @@ function buildCorrPanel(s,cs){
     const eggWhite=cs.eggWhite!==undefined?cs.eggWhite:(hd.eggWhite||0);
     const avoQty=cs.avoQty!==undefined?cs.avoQty:(hd.avo||0);
     const baseFruits=cs.fruitCounts||(hd.fruits?{...hd.fruits}:{});
-    const fruitLadles=FRUIT_ITEMS.reduce((sum,f)=>sum+(baseFruits[f.id]||0)/f.perLadle,0);
+    const fruitFromTypes=FRUIT_ITEMS.reduce((sum,f)=>sum+(baseFruits[f.id]||0)/f.perLadle,0);
+    const fruitLadles=fruitFromTypes||cs.fruitLadles||hd.fruitLadles||0;
     const eggsC=eggWhole*EGG_W.c+eggWhite*EGG_WH.c;
     const eggsP=eggWhole*EGG_W.p+eggWhite*EGG_WH.p;
     const eggsF=eggWhole*EGG_W.f;
@@ -5538,18 +5540,17 @@ function buildCorrPanel(s,cs){
       <div class="corr-s-row"><button onclick="adjHCorr('${s.id}','eggWhite',-1)">−</button><input type="number" class="corr-input" id="hc-eggWhite-${s.id}" value="${eggWhite}" min="0" step="1" onchange="syncHCorr('${s.id}','eggWhite')"><button onclick="adjHCorr('${s.id}','eggWhite',1)">+</button></div>
     </div>
   </div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
-    <div>
-      <div style="font-size:11px;font-weight:600;color:var(--text);margin-bottom:2px">🥑 อะโวคาโด</div>
-      <div style="font-size:10px;color:var(--gray);margin-bottom:4px">C4·P1·F8 ต่อชิ้น</div>
-      <div class="corr-s-row"><button onclick="adjHCorr('${s.id}','avoQty',-1)">−</button><input type="number" class="corr-input" id="hc-avoQty-${s.id}" value="${avoQty}" min="0" step="1" onchange="syncHCorr('${s.id}','avoQty')"><button onclick="adjHCorr('${s.id}','avoQty',1)">+</button></div>
-    </div>
-    <div>
-      <div style="font-size:11px;font-weight:600;color:var(--text);margin-bottom:2px">🍎 ผลไม้ (ทัพพี)</div>
-      <div style="font-size:10px;color:var(--gray);margin-bottom:4px">~15g คาร์บ/ทัพพี</div>
-      <div class="corr-s-row"><button onclick="adjHCorr('${s.id}','fruitLadles',-0.5)">−</button><input type="number" class="corr-input" id="hc-fruitLadles-${s.id}" value="${fruitLadles}" min="0" step="0.5" onchange="syncHCorr('${s.id}','fruitLadles')"><button onclick="adjHCorr('${s.id}','fruitLadles',0.5)">+</button></div>
-    </div>
+  <div>
+    <div style="font-size:11px;font-weight:600;color:var(--text);margin-bottom:2px">🥑 อะโวคาโด</div>
+    <div style="font-size:10px;color:var(--gray);margin-bottom:4px">C4·P1·F8 ต่อชิ้น</div>
+    <div class="corr-s-row"><button onclick="adjHCorr('${s.id}','avoQty',-1)">−</button><input type="number" class="corr-input" id="hc-avoQty-${s.id}" value="${avoQty}" min="0" step="1" onchange="syncHCorr('${s.id}','avoQty')"><button onclick="adjHCorr('${s.id}','avoQty',1)">+</button></div>
   </div>
+</div>
+<div class="fruit-section" style="margin-top:6px;margin-bottom:6px">
+  <div class="fruit-section-title">🍎 ผลไม้ & แป้งแลกเปลี่ยน</div>
+  <div class="fruit-hint-txt">แก้จำนวนผลไม้ตามที่กินจริง</div>
+  <div class="fruit-grid">${FRUIT_ITEMS.map(f=>{const fCount=(baseFruits[f.id])||0;const hint=f.perLadle===0.5?`½ ${f.unit}=1ทัพพี`:`${f.perLadle} ${f.unit}=1ทัพพี`;return`<div class="fruit-item${fCount>0?' has-fruit':''}" id="hcfi-${f.id}-${s.id}"><span class="f-emoji">${f.emoji}</span><span class="f-name">${f.name}</span><span class="f-unit">${hint}</span><div class="f-stepper"><button class="f-btn" onclick="adjHCorrFruit('${s.id}','${f.id}',-${f.step})">−</button><span class="f-count" id="hcfc-${f.id}-${s.id}">${Number.isInteger(fCount)?fCount:fCount.toFixed(1)}</span><button class="f-btn" onclick="adjHCorrFruit('${s.id}','${f.id}',${f.step})">+</button></div><span id="hcfu-${f.id}-${s.id}" style="display:${fCount>0?'block':'none'};font-size:9px;color:#166534;margin-top:2px">${f.unit}</span></div>`;}).join('')}</div>
+  <div class="fruit-total-bar" id="hc-fruit-total-${s.id}" style="display:${fruitLadles>0?'block':'none'}">🍽️ รวมผลไม้ = <span id="hc-fruit-val-${s.id}">${(Math.round(fruitLadles*10)/10)}</span> ทัพพี</div>
 </div>
 <div id="hc-preview-${s.id}" style="background:#F0FDF4;border-radius:8px;padding:8px 12px;margin:6px 0 2px;font-size:13px;font-weight:700;color:#15803D;text-align:center">C ${preC}g · P ${preP}g · F ${preF}g → ⚡ ${preKcal} kcal</div>
 <div id="hc-summary-${s.id}" style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:6px 12px;margin:2px 0 8px;font-size:11px;color:#64748B;text-align:center">นักเรียนกรอก: <del>C${origTotal.c}g · P${origTotal.p}g · F${origTotal.f}g = ${origTotal.kcal}kcal</del><br>แก้เป็น: <span style="color:#059669">C${preC}g · P${preP}g · F${preF}g = ${preKcal}kcal</span></div>
@@ -5662,6 +5663,29 @@ function syncHCorr(id,field){
   cState[id][field]=val;el.value=val;
   updateHandCorrPreview(id);
 }
+function adjHCorrFruit(sid,fruitId,delta){
+  if(!cState[sid])cState[sid]={};
+  if(!cState[sid].fruitCounts){
+    const hd=cState[sid]._sub?.handData||{};
+    cState[sid].fruitCounts={...(hd.fruits||{})};
+  }
+  const counts=cState[sid].fruitCounts;
+  counts[fruitId]=Math.max(0,Math.round(((counts[fruitId]||0)+delta)*10)/10);
+  const v=counts[fruitId];
+  const countEl=document.getElementById(`hcfc-${fruitId}-${sid}`);
+  if(countEl)countEl.textContent=Number.isInteger(v)?v:v.toFixed(1);
+  const unitEl=document.getElementById(`hcfu-${fruitId}-${sid}`);
+  if(unitEl)unitEl.style.display=v>0?'block':'none';
+  const itemEl=document.getElementById(`hcfi-${fruitId}-${sid}`);
+  if(itemEl)itemEl.classList.toggle('has-fruit',v>0);
+  const totalLadles=FRUIT_ITEMS.reduce((s,f)=>s+(counts[f.id]||0)/f.perLadle,0);
+  const bar=document.getElementById(`hc-fruit-total-${sid}`);
+  if(bar)bar.style.display=totalLadles>0?'block':'none';
+  const valEl=document.getElementById(`hc-fruit-val-${sid}`);
+  const rd=Math.round(totalLadles*10)/10;
+  if(valEl)valEl.textContent=Number.isInteger(rd)?rd:rd.toFixed(1);
+  updateHandCorrPreview(sid);
+}
 function calcHandCorrMacros(id){
   const s=cState[id]?._sub;
   if(!s)return{C:0,P:0,F:0,kcal:0};
@@ -5679,7 +5703,9 @@ function calcHandCorrMacros(id){
   const eggW=st.eggWhole!==undefined?st.eggWhole:(hd.eggWhole||0);
   const eggWh=st.eggWhite!==undefined?st.eggWhite:(hd.eggWhite||0);
   const avoQ=st.avoQty!==undefined?st.avoQty:(hd.avo||0);
-  const fruitL=st.fruitLadles!==undefined?st.fruitLadles:(hd.fruitLadles||0);
+  const baseFruits2=st.fruitCounts||(hd.fruits?{...hd.fruits}:{});
+  const fruitFromTypes2=FRUIT_ITEMS.reduce((sum,f)=>sum+(baseFruits2[f.id]||0)/f.perLadle,0);
+  const fruitL=fruitFromTypes2||st.fruitLadles||hd.fruitLadles||0;
   const eggsC=eggW*EGG_W.c+eggWh*EGG_WH.c;
   const eggsP=eggW*EGG_W.p+eggWh*EGG_WH.p;
   const eggsF=eggW*EGG_W.f;
