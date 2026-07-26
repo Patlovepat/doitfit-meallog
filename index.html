@@ -7,6 +7,18 @@
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+<script>
+window.onerror=function(msg,src,line,col,err){
+  var el=document.getElementById('loading');
+  if(el)el.innerHTML='<div style="padding:20px;text-align:center"><div style="font-size:32px">⚠️</div>'
+    +'<p style="margin-top:8px;font-size:13px;color:#EF4444;font-weight:700">'+msg+'</p>'
+    +'<p style="margin-top:6px;font-size:11px;color:#6B7280">'+src+' line '+line+'</p>'
+    +(err&&err.stack?'<pre style="margin-top:8px;font-size:10px;text-align:left;white-space:pre-wrap;color:#374151">'+err.stack+'</pre>':'')
+    +'</div>';
+  return false;
+};
+</script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 :root{
@@ -32,6 +44,18 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
 .app-header .user-pic{width:36px;height:36px;border-radius:50%;object-fit:cover;margin-left:auto;border:2px solid var(--border)}
 .coach-badge{background:var(--primary);color:white;font-size:11px;font-weight:600;padding:2px 8px;border-radius:12px;margin-left:auto}
 .streak-pill{background:#FFF7ED;border:1.5px solid #FED7AA;border-radius:20px;padding:4px 10px;font-size:12px;font-weight:700;color:#C2410C;margin-left:auto;display:none;align-items:center;gap:3px;white-space:nowrap}
+.prog-bar-wrap{display:none;background:white;border-bottom:1px solid var(--border);padding:8px 14px;align-items:center;gap:8px}
+.prog-track{flex:1;background:#E5E7EB;border-radius:6px;height:6px;overflow:hidden}
+.prog-fill{height:100%;background:var(--primary);border-radius:6px}
+.prog-badge{font-size:12px;font-weight:700;color:var(--primary-dark);white-space:nowrap}
+.prog-label{font-size:10px;color:var(--gray);white-space:nowrap}
+.prog-paused{font-size:10px;background:#FEF3C7;color:#92400E;border-radius:8px;padding:1px 6px;font-weight:600}
+.sd-prog-section{background:#EFF6FF;border:1.5px solid #BFDBFE;border-radius:12px;padding:12px;margin-bottom:12px}
+.sd-prog-title{font-size:13px;font-weight:700;color:#1D4ED8;margin-bottom:8px}
+.prog-input{border:1.5px solid var(--border);border-radius:8px;padding:6px 8px;font-size:13px;font-family:"Prompt",sans-serif;width:100%;box-sizing:border-box;background:white}
+.pause-btn{width:100%;margin-top:8px;padding:8px;border-radius:9px;font-size:13px;font-weight:600;font-family:"Prompt",sans-serif;cursor:pointer;border:none}
+.pause-btn.pause{background:#FEF3C7;color:#92400E;border:1.5px solid #FDE68A}
+.pause-btn.resume{background:#D1FAE5;color:#065F46;border:1.5px solid #6EE7B7}
 .milestone-box{background:#FFF7ED;border:1.5px solid #FED7AA;border-radius:12px;padding:14px;text-align:center;margin-bottom:16px;display:none}
 .milestone-box .mfire{font-size:32px;margin-bottom:4px}
 .milestone-box .mt{font-size:15px;font-weight:700;color:#C2410C}
@@ -166,6 +190,12 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
 .ai-food-textarea{width:100%;border:1.5px solid #E5E7EB;border-radius:10px;padding:10px 12px;font-size:13px;font-family:'Prompt',sans-serif;resize:none;line-height:1.7;box-sizing:border-box;color:var(--text)}
 .ai-food-textarea:focus{outline:none;border-color:var(--primary)}
 .ai-calc-btn{width:100%;padding:11px;background:var(--primary);color:#fff;border:none;border-radius:10px;font-family:'Prompt',sans-serif;font-size:14px;font-weight:500;cursor:pointer;margin-top:8px;transition:.15s}
+.saved-menu-area{background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;padding:10px 12px;margin-bottom:10px}
+.saved-menu-chip{display:inline-flex;align-items:center;gap:4px;background:#fff;border:1.5px solid #FCD34D;border-radius:20px;padding:5px 10px;font-size:12px;font-weight:600;color:#92400E;font-family:'Prompt',sans-serif;cursor:pointer;margin:2px}
+.saved-menu-chip:active{background:#FEF3C7}
+.saved-menu-chip .chip-del{font-size:11px;color:#B45309;padding:0 2px;line-height:1;background:none;border:none;cursor:pointer;font-family:inherit}
+.btn-save-menu{width:100%;padding:11px;background:#fff;color:var(--primary-dark);border:2px solid var(--primary);border-radius:10px;font-family:'Prompt',sans-serif;font-size:14px;font-weight:600;cursor:pointer;margin-top:8px;transition:.15s}
+.btn-save-menu:active{background:var(--light)}
 .ai-calc-btn:disabled{opacity:0.6;cursor:not-allowed}
 .ai-item-row{display:flex;justify-content:space-between;align-items:flex-start;padding:7px 0;border-bottom:1px solid #E5E7EB;font-size:13px}
 .ai-item-row:last-child{border-bottom:none}
@@ -206,6 +236,15 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
 .hist-card-head{padding:10px 14px;border-bottom:1px solid #F3F4F6}
 .hist-card-body{padding:10px 14px}
 .hist-corr{background:#FEF3C7;border-radius:8px;padding:8px 10px;font-size:12px;color:#92400E;margin-top:8px;line-height:1.5}
+.hist-edit-log{background:#FFF7ED;border-radius:8px;padding:8px 10px;font-size:11px;color:#78716C;margin-top:6px}
+.hist-edit-row{display:flex;align-items:center;gap:5px;margin-bottom:2px}
+.hist-edit-from{color:#EF4444;text-decoration:line-through}
+.hist-edit-to{color:#059669;font-weight:700}
+.hist-coach-comment{background:#EFF6FF;border-radius:8px;padding:8px 10px;font-size:12px;color:#1D4ED8;margin-top:6px;line-height:1.6}
+.tone-btn{border:none;border-radius:8px;padding:5px 10px;font-size:12px;font-family:"Prompt",sans-serif;cursor:pointer;transition:all .15s;background:#F3F4F6;color:var(--text)}
+.plan-item{background:white;border:0.5px solid #E5E7EB;border-radius:10px;padding:10px 12px;margin-bottom:8px;position:relative}
+.plan-total-bar{background:#EFF6FF;border-radius:10px;padding:10px 14px;margin-bottom:10px;border:1px solid #BFDBFE}
+.plan-input{border:1.5px solid var(--border);border-radius:8px;padding:5px 8px;font-size:12px;font-family:"Prompt",sans-serif;background:white;width:100%}
 
 /* DASHBOARD */
 #panel-dashboard{padding:12px;display:none}
@@ -244,7 +283,7 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
 .summary-chips{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-bottom:24px}
 .chip{background:var(--light);border:1.5px solid var(--border);border-radius:20px;padding:6px 14px;font-size:13px;color:var(--primary-dark);font-weight:600}
 .btn-again{padding:12px 32px;background:var(--primary);color:white;border:none;border-radius:12px;font-size:15px;font-weight:700;font-family:'Prompt',sans-serif;cursor:pointer}
-#user-id-bar{position:fixed;bottom:56px;left:0;right:0;background:#1F2937;color:#9CA3AF;font-size:10px;padding:4px 10px;z-index:100;display:none}
+#user-id-bar{position:fixed;top:8px;right:8px;left:auto;background:#1F2937;color:#9CA3AF;font-size:10px;padding:3px 10px 3px 8px;border-radius:14px;z-index:1000;display:none;cursor:pointer;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #user-id-bar span{color:#F9FAFB;font-size:10px}
 
 /* COACH VIEW */
@@ -264,14 +303,6 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
 .mode-tag.hand{background:#DBEAFE;color:#1D4ED8}
 .mode-tag.label{background:#D1FAE5;color:#065F46}
 .mode-tag.weigh{background:#FEF3C7;color:#92400E}
-.mode-tag.restaurant{background:#FEE2E2;color:#B91C1C}
-.rest-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:4px}
-.rest-btn{padding:10px 10px;border:1.5px solid #E5E7EB;border-radius:10px;background:#fff;font-family:'Prompt',sans-serif;font-size:12px;font-weight:600;cursor:pointer;text-align:left;transition:.15s;color:var(--text);width:100%}
-.rest-btn:hover{border-color:var(--primary);background:var(--light)}
-.rest-menu-item{display:flex;justify-content:space-between;align-items:flex-start;padding:10px 0;border-bottom:1px solid #F3F4F6;cursor:pointer;transition:.1s;gap:8px}
-.rest-menu-item:last-child{border-bottom:none}
-.rest-menu-item:active,.rest-menu-item:hover{opacity:.8}
-.rest-selected-card{background:#FFF7ED;border:2px solid #FED7AA;border-radius:12px;padding:12px 14px;margin-bottom:0}
 .card-photo{width:100%;max-height:220px;object-fit:cover;border-bottom:1px solid #F3F4F6}
 .card-body{padding:12px 14px}
 .est-chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
@@ -443,6 +474,10 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
 
 <!-- STUDENT VIEW -->
 <div id="student-view">
+  <div id="coach-log-banner" style="display:none;background:var(--primary);color:#fff;padding:10px 16px;font-size:13px;font-family:'Prompt',sans-serif;align-items:center;justify-content:space-between;gap:8px">
+    <span>✍️ บันทึกอาหารของตัวเองค่ะ</span>
+    <button onclick="exitCoachLog()" style="background:rgba(255,255,255,0.2);border:none;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer;font-family:'Prompt',sans-serif;font-size:12px">← กลับ Dashboard</button>
+  </div>
   <div id="test-mode-banner" style="display:none;background:#7C3AED;color:#fff;padding:10px 16px;font-size:13px;font-family:'Prompt',sans-serif;align-items:center;justify-content:space-between;gap:8px">
     <span>🧪 Test Mode — ข้อมูลที่ส่งจะถูก tag ว่าทดสอบ</span>
     <button onclick="exitTestMode()" style="background:rgba(255,255,255,0.2);border:none;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer;font-family:'Prompt',sans-serif;font-size:12px">✕ กลับโค้ช</button>
@@ -454,6 +489,8 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
     <img id="user-pic" class="user-pic" src="" alt="">
   </div>
 
+  <!-- PROGRAM BAR -->
+  <div id="program-bar" class="prog-bar-wrap"></div>
   <!-- DATE STRIP (log mode only) -->
   <div class="date-strip" id="date-strip"></div>
 
@@ -478,12 +515,12 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
     <div class="mode-tabs">
       <div class="mode-tab active" data-mode="hand" onclick="selMode(this)">👊 Hand portion</div>
       <div class="mode-tab" data-mode="label" onclick="selMode(this)">🏷️ ฉลาก</div>
-      <div class="mode-tab" data-mode="weigh" onclick="selMode(this)">⚖️ ชั่ง</div>
-      <div class="mode-tab" data-mode="restaurant" onclick="selMode(this)">🏪 ร้านดัง</div>
+      <div class="mode-tab" data-mode="weigh" onclick="selMode(this)">✨ AI</div>
     </div>
 
     <!-- HAND MODE -->
     <div id="panel-hand">
+      <div id="saved-chips-hand" class="saved-menu-area" style="display:none;margin-bottom:8px"></div>
       <div class="section-card">
         <div class="section-title">ประมาณปริมาณ (ต่อมื้อ)</div>
         <!-- TIP CARD -->
@@ -655,6 +692,7 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
     <!-- LABEL MODE -->
     <div id="panel-label" style="display:none">
       <div class="section-card">
+        <div id="saved-chips-label" class="saved-menu-area" style="display:none"></div>
         <div class="section-title">กรอกข้อมูลจากฉลากโภชนาการ</div>
         <p style="font-size:12px;color:var(--gray);margin-bottom:10px">กรอกค่า <strong>ต่อ 1 หน่วยบริโภค</strong></p>
         <div class="label-grid">
@@ -679,45 +717,12 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
       <div class="section-card">
         <!-- AI mode -->
         <div id="weigh-ai">
-          <div style="font-size:12px;color:var(--gray);margin-bottom:8px">พิมพ์อาหารทั้งหมดที่กิน — ยิ่งระบุปริมาณ/กรัม ยิ่งแม่น 🎯</div>
-          <textarea class="ai-food-textarea" id="ai-food-input" rows="5" placeholder="ตัวอย่าง:&#10;ข้าวกล้อง 2 ทัพพี (180g)&#10;ไข่ดาว 2 ฟอง&#10;หมูสันใน 120g ย่าง&#10;ผักบุ้งผัดน้ำมันน้อย 80g&#10;&#10;หรือเช่น: ข้าวผัดกุ้ง 1 จาน, สลัดไก่ย่าง"></textarea>
+          <div id="saved-chips-weigh" class="saved-menu-area" style="display:none"></div>
+          <div style="font-size:12px;color:var(--gray);margin-bottom:8px">พิมพ์อาหารทั้งหมดที่กิน ไม่ต้องเป๊ะ — AI จะแปลงให้</div>
+          <textarea class="ai-food-textarea" id="ai-food-input" rows="5" placeholder="ตัวอย่าง:&#10;ข้าวกล้อง 2 ทัพพี&#10;ไข่ไก่ 2 ฟอง&#10;หมูสันใน 100g&#10;ผักผัด 60g"></textarea>
           <button class="ai-calc-btn" id="ai-calc-btn" onclick="callGeminiAI()">✨ ให้ AI คำนวณ</button>
           <div id="ai-result-area" style="display:none"></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- RESTAURANT MODE -->
-    <div id="panel-restaurant" style="display:none">
-      <div class="section-card">
-        <!-- Step 1: Restaurant grid -->
-        <div id="rest-step-restaurants">
-          <div class="section-title" style="margin-bottom:12px">🏪 เลือกร้านอาหาร</div>
-          <div class="rest-grid" id="rest-grid"></div>
-          <div style="font-size:11px;color:var(--gray);margin-top:8px;text-align:center">80 เมนู · 10 ร้าน · ข้อมูลทางการและโดยประมาณ</div>
-        </div>
-        <!-- Step 2: Menu list -->
-        <div id="rest-step-menu" style="display:none">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
-            <button onclick="restBack()" style="padding:5px 10px;border:1.5px solid #E5E7EB;border-radius:8px;background:#fff;font-family:'Prompt',sans-serif;font-size:12px;cursor:pointer;color:var(--text)">← กลับ</button>
-            <div style="font-size:14px;font-weight:700;color:var(--text)" id="rest-menu-title"></div>
-          </div>
-          <div id="rest-menu-list"></div>
-        </div>
-      </div>
-      <!-- Selected food card -->
-      <div id="rest-selected-area" style="display:none">
-        <div class="section-card" style="margin-top:12px">
-          <div class="rest-selected-card">
-            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
-              <div>
-                <div style="font-size:10px;color:#B91C1C;font-weight:700;margin-bottom:3px" id="rest-sel-rest"></div>
-                <div style="font-size:14px;font-weight:700;color:var(--text)" id="rest-sel-name"></div>
-              </div>
-              <button onclick="restClearSel()" style="flex-shrink:0;margin-left:8px;width:26px;height:26px;border-radius:50%;border:1.5px solid #FED7AA;background:#fff;font-size:14px;cursor:pointer;color:#B45309;display:flex;align-items:center;justify-content:center;font-weight:700">✕</button>
-            </div>
-            <div id="rest-sel-detail"></div>
-          </div>
+          <button class="btn-save-menu" id="btn-save-weigh" style="display:none" onclick="saveCurrentMenu()">⭐ บันทึกเป็นเมนูโปรด</button>
         </div>
       </div>
     </div>
@@ -763,6 +768,7 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
   </div>
 
   <!-- STUDENT BOTTOM NAV -->
+  <div id="panel-plan" style="display:none;padding:12px"></div>
   <div class="student-nav">
     <button class="nav-tab active" onclick="selStudentTab('log',this)">
       <span class="nav-icon">🍽️</span>Food log
@@ -776,6 +782,9 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
     <button class="nav-tab" onclick="selStudentTab('dashboard',this)">
       <span class="nav-icon">📊</span>Dashboard
     </button>
+    <button class="nav-tab" onclick="selStudentTab('plan',this)">
+      <span class="nav-icon">📋</span>วางแผน
+    </button>
   </div>
 </div>
 
@@ -783,13 +792,14 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
 <div id="success-screen">
   <div class="success-icon">✅</div>
   <h2>ส่งเรียบร้อยแล้วค่ะ!</h2>
-  <p>โค้ชจะตรวจสอบและให้ feedback<br>เร็วๆ นี้ค่ะ</p>
+  <p id="success-msg">โค้ชจะตรวจสอบและให้ feedback<br>เร็วๆ นี้ค่ะ</p>
   <div class="milestone-box" id="milestone-box">
     <div class="mfire">🔥</div>
     <div class="mt" id="milestone-title"></div>
     <div class="ms" id="milestone-sub"></div>
   </div>
   <div class="summary-chips" id="success-chips"></div>
+  <button id="btn-save-success" onclick="saveCurrentMenu()" style="margin-bottom:10px;padding:10px 28px;background:#fff;color:var(--primary-dark);border:2px solid var(--primary);border-radius:12px;font-size:14px;font-weight:600;font-family:'Prompt',sans-serif;cursor:pointer;display:none">⭐ บันทึกเป็นเมนูโปรด</button>
   <button class="btn-again" onclick="resetStudent()">บันทึกมื้อถัดไป</button>
 </div>
 
@@ -806,6 +816,7 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
     </div>
     <div class="coach-tab" data-tab="done" onclick="selCoachTab(this)">อนุมัติแล้ว</div>
     <div class="coach-tab" data-tab="students" onclick="selCoachTab(this)">นักเรียน</div>
+    <div class="coach-tab" data-tab="mylog" onclick="selCoachTab(this)">✍️ บันทึก</div>
   </div>
   <div id="coach-filter-bar" class="coach-filter-bar" style="display:none">
     <button class="cf-btn active" id="cfb-all" onclick="setCoachFilter('all')">ทั้งหมด</button>
@@ -828,7 +839,7 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
   <div id="sd-content"></div>
 </div>
 
-<div id="user-id-bar">LINE ID: <span id="user-id-txt"></span></div>
+<div id="user-id-bar" onclick="var id=document.getElementById('user-id-txt').textContent;navigator.clipboard&&navigator.clipboard.writeText(id).then(function(){showToast('คัดลอก ID แล้ว ✓')});"> 🆔 <span id="user-id-txt"></span> <span onclick="event.stopPropagation();this.parentElement.style.display='none'" style="margin-left:4px;color:#6B7280">✕</span></div>
 
 <script>
 const LIFF_ID = '2010684007-Uw1Ep1pT';
@@ -841,6 +852,9 @@ firebase.initializeApp({
   appId:"1:74004444026:web:218ce2da01b51acc4b5cc3"
 });
 const db = firebase.firestore();
+const storage = firebase.storage();
+// Offline persistence — reload ครั้งที่ 2+ โหลดจาก cache ทันที
+db.enablePersistence({synchronizeTabs:true}).catch(e=>{console.warn('Persistence:',e.code);});
 
 const _REMOVED=[
   {name:'ข้าวขาวสุก',c:28,p:2.7,f:0.3,src:'th'},
@@ -2683,12 +2697,25 @@ const _REMOVED=[
 ];
 
 // STATE
-let user=null, isCoach=false, curMeal='เช้า', curMode='hand', studentTab='log', testMode=false;
+let user=null, isCoach=false, curMeal='เช้า', curMode='hand', studentTab='log', testMode=false, coachLogMode=false;
 let photoBase64=null, coachTab='pending', allSubs=[], cState={};
 let coachFilter='all';
 let studentTodaySubs=[];
+let studentSubsCache=null; // cache submissions ไม่ต้อง query ซ้ำ
+let studentProgramData=null; // program info (start/end/pause)
+let nearEndSentDate=null;  // วันที่ส่ง near-end card แล้ว
 let histCache=null;
-const GROQ_KEY='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';
+let mealPlan=[]; // [{name,c,p,f}] current plan items
+let mealPlanDate=""; // date being planned
+let planAddMode='hand'; // 'hand'|'fill'|'ai'
+let planCookMethod='none'; // 'none'|'stirfry'|'deep'
+let planHandCarbQty=1.5;
+let planHandProtQty=1.0;
+let planAIData=null; // {c,p,f,name} from AI result
+let planHandCarbDensity='normal'; // carb chip selection
+let planHandProtType='lean';      // protein toggle
+let planVisibleFat=0;             // visible fat tsp
+let GROQ_KEY=null; // โหลดจาก Firestore config/app.groqKey (ไม่เก็บใน source code)
 let aiParsedData=null;
 let _photoProcessing=false;
 let selectedDate=todayStr();
@@ -2704,13 +2731,14 @@ let eggWhole=0, eggWhite=0;
 let cookMethod='none', visibleFat=0.0, avoQty=0;
 
 const CARB_D={
-  veggie:{c:2,p:1,f:0,  emoji:'🟢',label:'ผัก', hint:'ผักใบเขียว · บล็อกโคลี · แตงกวา · เห็ด · เส้นบุก · เส้นแก้ว · ผักต่างๆ (กินได้เลย!)'},
-  light: {c:7,p:1,f:0,  emoji:'🔵',label:'เบา', hint:'วุ้นเส้น · โจก · ข้าวต้ม · แผ่นแป้งเวียดนาม (≈ ½ ทัพพี)'},
-  normal:{c:16,p:2,f:0.3,emoji:'🟡',label:'ปกติ',hint:'ข้าวสวย · ข้าวกล้อง · มันต้ม · เส้นเล็ก · เส้นหมี่ · กล้วย 1 ลูก · ขนมปัง 1 แผ่น'},
+  veggie:{c:2, p:1,f:0,  emoji:'🟢',label:'ผัก', hint:'ผักใบเขียว · บล็อกโคลี · แตงกวา · เห็ด · เส้นบุก · เส้นแก้ว · ผักต่างๆ (กินได้เลย!)'},
+  light: {c:7, p:1,f:0,  emoji:'🔵',label:'เบา', hint:'วุ้นเส้น · โจก · ข้าวต้ม · แผ่นแป้งเวียดนาม (≈ ½ ทัพพี)'},
+  normal:{c:15,p:2,f:0,  emoji:'🟡',label:'ปกติ',hint:'ข้าวสวย · ข้าวกล้อง · มันต้ม · เส้นเล็ก · เส้นหมี่ · กล้วย 1 ลูก · ขนมปัง 1 แผ่น'},
   dense: {c:20,p:2,f:0.5,emoji:'🟠',label:'แน่น',hint:'พาสต้า · ธัญพืช · ข้าวโอ๊ต (แห้ง) ⚠️ (นับ 1.2–1.5 ทัพพี)'},
   heavy: {c:34,p:3,f:1,  emoji:'🔴',label:'ตัวตึง',hint:'ข้าวเหนียว · เส้นใหญ่ · บะหมี่กึ่งฯ · บะหมี่เหลือง ⚠️ (นับ 2–4 ทัพพี!)'}
 };
-const PROT_T={lean:{c:0,p:25,f:3},semilean:{c:0,p:20,f:12}};
+// lean=อกไก่/ปลาขาว/กุ้ง/ทูน่า ~90g cooked; semilean=ไก่มีหนัง/แซลมอน/เนื้อวัว ~90g cooked
+const PROT_T={lean:{c:0,p:28,f:3},semilean:{c:0,p:22,f:14}};
 const COOK_M={none:{f:0},stirfry:{f:10},deep:{f:20}};
 const EGG_W={c:0.6,p:6,f:5};
 const EGG_WH={c:0,p:3.6,f:0};
@@ -2745,10 +2773,6 @@ const TH_MONTHS=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','�
 const TH_DAYS=['อา','จ','อ','พ','พฤ','ศ','ส'];
 const TARGETS={kcal:1600,c:160,p:120,f:55};
 const STREAK_MILESTONES=[3,7,14,21,30];
-const RESTAURANT_DB=[{"id":"mcdonalds-big-mac","r":"McDonald's","rid":"mcdonalds","th":"บิ๊กแมค","srv":"1 ชิ้น (7.5 oz)","kcal":540,"c":47,"p":25,"f":28,"src":"official"},{"id":"mcdonalds-quarter-pounder-w-cheese","r":"McDonald's","rid":"mcdonalds","th":"ควอเตอร์พาวเดอร์ชีส","srv":"1 ชิ้น","kcal":540,"c":42,"p":31,"f":28,"src":"official"},{"id":"mcdonalds-mcchicken","r":"McDonald's","rid":"mcdonalds","th":"แมคชิคเก้น","srv":"1 ชิ้น","kcal":370,"c":40,"p":14,"f":17,"src":"official"},{"id":"mcdonalds-filet-o-fish","r":"McDonald's","rid":"mcdonalds","th":"ฟิเลโอฟิช","srv":"1 ชิ้น","kcal":390,"c":39,"p":15,"f":19,"src":"official"},{"id":"mcdonalds-chicken-mcnuggets-6-pc","r":"McDonald's","rid":"mcdonalds","th":"แมคนักเก็ต 6 ชิ้น","srv":"6 ชิ้น","kcal":280,"c":18,"p":13,"f":18,"src":"official"},{"id":"mcdonalds-cheeseburger","r":"McDonald's","rid":"mcdonalds","th":"ชีสเบอร์เกอร์","srv":"1 ชิ้น","kcal":300,"c":33,"p":15,"f":12,"src":"official"},{"id":"mcdonalds-hamburger","r":"McDonald's","rid":"mcdonalds","th":"แฮมเบอร์เกอร์","srv":"1 ชิ้น","kcal":250,"c":32,"p":15,"f":8,"src":"official"},{"id":"mcdonalds-egg-mcmuffin","r":"McDonald's","rid":"mcdonalds","th":"เอ้กแมคมัฟฟิน","srv":"1 ชิ้น","kcal":300,"c":31,"p":17,"f":13,"src":"official"},{"id":"mcdonalds-french-fries-small","r":"McDonald's","rid":"mcdonalds","th":"เฟรนช์ฟรายส์ (เล็ก)","srv":"เล็ก","kcal":230,"c":30,"p":4,"f":11,"src":"official"},{"id":"mcdonalds-french-fries-medium","r":"McDonald's","rid":"mcdonalds","th":"เฟรนช์ฟรายส์ (กลาง)","srv":"กลาง","kcal":340,"c":44,"p":4,"f":16,"src":"official"},{"id":"mcdonalds-hot-fudge-sundae","r":"McDonald's","rid":"mcdonalds","th":"ฮอตฟัดจ์ซันเด","srv":"1 ถ้วย","kcal":330,"c":53,"p":8,"f":9,"src":"official"},{"id":"kfc-original-recipe-breast","r":"KFC","rid":"kfc","th":"ไก่ออริจินัล อกไก่","srv":"1 ชิ้น","kcal":290,"c":8,"p":35,"f":13,"src":"official"},{"id":"kfc-original-recipe-thigh","r":"KFC","rid":"kfc","th":"ไก่ออริจินัล สะโพก","srv":"1 ชิ้น","kcal":220,"c":6,"p":15,"f":15,"src":"official"},{"id":"kfc-original-recipe-drumstick","r":"KFC","rid":"kfc","th":"ไก่ออริจินัล น่อง","srv":"1 ชิ้น","kcal":140,"c":2,"p":15,"f":8,"src":"official"},{"id":"kfc-original-recipe-wing","r":"KFC","rid":"kfc","th":"ไก่ออริจินัล ปีก","srv":"1 ชิ้น","kcal":160,"c":4,"p":14,"f":9,"src":"official"},{"id":"kfc-hot-wings-5-pc","r":"KFC","rid":"kfc","th":"ฮอตวิงส์ 5 ชิ้น","srv":"5 ชิ้น","kcal":380,"c":15,"p":27,"f":24,"src":"official"},{"id":"kfc-popcorn-chicken-small","r":"KFC","rid":"kfc","th":"ป๊อปคอร์นไก่ (เล็ก)","srv":"เล็ก","kcal":370,"c":26,"p":19,"f":21,"src":"official"},{"id":"kfc-popcorn-chicken-large","r":"KFC","rid":"kfc","th":"ป๊อปคอร์นไก่ (ใหญ่)","srv":"ใหญ่","kcal":1000,"c":71,"p":52,"f":57,"src":"official"},{"id":"kfc-zinger-sandwich","r":"KFC","rid":"kfc","th":"ซิงเกอร์เบอร์เกอร์","srv":"1 ชิ้น","kcal":640,"c":59,"p":25,"f":35,"src":"official"},{"id":"kfc-crispy-strips-3-pc","r":"KFC","rid":"kfc","th":"คริสปี้สตริป 3 ชิ้น","srv":"3 ชิ้น","kcal":330,"c":21,"p":27,"f":15,"src":"official"},{"id":"kfc-seasoned-fries-medium","r":"KFC","rid":"kfc","th":"เฟรนช์ฟรายส์ปรุงรส (กลาง)","srv":"กลาง","kcal":850,"c":124,"p":15,"f":35,"src":"official"},{"id":"starbucks-caffe-latte","r":"Starbucks","rid":"starbucks","th":"คาเฟ่ลาเต้","srv":"Grande 16oz","kcal":190,"c":19,"p":13,"f":7,"src":"estimated"},{"id":"starbucks-cappuccino","r":"Starbucks","rid":"starbucks","th":"คาปูชิโน","srv":"Grande 16oz","kcal":140,"c":14,"p":10,"f":5,"src":"estimated"},{"id":"starbucks-caramel-macchiato","r":"Starbucks","rid":"starbucks","th":"คาราเมลมัคคิอาโต","srv":"Grande 16oz","kcal":250,"c":34,"p":10,"f":7,"src":"estimated"},{"id":"starbucks-caffe-americano","r":"Starbucks","rid":"starbucks","th":"อเมริกาโน","srv":"Grande 16oz","kcal":15,"c":3,"p":1,"f":0,"src":"estimated"},{"id":"starbucks-caffe-mocha-w-whip","r":"Starbucks","rid":"starbucks","th":"คาเฟ่มอคค่า (วิปครีม)","srv":"Grande 16oz","kcal":360,"c":47,"p":12,"f":14,"src":"estimated"},{"id":"starbucks-white-chocolate-mocha","r":"Starbucks","rid":"starbucks","th":"ไวท์ช็อกโกแลตมอคค่า","srv":"Grande 16oz","kcal":430,"c":53,"p":12,"f":18,"src":"estimated"},{"id":"starbucks-java-chip-frappuccino","r":"Starbucks","rid":"starbucks","th":"จาวาชิพแฟรบปูชิโน","srv":"Grande 16oz","kcal":440,"c":63,"p":5,"f":19,"src":"estimated"},{"id":"starbucks-caramel-frappuccino","r":"Starbucks","rid":"starbucks","th":"คาราเมลแฟรบปูชิโน","srv":"Grande 16oz","kcal":380,"c":54,"p":4,"f":16,"src":"estimated"},{"id":"starbucks-pike-place-brewed-coffee","r":"Starbucks","rid":"starbucks","th":"ไพค์เพลสกาแฟดำ","srv":"Grande 16oz","kcal":5,"c":0,"p":1,"f":0,"src":"estimated"},{"id":"subway-turkey-breast","r":"Subway","rid":"subway","th":"เทอร์กี้เบรสต์","srv":"6-inch","kcal":280,"c":46,"p":18,"f":3.5,"src":"official"},{"id":"subway-sweet-onion-chicken-teriyaki","r":"Subway","rid":"subway","th":"ไก่เทอริยากิ","srv":"6-inch","kcal":370,"c":57,"p":25,"f":4.5,"src":"official"},{"id":"subway-tuna","r":"Subway","rid":"subway","th":"ทูน่า","srv":"6-inch","kcal":480,"c":44,"p":20,"f":25,"src":"official"},{"id":"subway-veggie-delite","r":"Subway","rid":"subway","th":"เวจจี้ดีไลท์","srv":"6-inch","kcal":230,"c":44,"p":8,"f":2.5,"src":"official"},{"id":"subway-italian-b-m-t","r":"Subway","rid":"subway","th":"อิตาเลียน บี.เอ็ม.ที.","srv":"6-inch","kcal":410,"c":46,"p":20,"f":16,"src":"official"},{"id":"subway-black-forest-ham","r":"Subway","rid":"subway","th":"แฮมป่าดำ","srv":"6-inch","kcal":290,"c":46,"p":18,"f":4.5,"src":"official"},{"id":"subway-oven-roasted-chicken","r":"Subway","rid":"subway","th":"อกไก่อบ","srv":"6-inch","kcal":320,"c":45,"p":23,"f":5,"src":"official"},{"id":"subway-meatball-marinara","r":"Subway","rid":"subway","th":"มีตบอลมารินารา","srv":"6-inch","kcal":480,"c":59,"p":21,"f":18,"src":"official"},{"id":"subway-steak-cheese","r":"Subway","rid":"subway","th":"สเต๊กแอนด์ชีส","srv":"6-inch","kcal":380,"c":48,"p":26,"f":10,"src":"official"},{"id":"sushiro-salmon-nigiri","r":"Sushiro","rid":"sushiro","th":"แซลมอน","srv":"1 จาน","kcal":91,"c":12.6,"p":5.2,"f":2.5,"src":"estimated"},{"id":"sushiro-premium-lean-bluefin-tuna-nigiri","r":"Sushiro","rid":"sushiro","th":"ทูน่าติดมันพรีเมียม","srv":"1 จาน","kcal":79,"c":9.2,"p":8.6,"f":0.6,"src":"estimated"},{"id":"sushiro-skipjack-tuna-nigiri","r":"Sushiro","rid":"sushiro","th":"โบนิโต (คัตสึโอะ)","srv":"1 จาน","kcal":83,"c":9,"p":9,"f":1,"src":"estimated"},{"id":"sushiro-large-shrimp-nigiri","r":"Sushiro","rid":"sushiro","th":"กุ้งใหญ่","srv":"1 จาน","kcal":46,"c":5.6,"p":4,"f":0.3,"src":"estimated"},{"id":"sushiro-hamachi-nigiri","r":"Sushiro","rid":"sushiro","th":"ฮามาจิ (หางเหลือง)","srv":"1 จาน","kcal":99,"c":9.7,"p":5.7,"f":4,"src":"estimated"},{"id":"sushiro-salmon-avocado-roll","r":"Sushiro","rid":"sushiro","th":"แซลมอนอโวคาโดโรล","srv":"1 จาน","kcal":140,"c":16,"p":5.3,"f":6.3,"src":"estimated"},{"id":"sushiro-shrimp-fry-avocado-roll","r":"Sushiro","rid":"sushiro","th":"กุ้งชุบแป้งทอดอโวคาโดโรล","srv":"1 จาน","kcal":136,"c":18.7,"p":4.5,"f":5,"src":"estimated"},{"id":"sushiro-shrimp-tempura-nigiri","r":"Sushiro","rid":"sushiro","th":"กุ้งเทมปุระ","srv":"1 จาน","kcal":142,"c":17,"p":5.5,"f":5.8,"src":"estimated"},{"id":"sushiro-salmon-belly-gunkan","r":"Sushiro","rid":"sushiro","th":"ท้องแซลมอนกุนคัง","srv":"1 จาน","kcal":114,"c":14.4,"p":5.7,"f":3.6,"src":"estimated"},{"id":"sushiro-chawanmushi","r":"Sushiro","rid":"sushiro","th":"ไข่ตุ๋นชาวันมูชิ","srv":"1 ถ้วย","kcal":77,"c":4.2,"p":6.5,"f":3.8,"src":"estimated"},{"id":"sushiro-miso-soup","r":"Sushiro","rid":"sushiro","th":"ซุปมิโสะ","srv":"1 ถ้วย","kcal":48,"c":6.5,"p":2.5,"f":0.8,"src":"estimated"},{"id":"ohkajhu-carrot-flour-wrap-sheet-wrapper-only","r":"Ohkajhu (โอ้กะจู๋)","rid":"ohkajhu","th":"แผ่นแป้งแรปแครอท (เฉพาะแผ่น)","srv":"1 แผ่น ~93g","kcal":267,"c":43,"p":8.1,"f":5.8,"src":"estimated"},{"id":"ohkajhu-vegetable-wrap-sheet-wrapper-only","r":"Ohkajhu (โอ้กะจู๋)","rid":"ohkajhu","th":"แผ่นแป้งแรปผัก (เฉพาะแผ่น)","srv":"1 แผ่น ~93g","kcal":279,"c":44.2,"p":8.1,"f":8.1,"src":"estimated"},{"id":"sizzler-the-sizzler-steak","r":"Sizzler","rid":"sizzler","th":"เดอะซิซซ์เลอร์สเต๊ก","srv":"1 ที่","kcal":588,"c":1,"p":70,"f":32,"src":"estimated"},{"id":"sizzler-grilled-salmon","r":"Sizzler","rid":"sizzler","th":"แซลมอนย่าง","srv":"6 oz","kcal":304,"c":0.4,"p":34,"f":19,"src":"estimated"},{"id":"sizzler-cilantro-lime-barramundi","r":"Sizzler","rid":"sizzler","th":"ปลากะพงซิลานโตรไลม์","srv":"1 ที่ (ไม่รวมเครื่องเคียง)","kcal":450,"c":34,"p":51,"f":17,"src":"estimated"},{"id":"sizzler-chicken-breast-w-bbq","r":"Sizzler","rid":"sizzler","th":"อกไก่ย่างบาร์บีคิว","srv":"7 oz","kcal":220,"c":8,"p":41,"f":2,"src":"estimated"},{"id":"sizzler-cheese-toast","r":"Sizzler","rid":"sizzler","th":"ขนมปังชีส","srv":"1 แผ่น","kcal":290,"c":22,"p":6,"f":19,"src":"estimated"},{"id":"sizzler-garlic-mashed-potatoes","r":"Sizzler","rid":"sizzler","th":"มันบดกระเทียม","srv":"1 ที่","kcal":200,"c":39,"p":3,"f":4,"src":"estimated"},{"id":"sizzler-baked-potato","r":"Sizzler","rid":"sizzler","th":"มันอบ","srv":"1 หัว","kcal":510,"c":55,"p":5,"f":30,"src":"estimated"},{"id":"sizzler-french-fries","r":"Sizzler","rid":"sizzler","th":"เฟรนช์ฟรายส์","srv":"7 oz","kcal":500,"c":52,"p":5,"f":31,"src":"estimated"},{"id":"sizzler-steamed-broccoli","r":"Sizzler","rid":"sizzler","th":"บร็อคโคลีนึ่ง","srv":"1 ที่","kcal":40,"c":7,"p":4,"f":0,"src":"estimated"},{"id":"sizzler-side-salad","r":"Sizzler","rid":"sizzler","th":"ไซด์สลัด","srv":"1 ที่","kcal":70,"c":15,"p":3,"f":2,"src":"estimated"},{"id":"starbucks-ham-cheese-croissant","r":"Starbucks","rid":"starbucks","th":"ครัวซองต์แฮมชีส","srv":"1 ชิ้น","kcal":320,"c":28,"p":14,"f":17,"src":"estimated"},{"id":"starbucks-butter-croissant","r":"Starbucks","rid":"starbucks","th":"ครัวซองต์เนย","srv":"1 ชิ้น","kcal":260,"c":27,"p":5,"f":15,"src":"estimated"},{"id":"starbucks-chocolate-croissant","r":"Starbucks","rid":"starbucks","th":"ครัวซองต์ช็อกโกแลต","srv":"1 ชิ้น","kcal":340,"c":38,"p":5,"f":20,"src":"estimated"},{"id":"starbucks-bacon-gouda-egg-sandwich","r":"Starbucks","rid":"starbucks","th":"แซนด์วิชเบคอนโกดาไข่","srv":"116 g","kcal":370,"c":33,"p":18,"f":18,"src":"estimated"},{"id":"starbucks-birthday-cake-pop","r":"Starbucks","rid":"starbucks","th":"เค้กป็อปวันเกิด","srv":"43 g","kcal":170,"c":23,"p":1,"f":9,"src":"estimated"},{"id":"starbucks-chocolate-chunk-cookie","r":"Starbucks","rid":"starbucks","th":"คุกกี้ช็อกชังก์","srv":"80 g","kcal":360,"c":47,"p":6,"f":18,"src":"estimated"},{"id":"burger-king-whopper-no-cheese","r":"Burger King","rid":"burger-king","th":"วอปเปอร์ (ไม่ใส่ชีส)","srv":"1 ชิ้น","kcal":678,"c":54,"p":31,"f":37,"src":"estimated"},{"id":"burger-king-cheeseburger","r":"Burger King","rid":"burger-king","th":"ชีสเบอร์เกอร์","srv":"1 ชิ้น","kcal":290,"c":31,"p":15,"f":13,"src":"estimated"},{"id":"burger-king-chicken-nuggets-8-pc","r":"Burger King","rid":"burger-king","th":"ชิคเก้นนักเก็ต 8 ชิ้น","srv":"8 ชิ้น","kcal":390,"c":23,"p":18,"f":25,"src":"estimated"},{"id":"burger-king-french-fries-medium","r":"Burger King","rid":"burger-king","th":"เฟรนช์ฟรายส์ (กลาง)","srv":"153 g","kcal":370,"c":54,"p":5,"f":16,"src":"estimated"},{"id":"pizza-hut-hawaiian","r":"Pizza Hut","rid":"pizza-hut","th":"ฮาวายเอี้ยน","srv":"1 ชิ้น (สี่เหลี่ยม)","kcal":240,"c":31,"p":10,"f":9,"src":"estimated"},{"id":"pizza-hut-pepperoni","r":"Pizza Hut","rid":"pizza-hut","th":"เปปเปอโรนี","srv":"1 ชิ้น (แป้งกลาง)","kcal":220,"c":25,"p":9,"f":9,"src":"estimated"},{"id":"pizza-hut-supreme","r":"Pizza Hut","rid":"pizza-hut","th":"ซูพรีม","srv":"1 ชิ้น (แป้งกลาง)","kcal":230,"c":26,"p":10,"f":9,"src":"estimated"},{"id":"pizza-hut-garlic-bread","r":"Pizza Hut","rid":"pizza-hut","th":"ขนมปังกระเทียม","srv":"1 ชิ้น","kcal":190,"c":29,"p":5,"f":6,"src":"estimated"},{"id":"bonchon-soy-garlic-wings-8-pc","r":"Bonchon","rid":"bonchon","th":"ปีกไก่ซอสโชยุกระเทียม 8 ชิ้น","srv":"8 ชิ้น","kcal":680,"c":14,"p":45,"f":43,"src":"estimated"},{"id":"bonchon-soy-garlic-wings-10-pc","r":"Bonchon","rid":"bonchon","th":"ปีกไก่ซอสโชยุกระเทียม 10 ชิ้น","srv":"10 ชิ้น","kcal":850,"c":18,"p":56,"f":54,"src":"estimated"},{"id":"bonchon-spicy-wings-8-pc","r":"Bonchon","rid":"bonchon","th":"ปีกไก่เผ็ด 8 ชิ้น","srv":"8 ชิ้น","kcal":740,"c":27,"p":47,"f":47,"src":"estimated"},{"id":"bonchon-soy-garlic-drumsticks-4-pc","r":"Bonchon","rid":"bonchon","th":"น่องไก่ซอสโชยุ 4 ชิ้น","srv":"4 ชิ้น","kcal":541,"c":18,"p":50,"f":29,"src":"estimated"}];
-const FOOD_MAP=Object.fromEntries(RESTAURANT_DB.map(f=>[f.id,f]));
-const REST_META={'mcdonalds':{name:"McDonald's",emoji:'🍔'},'kfc':{name:'KFC',emoji:'🍗'},'sizzler':{name:'Sizzler',emoji:'🥗'},'subway':{name:'Subway',emoji:'🥪'},'starbucks':{name:'Starbucks',emoji:'☕'},'sushiro':{name:'Sushiro',emoji:'🍣'},'burger-king':{name:'Burger King',emoji:'🍟'},'pizza-hut':{name:'Pizza Hut',emoji:'🍕'},'bonchon':{name:'Bonchon',emoji:'🍗'},'ohkajhu':{name:'Ohkajhu (โอ้กะจู๋)',emoji:'🥗'}};
-let selRestId=null, selFood=null;
 
 function calcStreak(subs){
   const dates=new Set(subs.map(s=>subDate(s)));
@@ -2776,21 +2800,15 @@ function getWeekDots(subs){
   return dots;
 }
 
-async function loadStreak(){
-  try{
-    const snap=await db.collection('submissions').where('userId','==',user.userId).limit(60).get();
-    const subs=snap.docs.map(d=>({id:d.id,...d.data()}));
-    const streak=calcStreak(subs);
-    const pill=document.getElementById('streak-pill');
-    if(streak>0){
-      pill.innerHTML=`🔥 ${streak} วันติด`;
-      pill.style.display='flex';
-    }
-  }catch(e){console.log('streak load err',e);}
+function renderStreak(){
+  const streak=calcStreak(studentSubsCache||[]);
+  const pill=document.getElementById('streak-pill');
+  if(streak>0){pill.innerHTML=`🔥 ${streak} วันติด`;pill.style.display='flex';}
+  else{pill.style.display='none';}
 }
 
 // DATE HELPERS
-function todayStr(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function todayStr(){const d=new Date();const pad=n=>String(n).padStart(2,'0');return`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;}
 function formatDateTH(str){
   if(!str)return'';
   const [y,m,d]=str.split('-');
@@ -2809,6 +2827,10 @@ function subDate(s){
 }
 
 // INIT
+const CACHE_KEY='doitfit_user_v1';
+function getCachedUser(){try{return JSON.parse(localStorage.getItem(CACHE_KEY)||'null');}catch{return null;}}
+function setCachedUser(u){try{localStorage.setItem(CACHE_KEY,JSON.stringify({userId:u.userId,displayName:u.displayName,pictureUrl:u.pictureUrl||'',isCoach:isCoach}));}catch{}}
+
 async function init(){
   const debugParam=new URLSearchParams(window.location.search).get('debug');
   if(debugParam==='student'||debugParam==='coach'){
@@ -2818,6 +2840,29 @@ async function init(){
     isCoach?startCoach():startStudent();
     return;
   }
+
+  // ⚡ Fast-path: ถ้ามี cache → เปิด UI ทันที แล้วค่อย refresh profile ใน background
+  const cached=getCachedUser();
+  if(cached){
+    user={userId:cached.userId,displayName:cached.displayName,pictureUrl:cached.pictureUrl||''};
+    isCoach=cached.isCoach||['Ud83289516016ac0d07ac9394bfd6137a','U105e1c5b5d6d2dc54d07d1de16ec4939'].includes(user.userId);
+    document.getElementById('loading').style.display='none';
+    isCoach?startCoach():startStudent();
+    // refresh profile ใน background (ไม่ block UI)
+    liff.init({liffId:LIFF_ID}).then(()=>{
+      if(!liff.isLoggedIn())return;
+      return liff.getProfile().then(p=>{
+        user=p;
+        db.collection('coaches').doc(p.userId).get().then(d=>{
+          isCoach=d.exists||['Ud83289516016ac0d07ac9394bfd6137a','U105e1c5b5d6d2dc54d07d1de16ec4939'].includes(p.userId);
+          setCachedUser(p);
+        }).catch(()=>{});
+      });
+    }).catch(()=>{});
+    return;
+  }
+
+  // First visit — normal flow
   try{
     await liff.init({liffId:LIFF_ID});
     if(!liff.isLoggedIn()){liff.login();return;}
@@ -2825,6 +2870,7 @@ async function init(){
     user=profile;
     const coachDoc=await db.collection('coaches').doc(user.userId).get();
     isCoach=coachDoc.exists||['Ud83289516016ac0d07ac9394bfd6137a','U105e1c5b5d6d2dc54d07d1de16ec4939'].includes(user.userId);
+    setCachedUser(user);
     document.getElementById('loading').style.display='none';
     isCoach?startCoach():startStudent();
   }catch(e){
@@ -2839,35 +2885,49 @@ function startStudent(){
   if(user.pictureUrl){pic.src=user.pictureUrl;}else{pic.style.display='none';}
   document.getElementById('user-id-bar').style.display='block';
   document.getElementById('user-id-txt').textContent=user.userId;
-  loadStreak();
   renderCarbSlots();
   initFruitGrid();
   updateHandSummary();
   buildDateStrip();
-  loadStudentTargets(); // โหลด target จริงจาก Firestore
-  loadTodayProgress(); // โหลด progress bar
+  loadStudentData(); // โหลด submissions + targets + savedMenus ในรอบเดียว
+}
+async function loadStudentData(){
+  try{
+    const [snap,td,savedSnap,cfgSnap]=await Promise.all([
+      db.collection('submissions').where('userId','==',user.userId).limit(30).get(),
+      db.collection('students').doc(user.userId).get().catch(()=>null),
+      db.collection('users').doc(user.userId).collection('savedMenus').limit(12).get().catch(()=>null),
+      db.collection('config').doc('app').get().catch(()=>null)
+    ]);
+    if(cfgSnap&&cfgSnap.exists)GROQ_KEY=cfgSnap.data().groqKey||null;
+    // sort client-side + ลบ photoBase64 ออกจาก RAM (ยังใช้ photoUrl แทนได้)
+    studentSubsCache=snap.docs.map(d=>{const dat=d.data();delete dat.photoBase64;return{id:d.id,...dat};}).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
+    applyTargets(td);
+    if(td&&td.exists){const d=td.data();studentProgramData={programStart:d.programStart||'',programWeeks:d.programWeeks||12,pausedDays:d.pausedDays||0,isPaused:d.isPaused||false,discountCode:d.discountCode||'',discountPercent:d.discountPercent||0};}
+    if(savedSnap){savedMenusCache=savedSnap.docs.map(d=>({id:d.id,...d.data()}));}
+    renderStreak();
+    renderTodayProgress();
+    refreshAllChips();
+    renderProgramBar();
+    checkNearEnd();
+    checkCoachComments();
+  }catch(e){console.log('loadStudentData err',e);}
 }
 
-async function loadStudentTargets(){
-  try{
-    const doc=await db.collection('students').doc(user.userId).get();
-    if(doc.exists&&doc.data().targets){
-      const t=doc.data().targets;
-      if(t.kcal)TARGETS.kcal=t.kcal;
-      if(t.c)TARGETS.c=t.c;
-      if(t.p)TARGETS.p=t.p;
-      if(t.f)TARGETS.f=t.f;
-    }
-  }catch(e){console.log('target load err',e);}
+function applyTargets(doc){
+  if(doc&&doc.exists&&doc.data().targets){
+    const t=doc.data().targets;
+    if(t.kcal)TARGETS.kcal=t.kcal;
+    if(t.c)TARGETS.c=t.c;
+    if(t.p)TARGETS.p=t.p;
+    if(t.f)TARGETS.f=t.f;
+  }
 }
 
-async function loadTodayProgress(){
-  try{
-    const today=todayStr();
-    const snap=await db.collection('submissions').where('userId','==',user.userId).limit(50).get();
-    studentTodaySubs=snap.docs.map(d=>({id:d.id,...d.data()})).filter(s=>subDate(s)===today);
-    renderDailyProgress();
-  }catch(e){console.log('progress load err',e);}
+function renderTodayProgress(){
+  const today=todayStr();
+  studentTodaySubs=(studentSubsCache||[]).filter(s=>subDate(s)===today);
+  renderDailyProgress();
 }
 function renderDailyProgress(){
   const bar=document.getElementById('daily-progress');
@@ -2895,6 +2955,11 @@ function selStudentTab(tab, el){
   document.getElementById('panel-history').style.display=tab==='history'?'block':'none';
   document.getElementById('panel-health').style.display=tab==='health'?'block':'none';
   document.getElementById('panel-dashboard').style.display=tab==='dashboard'?'block':'none';
+  document.getElementById('panel-plan').style.display=tab==='plan'?'block':'none';
+  if(tab==='plan'){
+    if(!savedMenusCache)loadSavedMenus().then(()=>renderPlanPanel());
+    renderPlanPanel();loadPlanFromFirestore();
+  }
   document.getElementById('submit-wrap').style.display=tab==='log'?'block':'none';
   if(tab==='history')loadHistory();
   if(tab==='dashboard')loadDashboard();
@@ -3336,8 +3401,6 @@ function selMode(tab){
   document.getElementById('panel-hand').style.display=curMode==='hand'?'block':'none';
   document.getElementById('panel-label').style.display=curMode==='label'?'block':'none';
   document.getElementById('panel-weigh').style.display=curMode==='weigh'?'block':'none';
-  document.getElementById('panel-restaurant').style.display=curMode==='restaurant'?'block':'none';
-  if(curMode==='restaurant')renderRestGrid();
 }
 
 // HAND MODE — collapsible sections + dynamic carb slots
@@ -3516,96 +3579,60 @@ function getLabelData(){
   return{carb:c*s,protein:p*s,fat:f*s};
 }
 
+// === THAI FOOD NUTRITION DATABASE (USDA FoodData Central + Thai FCD Mahidol) — 126 items ===
+const THAI_FOOD_DB=[["ข้าวสวย","1 ทัพพี 45g",15,2,0,68],["ข้าวกล้อง","1 ทัพพี 45g",14,2,0.5,68],["ข้าวเหนียว","1 ทัพพี 60g",25,2,0,108],["ข้าวต้ม","1 ชาม 250ml",18,2,0,80],["โจก","1 ชาม 250ml",16,3,1,85],["เส้นหมี่","1 ทัพพี 60g",25,2,0,108],["เส้นเล็ก","1 ทัพพี 60g",26,2,0,112],["เส้นใหญ่","1 ทัพพี 60g",30,2,0,128],["บะหมี่","1 ก้อน 60g",24,4,1,121],["วุ้นเส้น","1 ทัพพี 60g",22,0,0,88],["มักกะโรนี","1 ทัพพี 60g",25,4,1,125],["ขนมปังขาว","1 แผ่น 30g",15,2.5,1,79],["ขนมปังโฮลวีต","1 แผ่น 30g",13,3,1,73],["มันต้ม","1 หัวกลาง 150g",26,3,0,117],["มันเทศต้ม","1 ถ้วย 150g",29,2,0,124],["เผือกต้ม","1 ถ้วย 120g",23,2,0,100],["ข้าวโพดต้ม","1 ฝัก 160g",29,5,2,154],["ข้าวโอ๊ตดิบ","3 ช้อนโต๊ะ 30g",20,4,3,122],["ฟักทองนึ่ง","1 ถ้วย 120g",12,2,0,56],["อกไก่ต้ม","1 ฝ่ามือ 90g",0,28,3,139],["อกไก่ย่าง","1 ฝ่ามือ 90g",0,29,3,143],["ไก่ต้มไม่มีหนัง","1 ฝ่ามือ 90g",0,24,5,141],["ปลาแซลมอน","1 ชิ้น 100g",0,20,13,197],["ปลาทูน่า","1/2 กระป๋อง 80g",0,22,1,97],["ปลาทะเลนึ่ง","1 ชิ้น 100g",0,20,3,107],["ปลาทูทอด","1 ตัวกลาง 80g",0,19,14,202],["ปลาดุกย่าง","1 ชิ้น 100g",0,18,5,117],["กุ้งต้ม","10 ตัวกลาง 90g",0,22,1,97],["กุ้งทอด","10 ตัว 90g",8,18,8,176],["ปู","1/2 ตัว 90g",0,18,1,83],["หมูสันใน","1 ฝ่ามือ 90g",0,26,6,158],["หมูสับผัด","1 ฝ่ามือ 90g",0,22,16,234],["เนื้อวัวย่าง","1 ฝ่ามือ 90g",0,26,12,216],["เต้าหู้แข็ง","1/2 ก้อน 100g",2,8,4,76],["เต้าหู้ทอด","100g",4,12,12,172],["ไข่ต้ม","1 ฟอง 50g",1,6,5,68],["ไข่ดาว","1 ฟอง 50g",0.4,6,7,82],["ไข่เจียว","1 ฟอง 60g",1,7,10,120],["ลูกชิ้นหมู","5 ลูก 80g",8,14,6,142],["ไก่มีหนัง","1 ฝ่ามือ 90g",0,22,14,218],["หมูสามชั้น","1 ฝ่ามือ 90g",0,15,28,314],["เนื้อวัวสับ","1 ฝ่ามือ 90g",0,22,17,245],["ผักบุ้งลวก","1 ถ้วย 100g",4,3,0.5,32],["บร็อคโคลีนึ่ง","1 ถ้วย 100g",7,3,0.5,35],["แตงกวา","1/2 ผล 100g",4,1,0,16],["มะเขือเทศ","1 ลูกกลาง 120g",5,1,0,22],["กะหล่ำปลี","1 ถ้วย 90g",5,1,0,23],["แครอท","1 หัว 80g",9,1,0,40],["ผักกาดขาว","1 ถ้วย 70g",2,1,0,12],["เห็ดหอม","5 ดอก 70g",8,2,0.5,44],["ถั่วลันเตา","1 ถ้วย 100g",8,3,0.5,42],["หน่อไม้ฝรั่ง","5 ต้น 75g",3,2,0.5,20],["น้ำมันพืช","1 ช้อนชา 5g",0,0,5,44],["เนย","1 ช้อนชา 5g",0,0,4,36],["กะทิ","1/4 ถ้วย 60ml",3,1,13,130],["อะโวคาโด","1/4 ลูก 50g",4,1,8,88],["ถั่วลิสง","1 ช้อนโต๊ะ 15g",4,4,7,96],["น้ำมันปลา","1 ช้อนโต๊ะ 18g",1,0,0,5],["น้ำตาลทราย","1 ช้อนชา 5g",5,0,0,20],["น้ำพริกเผา","1 ช้อนโต๊ะ 16g",5,1,3,49],["ผักบุ้งไฟแดง","1 จาน 150g",8,3,10,130],["บร็อคโคลีหมูผัด","1 จาน 200g",8,18,10,190],["ผักรวมผัดน้ำมันหอย","1 จาน 200g",10,6,8,132],["หมูกระเพรา","1 จาน 150g",5,22,14,230],["ไก่กระเพรา","1 จาน 150g",5,24,10,206],["กระเพราไข่ดาว (ไม่มีข้าว)","200g",6,22,20,284],["แกงเขียวหวานไก่","1 ถ้วย 250ml",15,22,18,302],["แกงเผ็ดหมู","1 ถ้วย 250ml",12,20,18,284],["แกงมัสมั่น","1 ถ้วย 250ml",22,18,22,354],["แกงส้ม","1 ถ้วย 250ml",10,20,5,165],["แกงจืด","1 ชาม 300ml",6,15,4,120],["ต้มยำกุ้ง","1 ชาม 300ml",8,25,8,200],["ต้มยำไก่","1 ชาม 300ml",8,22,6,174],["ต้มข่าไก่","1 ชาม 300ml",10,18,16,252],["ส้มตำไทย","1 จาน 200g",25,4,3,143],["ส้มตำปูปลาร้า","1 จาน 200g",25,10,4,176],["ผัดไทยกุ้ง","1 จาน 300g",58,22,14,446],["ผัดไทยไก่","1 จาน 300g",58,20,14,434],["ผัดซีอิ้ว","1 จาน 300g",62,22,14,458],["ผัดขี้เมา","1 จาน 300g",60,20,15,451],["ก๋วยเตี๋ยวน้ำใสหมู","1 ชาม 400ml",44,20,6,308],["ก๋วยเตี๋ยวน้ำตกเนื้อ","1 ชาม 400ml",44,22,8,332],["บะหมี่น้ำ","1 ชาม 400ml",48,18,8,340],["ก๋วยเตี๋ยวคั่วไก่","1 จาน 300g",55,20,10,390],["ข้าวผัดหมู","1 จาน 350g",60,20,18,478],["ข้าวผัดไก่","1 จาน 350g",60,22,16,470],["ข้าวผัดกุ้ง","1 จาน 350g",60,20,16,464],["ข้าวมันไก่","1 จาน 380g",65,30,14,498],["ข้าวหน้าเป็ด","1 จาน 380g",65,28,22,562],["ข้าวกะเพราหมูไข่ดาว","1 จาน ข้าว+หมูกระเพรา+ไข่",80,32,28,692],["ไก่ย่าง","1 ชิ้น 120g",2,28,12,228],["หมูปิ้ง","3 ไม้ 90g",8,20,10,198],["คอหมูย่าง","1 ชิ้น 150g",4,30,22,334],["ยำวุ้นเส้น","1 จาน 200g",32,12,6,230],["ยำทะเล","1 จาน 200g",12,22,5,181],["ไก่ทอด","1 ชิ้น 100g",8,22,16,264],["ปลาทอด","1 ชิ้น 100g",8,20,14,234],["ข้าวเกรียบ","10 ชิ้น 15g",11,1,5,89],["ทอดมันกุ้ง","2 ชิ้น 60g",10,10,8,152],["สปริงโรล","2 ชิ้น 80g",20,6,8,176],["ไข่พะโล้","2 ไข่+หมู 200g",10,24,18,290],["ลาบหมู","1 จาน 180g",10,24,14,254],["น้ำพริกกะปิ","พร้อมผัก 200g",15,8,10,178],["มะม่วงสุก","1 ผลกลาง 200g",35,2,1,157],["มะม่วงเขียว","1/4 ผล 75g",9,1,0,40],["กล้วยน้ำว้า","1 ผล 90g",20,1,0.5,88],["กล้วยหอม","1 ผล 120g",27,1,0.5,116],["สับปะรด","8 ชิ้น 150g",20,1,0,84],["แตงโม","8 ชิ้น เล็ก 200g",15,1,0,60],["ส้ม","1 ผล 100g",12,1,0,47],["ลำไย","10 ผล 100g",15,1,0,60],["ลิ้นจี่","10 ผล 100g",16,1,0,66],["มะละกอสุก","8 ชิ้น 150g",17,1,0,68],["แอปเปิ้ล","1 ลูกกลาง 150g",21,0.5,0,86],["มังคุด","4 ผล 100g",18,1,0.5,73],["ทุเรียน","1 พู 100g",28,2,5,147],["นมวัวพร่องไขมัน","1 กล่อง 200ml",10,7,3,95],["โยเกิร์ตรสธรรมชาติ","1 ถ้วย 150g",9,8,4,104],["นมถั่วเหลือง","1 กล่อง 200ml",10,7,4,104],["นมอัลมอนด์","1 แก้ว 240ml",2,1,2,30],["ชาเขียวไม่หวาน","1 แก้ว 250ml",0,0,0,2],["มะม่วงข้าวเหนียว","1 จาน 300g",80,6,10,434],["ข้าวเหนียวมะม่วง+กะทิ","1 จาน 300g",82,6,12,454],["ขนมครก","6 ชิ้น 80g",20,4,8,164],["ทับทิมกรอบ","1 ถ้วย 200ml",40,2,8,236],["วุ้นมะพร้าว","100g",14,0,0,56]];
+// fuzzy lookup: return row [name,serving,c,p,f,kcal] or null
+function dbLookup(query){
+  if(!query)return null;
+  const q=query.toLowerCase().replace(/\s+/g,'');
+  let best=null,bestScore=0;
+  for(const row of THAI_FOOD_DB){
+    const name=row[0].toLowerCase().replace(/\s+/g,'');
+    if(name===q)return row;
+    let score=0;
+    if(name.includes(q)||q.includes(name))score=0.9;
+    else{let common=0;for(const ch of q)if(name.includes(ch))common++;score=common/Math.max(q.length,name.length);}
+    if(score>bestScore){bestScore=score;best=row;}
+  }
+  return bestScore>0.55?best:null;
+}
+// build DB context string for AI prompt from user input text
+function buildDBContext(text){
+  const items=text.split(/[,\n、+]|และ/).map(s=>s.replace(/\d+(\.\d+)?\s*(จาน|ชาม|ฝ่ามือ|ทัพพี|ฟอง|ชิ้น|ลูก|ถ้วย|ก้อน|ผล|ไม้)/g,'').trim()).filter(s=>s.length>1);
+  const refs=[];const seen=new Set();
+  for(const food of items){
+    const row=dbLookup(food);
+    if(row&&!seen.has(row[0])){seen.add(row[0]);refs.push(`${row[0]}(${row[1]})→C${row[2]}P${row[3]}F${row[4]} ${row[5]}kcal`);}
+  }
+  return refs;
+}
 // WEIGH (AI only)
 async function callGeminiAI(){
   const text=document.getElementById('ai-food-input').value.trim();
   if(!text){alert('กรุณาพิมพ์รายการอาหารก่อนค่ะ');return;}
+  if(!GROQ_KEY){alert('ระบบยังโหลดไม่เสร็จ กรุณารอสักครู่แล้วลองใหม่ค่ะ');return;}
   const btn=document.getElementById('ai-calc-btn');
   btn.disabled=true;btn.textContent='⏳ กำลังวิเคราะห์...';
   document.getElementById('ai-result-area').style.display='none';
-  const sysPrompt=`คุณเป็นนักโภชนาการผู้เชี่ยวชาญด้านอาหารไทยและอาหารทั่วไป คำนวณสารอาหารจากรายการอาหารที่ได้รับ
+  // ดึงค่าอ้างอิงจาก DB สำหรับอาหารที่พิมพ์มา
+  const dbRefs=buildDBContext(text);
+  const dbSection=dbRefs.length>0?`\n\n[ค่าอ้างอิง Database USDA+Mahidol — ใช้ค่านี้ทุกครั้ง ห้ามเบี่ยงเบน]\n${dbRefs.join('\n')}`:'';
+  const sysMsg=`คุณเป็นนักโภชนาการและเทรนเนอร์ระดับโลก ผู้เชี่ยวชาญอาหารไทย (อ้างอิง USDA FoodData Central + Thai FCD Mahidol)
+กฎเหล็ก:
+1. ถ้ามีค่าจาก Database ที่แนบมา ให้ใช้ค่านั้นทุกครั้ง ห้ามเปลี่ยน
+2. ถ้าไม่มีใน Database ให้ประมาณจากส่วนประกอบ ใช้ค่ากลางที่สมเหตุสมผล
+3. ห้าม hallucinate ค่าเกินจริง
+4. kcal ต้องเท่ากับ round(c×4 + p×4 + f×9) เสมอ
+5. ใช้ขนาดปกติร้านอาหารไทย เว้นแต่ผู้ใช้ระบุปริมาณ`;
+  const userPrompt=`รายการอาหาร: ${text}${dbSection}
 
-ฐานข้อมูลสารอาหาร (USDA/INMU, cooked, ต่อหน่วยที่ระบุ) c=carb p=protein f=fat k=kcal:
-ข้าวสวย|100g|c28.7|p2.7|f0.3|k130
-ข้าวกล้อง|100g|c23|p2.6|f0.9|k112
-ข้าวหอมมะลิ|100g|c29|p2.5|f0.3|k130
-ข้าวโอ๊ต|100g|c12|p2.5|f1.4|k71
-ก๋วยเตี๋ยว/เส้นหมี่|100g|c22|p1.5|f0.1|k96
-บะหมี่ไข่|100g|c25|p4|f1.4|k138
-วุ้นเส้น|100g|c19|p0.1|f0|k78
-ขนมปังขาว|1แผ่น30g|c15|p2.7|f0.9|k80
-มันฝรั่งต้ม|100g|c17|p2|f0.1|k77
-มันเทศ|100g|c20|p1.4|f0.1|k76
-อกไก่|100g|c0|p31|f3.6|k165
-น่องไก่|100g|c0|p26|f9|k184
-ปีกไก่|100g|c0|p27|f17|k261
-ไก่รวม|100g|c0|p27|f7|k175
-หมูสันใน|100g|c0|p26|f4|k143
-หมูสับ|100g|c0|p25|f10|k193
-หมูสามชั้น|100g|c0|p17|f30|k340
-เนื้อวัวไม่ติดมัน|100g|c0|p26|f11|k212
-กุ้ง|100g|c0.9|p24|f1.1|k99
-ปลาทั่วไป/ปลานิล/ปลาดุก|100g|c0|p22|f5|k136
-ปลาแซลมอน|100g|c0|p25|f13|k220
-ปลาทู|100g|c0|p22|f13|k213
-ปลาทูน่ากระป๋องน้ำ|100g|c0|p25|f1|k116
-ปลาหมึก|100g|c3|p18|f1.4|k92
-ไข่ต้ม/ลวก|1ฟอง50g|c0.4|p6.5|f5|k72
-ไข่ดาว|1ฟอง55g|c0.3|p7|f8|k101
-ไข่ขาว|1ขาว33g|c0.2|p3.6|f0.1|k17
-เต้าหู้แข็ง|100g|c2|p8|f4|k76
-เต้าหู้นิ่ม|100g|c1.5|p5|f2.5|k50
-ผักบุ้ง|100g|c3|p2|f3|k46
-บร็อคโคลี่|100g|c7|p2.8|f0.4|k34
-ผักโขม|100g|c3.6|p3|f0.4|k23
-กะหล่ำปลี|100g|c6|p1.3|f0.1|k25
-แครอท|100g|c10|p0.9|f0.2|k41
-มะเขือเทศ|100g|c3.9|p0.9|f0.2|k18
-ถั่วฝักยาว|100g|c7|p1.8|f0.2|k47
-ข้าวโพด|100g|c19|p3.2|f1.2|k86
-เห็ด|100g|c3.3|p3.1|f0.3|k22
-แตงกวา|100g|c3.6|p0.7|f0.1|k15
-คะน้า/ผักใบเขียว|100g|c4|p2.5|f0.4|k28
-ถั่วเขียวต้ม|100g|c19|p7|f0.4|k105
-ถั่วดำต้ม|100g|c23|p9|f0.5|k132
-ถั่วแระ|100g|c10|p11|f5|k121
-น้ำมันพืช/มะกอก|1ชช5g|c0|p0|f5|k44
-เนย|1ชช5g|c0|p0|f4.1|k36
-เนยถั่ว|1ชต15g|c3|p3.8|f7.5|k89
-อะโวคาโด|1/4ลูก50g|c4.5|p1|f7.5|k80
-กะทิ|100ml|c3.3|p2.3|f24|k230
-นมวัวไขมันเต็ม|100ml|c4.8|p3.2|f3.3|k61
-นมพร่องมันเนย|100ml|c5|p3.4|f0.1|k34
-โยเกิร์ตกรีก|100g|c3.6|p10|f0.4|k59
-กล้วยหอม|1ลูก100g|c23|p1.1|f0.3|k89
-มะม่วงสุก|100g|c15|p0.8|f0.4|k60
-แตงโม|100g|c7.6|p0.6|f0.2|k30
-ส้ม|1ลูก130g|c15|p1.2|f0.2|k61
-แอปเปิ้ล|1ลูก180g|c25|p0.5|f0.4|k94
-ฝรั่ง|100g|c14|p2.6|f0.9|k68
-ทุเรียน|100g|c27|p1.5|f5.3|k147
-มะละกอ|100g|c11|p0.5|f0.3|k43
-สับปะรด|100g|c13|p0.5|f0.1|k50
-
-กฎการคำนวณ:
-- ใช้ค่าจากฐานข้อมูลข้างต้นก่อน ถ้าไม่มีให้ประมาณจากความรู้
-- scale ตามปริมาณจริง (เช่น อกไก่ 120g = 31×1.2=37.2g protein)
-- ถ้าไม่บอกปริมาณ: ข้าว 1 ทัพพี≈150g, ไข่ 1 ฟอง≈50g, อกไก่ 1 ชิ้น≈120g, หมู/เนื้อ 1 จาน≈100g
-- kcal=c×4+p×4+f×9
-- ตอบด้วย JSON เท่านั้น รูปแบบ: {"items":[{"name":"ชื่ออาหาร","amount":"จำนวน+หน่วย","c":0.0,"p":0.0,"f":0.0,"kcal":0}],"total":{"c":0.0,"p":0.0,"f":0.0,"kcal":0}}
-- c/p/f หน่วยกรัม ทศนิยม1ตำแหน่ง แยกแต่ละรายการเป็น item`;
-  const fewShotUser=`รายการอาหาร:
-ข้าวกล้อง 2 ทัพพี (300g)
-ไข่ดาว 2 ฟอง
-หมูสันในย่าง 150g
-ผักบุ้งผัด 80g (น้ำมันน้อย ~5g)`;
-  // Values from USDA/INMU DB: ข้าวกล้อง 300g: c69,p7.8,f2.7,k336 | ไข่ดาว 2x55g: c0.6,p14,f16,k202 | หมูสันใน 150g: c0,p39,f6,k215 | ผักบุ้ง 80g: c2.4,p1.6,f2.4 + oil5g=f5: total f=2.4+5=7.4 -> rounding per item
-  const fewShotAssist=`{"items":[{"name":"ข้าวกล้อง","amount":"2 ทัพพี (300g)","c":69.0,"p":7.8,"f":2.7,"kcal":336},{"name":"ไข่ดาว","amount":"2 ฟอง (110g)","c":0.6,"p":14.0,"f":16.0,"kcal":202},{"name":"หมูสันในย่าง","amount":"150g","c":0.0,"p":39.0,"f":6.0,"kcal":215},{"name":"ผักบุ้งผัด","amount":"80g+น้ำมัน5g","c":2.4,"p":1.6,"f":7.4,"kcal":82}],"total":{"c":72.0,"p":62.4,"f":32.1,"kcal":835}}`;
-  const userPrompt=`รายการอาหาร:\n${text}`;
+ตอบด้วย JSON เท่านั้น:
+{"items":[{"name":"ชื่ออาหาร","amount":"จำนวน+หน่วย","c":0.0,"p":0.0,"f":0.0,"kcal":0}],"total":{"c":0.0,"p":0.0,"f":0.0,"kcal":0}}
+กฎ: c=คาร์บ p=โปรตีน f=ไขมัน หน่วยกรัม ทศนิยม1ตำแหน่ง kcal=round(c*4+p*4+f*9)`;
   try{
     const res=await fetch('https://api.groq.com/openai/v1/chat/completions',{
       method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+GROQ_KEY},
-      body:JSON.stringify({model:'llama-3.3-70b-versatile',messages:[{role:'system',content:sysPrompt},{role:'user',content:fewShotUser},{role:'assistant',content:fewShotAssist},{role:'user',content:userPrompt}],temperature:0.1})
+      body:JSON.stringify({model:'llama-3.3-70b-versatile',messages:[{role:'system',content:sysMsg},{role:'user',content:userPrompt}],temperature:0.1})
     });
     const data=await res.json();
     if(data.error)throw new Error(data.error.message);
@@ -3613,11 +3640,16 @@ async function callGeminiAI(){
     const m=raw.match(/\{[\s\S]*\}/);
     if(!m)throw new Error('ไม่พบ JSON ในคำตอบ');
     aiParsedData=JSON.parse(m[0]);
+    // Sanity check: ป้องกัน hallucination ค่าเกินจริง
+    const t=aiParsedData.total||{};
+    if((t.kcal||0)>3000||(t.c||0)>400||(t.p||0)>300||(t.f||0)>300)
+      throw new Error('ค่าสารอาหารผิดปกติ (AI ให้ค่าเกินจริง) กรุณาลองพิมพ์ใหม่ให้ละเอียดขึ้น');
     renderAIResult(aiParsedData);
   }catch(e){
     const area=document.getElementById('ai-result-area');
     area.innerHTML=`<div class="ai-error">⚠️ ${e.message}</div>`;
     area.style.display='block';
+    document.getElementById('btn-save-weigh').style.display='block';
   }finally{
     btn.disabled=false;btn.textContent='✨ ให้ AI คำนวณ';
   }
@@ -3704,11 +3736,121 @@ async function compressPhoto(file){
   });
 }
 
+
+// SAVED MENUS
+let savedMenusCache=null;
+async function loadSavedMenus(){
+  if(!user)return[];
+  try{
+    const snap=await db.collection('users').doc(user.userId).collection('savedMenus')
+      .orderBy('createdAt','desc').limit(12).get();
+    savedMenusCache=snap.docs.map(d=>({id:d.id,...d.data()}));
+    return savedMenusCache;
+  }catch(e){console.warn('loadSavedMenus',e);return[];}
+}
+function renderSavedChips(mode){
+  const el=document.getElementById('saved-chips-'+mode);
+  if(!el)return;
+  const menus=(savedMenusCache||[]).filter(m=>m.mode===mode);
+  if(!menus.length){el.style.display='none';return;}
+  el.style.display='block';
+  el.innerHTML=`<div style="font-size:11px;color:#92400E;font-weight:600;margin-bottom:6px">⭐ เมนูโปรด — แตะเพื่อใช้</div>
+    <div style="display:flex;flex-wrap:wrap;gap:4px">
+      ${menus.map(m=>`<span class="saved-menu-chip" onclick="applySavedMenu('${m.id}')">
+        ${escHtml(m.name)}
+        <button class="chip-del" onclick="event.stopPropagation();deleteSavedMenu('${m.id}')">✕</button>
+      </span>`).join('')}
+    </div>`;
+}
+function refreshAllChips(){
+  renderSavedChips('hand');
+  renderSavedChips('label');
+  renderSavedChips('weigh');
+}
+async function deleteSavedMenu(id){
+  if(!confirm('ลบเมนูนี้?'))return;
+  try{
+    await db.collection('users').doc(user.userId).collection('savedMenus').doc(id).delete();
+    savedMenusCache=null;
+    await loadSavedMenus();
+    refreshAllChips();
+  }catch(e){alert('ลบไม่สำเร็จ: '+e.message);}
+}
+async function saveCurrentMenu(){
+  const name=prompt('ตั้งชื่อเมนูนี้ว่า:','');
+  if(!name||!name.trim())return;
+  let data={name:name.trim(),mode:curMode,createdAt:firebase.firestore.FieldValue.serverTimestamp()};
+  if(curMode==='weigh'){
+    if(!aiParsedData){alert('กรุณาให้ AI คำนวณก่อนค่ะ');return;}
+    data.inputText=document.getElementById('ai-food-input').value.trim();
+    data.items=JSON.parse(JSON.stringify(aiParsedData.items));
+    data.total=JSON.parse(JSON.stringify(aiParsedData.total));
+  }else if(curMode==='label'){
+    const c=parseFloat(document.getElementById('lb-carb').value)||0;
+    const p=parseFloat(document.getElementById('lb-prot').value)||0;
+    const f=parseFloat(document.getElementById('lb-fat').value)||0;
+    const s=parseFloat(document.getElementById('lb-serv').value)||1;
+    if(!c&&!p&&!f){alert('กรุณากรอกข้อมูลจากฉลากก่อนค่ะ');return;}
+    data.labelData={carbPerServ:c,protPerServ:p,fatPerServ:f,servings:s};
+    data.total={c:Math.round(c*s*10)/10,p:Math.round(p*s*10)/10,f:Math.round(f*s*10)/10,kcal:Math.round((c*s)*4+(p*s)*4+(f*s)*9)};
+  }else if(curMode==='hand'){
+    const pm=PROT_T[protType],ck=COOK_M[cookMethod];
+    let C=0,P=0,F=0;
+    carbSlots.forEach(s=>{const cm=CARB_D[s.density];C+=cm.c*s.qty;P+=cm.p*s.qty;F+=cm.f*s.qty;});
+    C+=pm.c*protQty;P+=pm.p*protQty;F+=pm.f*protQty;
+    F+=ck.f+visibleFat*VIS_FAT_G;
+    C+=EGG_W.c*eggWhole+EGG_WH.c*eggWhite;P+=EGG_W.p*eggWhole+EGG_WH.p*eggWhite;F+=EGG_W.f*eggWhole;
+    C+=getFruitLadles()*15;
+    C=Math.round(C);P=Math.round(P);F=Math.round(F);
+    data.handData={carbSlots:carbSlots.map(s=>({density:s.density,qty:s.qty})),protein:protQty,protType,eggWhole,eggWhite,cookMethod,visibleFat,avo:avoQty,fruits:{...fruitCounts},fruitLadles:getFruitLadles()};
+    data.total={c:C,p:P,f:F,kcal:Math.round(C*4+P*4+F*9)};
+  }
+  try{
+    await db.collection('users').doc(user.userId).collection('savedMenus').add(data);
+    savedMenusCache=null;
+    await loadSavedMenus();
+    refreshAllChips();
+    alert('บันทึกเมนูแล้วค่ะ ✓');
+    const sb=document.getElementById('btn-save-success');if(sb)sb.style.display='none';
+  }catch(e){alert('บันทึกไม่สำเร็จ: '+e.message);}
+}
+function applySavedMenu(id){
+  const menu=(savedMenusCache||[]).find(m=>m.id===id);
+  if(!menu)return;
+  if(menu.mode==='weigh'&&menu.inputText){
+    document.getElementById('ai-food-input').value=menu.inputText;
+    aiParsedData={items:JSON.parse(JSON.stringify(menu.items)),total:JSON.parse(JSON.stringify(menu.total))};
+    renderAIResult(aiParsedData);
+    document.getElementById('btn-save-weigh').style.display='none';
+  }else if(menu.mode==='label'&&menu.labelData){
+    document.getElementById('lb-carb').value=menu.labelData.carbPerServ;
+    document.getElementById('lb-prot').value=menu.labelData.protPerServ;
+    document.getElementById('lb-fat').value=menu.labelData.fatPerServ;
+    document.getElementById('lb-serv').value=menu.labelData.servings;
+    calcLabel();
+  }else if(menu.mode==='hand'&&menu.handData){
+    const hd=menu.handData;
+    carbSlots=hd.carbSlots.map((s,i)=>({id:i,density:s.density,qty:s.qty}));carbSlotNextId=carbSlots.length;
+    protQty=hd.protein;protType=hd.protType||'lean';
+    eggWhole=hd.eggWhole||0;eggWhite=hd.eggWhite||0;
+    cookMethod=hd.cookMethod||'none';visibleFat=hd.visibleFat||0;avoQty=hd.avo||0;
+    fruitCounts={...hd.fruits};
+    FRUIT_ITEMS.forEach(f=>{
+      fruitCounts[f.id]=fruitCounts[f.id]||0;
+      const el=document.getElementById('fc-'+f.id);if(el)el.textContent=fruitCounts[f.id];
+      const fi=document.getElementById('fi-'+f.id);if(fi)fi.classList.toggle('has-fruit',fruitCounts[f.id]>0);
+      const uel=document.getElementById('fu-'+f.id);if(uel)uel.style.display=fruitCounts[f.id]>0?'block':'none';
+    });
+    const fbar=document.getElementById('fruit-total-bar');if(fbar)fbar.style.display=getFruitLadles()>0?'flex':'none';
+    renderCarbSlots();updateHandSummary();
+  }
+}
 // SUBMIT
 async function submitMeal(){
   const btn=document.getElementById('btn-submit');btn.disabled=true;btn.textContent='กำลังส่ง...';
+  const resetBtn=()=>{btn.disabled=false;btn.textContent=coachLogMode?'บันทึกของฉัน ✓':'ส่งให้โค้ชตรวจ ✓';};
   try{
-    let handData=null,labelData=null,weighData=null,restaurantData=null;
+    let handData=null,labelData=null,weighData=null;
     if(curMode==='hand'){
       const pm=PROT_T[protType],ck=COOK_M[cookMethod];
       let C=0,P=0,F=0;
@@ -3731,33 +3873,46 @@ async function submitMeal(){
       labelData=getLabelData();
     }else if(curMode==='weigh'){
       weighData=getWeighData();
-      if(!weighData){alert('กรุณาให้ AI คำนวณก่อนค่ะ');btn.disabled=false;btn.textContent='ส่งให้โค้ชตรวจ ✓';return;}
-    }else if(curMode==='restaurant'){
-      if(!selFood){alert('กรุณาเลือกเมนูจากร้านก่อนค่ะ');btn.disabled=false;btn.textContent='ส่งให้โค้ชตรวจ ✓';return;}
-      restaurantData={restaurantId:selFood.rid,restaurantName:selFood.r,foodId:selFood.id,foodName:selFood.th,servingDesc:selFood.srv,carb:selFood.c,protein:selFood.p,fat:selFood.f,kcal:selFood.kcal,dataSource:selFood.src};
+      if(!weighData){alert('กรุณาให้ AI คำนวณก่อนค่ะ');resetBtn();return;}
+    }
+    // อัปโหลดรูปไป Firebase Storage (timeout 8s — ถ้าเกินเวลาหรือ fail ก็ใช้ base64 ใน Firestore แทน)
+    let photoUrl=null;
+    if(photoBase64){
+      try{
+        const ref=storage.ref(`photos/${user.userId}/${Date.now()}.jpg`);
+        const uploadPromise=ref.putString(photoBase64,'data_url').then(()=>ref.getDownloadURL());
+        const timeoutPromise=new Promise((_,rej)=>setTimeout(()=>rej(new Error('upload timeout')),8000));
+        photoUrl=await Promise.race([uploadPromise,timeoutPromise]);
+      }catch(uploadErr){console.log('photo upload skipped:',uploadErr.message);}
     }
     await db.collection('submissions').add({
       userId:user.userId,displayName:user.displayName,pictureUrl:user.pictureUrl||null,
       meal:curMeal,mode:curMode,mealDate:selectedDate,
-      handData,labelData,weighData,restaurantData,photoBase64:photoBase64||null,
+      handData,labelData,weighData,photoUrl:photoUrl||null,
       status:'pending',correction:null,
       isTest:testMode||false,
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
-    // update today's progress bar locally
-    const newSubLocal={mode:curMode,mealDate:selectedDate,handData,labelData,weighData,restaurantData,status:'pending'};
+    // update cache locally (ไม่ต้อง re-query)
+    const newSubLocal={mode:curMode,mealDate:selectedDate,handData,labelData,weighData,photoUrl,status:'pending'};
     studentTodaySubs.push(newSubLocal);
+    if(studentSubsCache)studentSubsCache.unshift(newSubLocal);
     renderDailyProgress();
-    histCache=null; // invalidate history cache
+    histCache=null; // invalidate history cache (force re-sort)
     dashCache=null; // invalidate dashboard cache
-    showSuccess(curMode,handData,labelData,weighData,restaurantData);
-    if(!testMode)sendFeedbackCard(); // ไม่ส่ง LINE card ใน test mode
-  }catch(e){console.error(e);alert('เกิดข้อผิดพลาด: '+e.message);btn.disabled=false;btn.textContent='ส่งให้โค้ชตรวจ ✓';}
+    showSuccess(curMode,handData,labelData,weighData);
+    const bss=document.getElementById('btn-save-success');
+    if(bss)bss.style.display=(curMode==='restaurant')?'none':'inline-block';
+    if(!testMode)sendFeedbackCard({mode:curMode,handData,labelData,weighData,photoUrl}); // ไม่ส่ง LINE card ใน test mode
+  }catch(e){console.error(e);alert('เกิดข้อผิดพลาด: '+e.message);resetBtn();}
+  finally{resetBtn();}
 }
 
-function showSuccess(mode,handData,labelData,weighData,restaurantData){
+function showSuccess(mode,handData,labelData,weighData){
   document.getElementById('student-view').style.display='none';
   document.getElementById('success-screen').style.display='flex';
+  const smsg=document.getElementById('success-msg');
+  if(smsg)smsg.innerHTML=coachLogMode?'บันทึกสำเร็จค่ะ! ได้ feedback card แล้ว 💪':'โค้ชจะตรวจสอบและให้ feedback<br>เร็วๆ นี้ค่ะ';
   const DL={veggie:'🟢ผัก',light:'🔵เบา',normal:'🟡ปกติ',dense:'🟠แน่น',heavy:'🔴ตัวตึง'};
   let chips=`<span class="chip">${formatDateTH(selectedDate)} · มื้อ${curMeal}</span>`;
   if(mode==='hand'&&handData){
@@ -3775,13 +3930,6 @@ function showSuccess(mode,handData,labelData,weighData,restaurantData){
       chips+=`<span class="chip">🍎 ${fnames} (${hd.fruitLadles} ทัพพี)</span>`;
     }
     chips+=`<span class="chip">⚡ ${hd.totalKcal} kcal</span>`;
-  }else if(mode==='restaurant'&&restaurantData){
-    const rd=restaurantData;
-    chips+=`<span class="chip" style="background:#FEE2E2;color:#B91C1C;font-weight:600">🏪 ${escHtml(rd.restaurantName)}</span>`;
-    chips+=`<span class="chip">🍽️ ${escHtml(rd.foodName)}</span>`;
-    chips+=`<span class="chip">C${rd.carb} · P${rd.protein} · F${rd.fat}</span>`;
-    chips+=`<span class="chip">⚡ ${rd.kcal} kcal</span>`;
-    if(rd.dataSource==='estimated')chips+=`<span class="chip" style="background:#FEF3C7;color:#B45309;font-size:11px">โดยประมาณ</span>`;
   }else if(mode==='label'&&labelData){
     chips+=`<span class="chip">คาร์บ ${labelData.carb.toFixed(1)}g</span><span class="chip">โปรตีน ${labelData.protein.toFixed(1)}g</span><span class="chip">ไขมัน ${labelData.fat.toFixed(1)}g</span>`;
   }else if(mode==='weigh'&&weighData){
@@ -3795,8 +3943,8 @@ function showSuccess(mode,handData,labelData,weighData,restaurantData){
 
 async function showMilestone(){
   try{
-    const snap=await db.collection('submissions').where('userId','==',user.userId).limit(60).get();
-    const subs=snap.docs.map(d=>({id:d.id,...d.data()}));
+    const snap=await db.collection('submissions').where('userId','==',user.userId).limit(30).get();
+    const subs=snap.docs.map(d=>{const dat=d.data();delete dat.photoBase64;return{id:d.id,...dat};});
     const streak=calcStreak(subs);
     const pill=document.getElementById('streak-pill');
     if(streak>0){pill.innerHTML=`🔥 ${streak} วันติด`;pill.style.display='flex';}
@@ -3817,20 +3965,17 @@ async function loadHistory(){
     list.innerHTML=histCache.map(s=>buildHistCard(s)).join('');
     return;
   }
-  list.innerHTML='<div style="padding:32px;text-align:center;color:var(--gray)"><div style="font-size:32px;margin-bottom:8px">⏳</div>กำลังโหลด...</div>';
-  try{
-    const snap=await db.collection('submissions').where('userId','==',user.userId).limit(30).get();
-    const subs=snap.docs.map(d=>({id:d.id,...d.data()}))
-      .sort((a,b)=>{const ta=a.createdAt?.toDate?.()?.getTime?.()||0,tb=b.createdAt?.toDate?.()?.getTime?.()||0;return tb-ta;});
-    histCache=subs;
-    if(!subs.length){list.innerHTML='<div class="hist-empty"><div class="he-icon">📭</div><p>ยังไม่มีประวัติการส่งค่ะ<br>ลองบันทึกมื้อแรกเลย!</p></div>';return;}
-    list.innerHTML=subs.map(s=>buildHistCard(s)).join('');
-  }catch(e){list.innerHTML='<div style="padding:24px;text-align:center;color:#EF4444">โหลดไม่ได้: '+e.message+'</div>';}
+  // ใช้ cache ที่มีอยู่แล้ว ไม่ต้อง query ใหม่
+  const subs=(studentSubsCache||[])
+    .slice().sort((a,b)=>{const ta=a.createdAt?.toDate?.()?.getTime?.()||0,tb=b.createdAt?.toDate?.()?.getTime?.()||0;return tb-ta;});
+  histCache=subs;
+  if(!subs.length){list.innerHTML='<div class="hist-empty"><div class="he-icon">📭</div><p>ยังไม่มีประวัติการส่งค่ะ<br>ลองบันทึกมื้อแรกเลย!</p></div>';return;}
+  list.innerHTML=subs.map(s=>buildHistCard(s)).join('');
 }
 
 function buildHistCard(s){
   const DL={veggie:'🟢ผัก',light:'🔵เบา',normal:'🟡ปกติ',dense:'🟠แน่น',heavy:'🔴ตัวตึง'};
-  const modeLabel={hand:'👊 Hand portion',label:'🏷️ ฉลาก',weigh:'✨ AI',restaurant:'🏪 ร้านดัง'}[s.mode]||s.mode;
+  const modeLabel={hand:'👊 Hand portion',label:'🏷️ ฉลาก',weigh:'✨ AI'}[s.mode]||s.mode;
   const statusHtml={pending:'<span class="status-badge pending">⏳ รออนุมัติ</span>',approved:'<span class="status-badge approved">✅ อนุมัติแล้ว</span>',corrected:'<span class="status-badge corrected">✏️ โค้ชแก้ไข</span>'}[s.status]||'';
   const dateLabel=s.mealDate?formatDateTH(s.mealDate):(s.createdAt?formatTime(s.createdAt.toDate()):'');
   let chips='';
@@ -3842,16 +3987,7 @@ function buildHistCard(s){
     else{chips=`<span class="chip">${DL[hd.carbDensity]||'🟡'} ${hd.carb}มือ</span>`;if(hd.carb2>0)chips+=`<span class="chip">+${hd.carb2}มือ</span>`;}
     chips+=`<span class="chip">โปรตีน ${hd.protein}ฝ่ามือ</span>`;
     if(hd.eggWhole>0)chips+=`<span class="chip">🥚×${hd.eggWhole}</span>`;
-    if(hd.eggWhite>0)chips+=`<span class="chip">🤍ไข่ขาว×${hd.eggWhite}</span>`;
     chips+=`<span class="chip">⚡ ${hd.totalKcal} kcal</span>`;
-  }else if(s.mode==='restaurant'&&s.restaurantData){
-    const rd=s.restaurantData;
-    chips=`<span class="chip" style="background:#FEE2E2;color:#B91C1C;font-weight:600">🏪 ${escHtml(rd.restaurantName)}</span>`;
-    chips+=`<span class="chip">🍽️ ${escHtml(rd.foodName)}</span>`;
-    if(rd.servingDesc)chips+=`<span class="chip" style="font-size:11px;color:var(--gray)">${escHtml(rd.servingDesc)}</span>`;
-    chips+=`<span class="chip">C${rd.carb} · P${rd.protein} · F${rd.fat}</span>`;
-    chips+=`<span class="chip">⚡ ${rd.kcal} kcal</span>`;
-    if(rd.dataSource==='estimated')chips+=`<span class="chip" style="background:#FEF3C7;color:#B45309;font-size:11px">โดยประมาณ</span>`;
   }else if(s.mode==='label'&&s.labelData){
     chips=`<span class="chip">C ${s.labelData.carb.toFixed(1)}g</span><span class="chip">P ${s.labelData.protein.toFixed(1)}g</span><span class="chip">F ${s.labelData.fat.toFixed(1)}g</span>`;
     chips+=`<span class="chip">⚡ ${Math.round(s.labelData.carb*4+s.labelData.protein*4+s.labelData.fat*9)} kcal</span>`;
@@ -3866,7 +4002,13 @@ function buildHistCard(s){
     chips+=`<span class="chip">C ${wMacros.c}g · P ${wMacros.p}g · F ${wMacros.f}g</span>`;
     chips+=`<span class="chip">⚡ ${wMacros.kcal} kcal</span>`;
   }
-  const photoHtml=s.photoBase64?`<img style="width:100%;max-height:160px;object-fit:cover;border-radius:8px;margin-bottom:8px" src="${s.photoBase64}" loading="lazy">`:'';
+  const photoSrc=s.photoBase64||s.photoUrl||null;
+  const photoHtml=photoSrc?`<img style="width:100%;max-height:160px;object-fit:cover;border-radius:8px;margin-bottom:8px" src="${photoSrc}" loading="lazy">`:'';
+  const editHistHtml=(s.editHistory&&s.editHistory.length)?`<div class="hist-edit-log">
+    <div style="font-size:10px;font-weight:700;color:#92400E;margin-bottom:4px">✏️ โค้ชแก้ไข</div>
+    ${s.editHistory.flatMap(h=>h.fields.map(f=>`<div class="hist-edit-row"><span style="color:#6B7280;min-width:48px">${f.k}</span><span class="hist-edit-from">${f.from}g</span><span style="color:#9CA3AF">→</span><span class="hist-edit-to">${f.to}g</span></div>`)).join('')}
+  </div>`:'';
+  const coachCommentHtml=s.coachComment?`<div class="hist-coach-comment">💬 ${escHtml(s.coachComment)}</div>`:'';
   let corrHtml='';
   if(s.status==='corrected'&&s.correction){
     corrHtml=`<div class="hist-corr">✏️ โค้ชแก้ไข: C ${s.correction.carb} · P ${s.correction.protein} · F ${s.correction.fat}${s.correction.note?'<br>💬 '+escHtml(s.correction.note):''}</div>`;
@@ -3874,10 +4016,10 @@ function buildHistCard(s){
   const delBtn=`<button onclick="deleteHistSub('${s.id}')" style="width:100%;margin-top:8px;padding:6px;background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;color:#B91C1C;font-size:12px;font-family:'Prompt',sans-serif;cursor:pointer">🗑️ ลบรายการนี้</button>`;
   return`<div class="hist-card">
     <div class="hist-card-head" style="display:flex;align-items:flex-start;justify-content:space-between">
-      <div><div style="font-size:13px;font-weight:600">${dateLabel} · มื้อ${s.meal}</div><div style="font-size:11px;color:var(--gray);margin-top:2px">${modeLabel}${s.photoBase64?' · 📸':''}</div></div>
+      <div><div style="font-size:13px;font-weight:600">${dateLabel} · มื้อ${s.meal}</div><div style="font-size:11px;color:var(--gray);margin-top:2px">${modeLabel}${(s.photoBase64||s.photoUrl)?' · 📸':''}</div></div>
       ${statusHtml}
     </div>
-    <div class="hist-card-body">${photoHtml}<div class="est-chips" style="margin-bottom:0">${chips}</div>${corrHtml}${delBtn}</div>
+    <div class="hist-card-body">${photoHtml}<div class="est-chips" style="margin-bottom:0">${chips}</div>${corrHtml}${editHistHtml||""}${coachCommentHtml||""}${delBtn}</div>
   </div>`;
 }
 
@@ -3897,15 +4039,20 @@ function getSubMacros(s){
   if(s.mode==='hand'&&s.handData){c=s.handData.totalCarb||0;p=s.handData.totalProtein||0;f=s.handData.totalFat||0;}
   else if(s.mode==='label'&&s.labelData){c=s.labelData.carb||0;p=s.labelData.protein||0;f=s.labelData.fat||0;}
   else if(s.mode==='weigh'&&s.weighData){c=s.weighData.carb||0;p=s.weighData.protein||0;f=s.weighData.fat||0;}
-  else if(s.mode==='restaurant'&&s.restaurantData){c=s.restaurantData.carb||0;p=s.restaurantData.protein||0;f=s.restaurantData.fat||0;}
-  if(s.status==='corrected'&&s.correction){
+  if(s.correction){
     if(s.correction.carb!==undefined)c=s.correction.carb;
     if(s.correction.protein!==undefined)p=s.correction.protein;
     if(s.correction.fat!==undefined)f=s.correction.fat;
   }
-  const corrected=s.status==='corrected'&&s.correction;
-  const kcal=(s.mode==='weigh'&&s.weighData?.kcal&&!corrected)?s.weighData.kcal:(s.mode==='restaurant'&&s.restaurantData?.kcal&&!corrected)?s.restaurantData.kcal:Math.round(c*4+p*4+f*9);
+  const kcal=(s.mode==='weigh'&&s.weighData&&s.weighData.kcal&&!s.correction)?s.weighData.kcal:Math.round(c*4+p*4+f*9);
   return{kcal,c,p,f};
+}
+function getSubOrigMacros(s){
+  let c=0,p=0,f=0;
+  if(s.mode==='hand'&&s.handData){c=s.handData.totalCarb||0;p=s.handData.totalProtein||0;f=s.handData.totalFat||0;}
+  else if(s.mode==='label'&&s.labelData){c=s.labelData.carb||0;p=s.labelData.protein||0;f=s.labelData.fat||0;}
+  else if(s.mode==='weigh'&&s.weighData){c=s.weighData.carb||0;p=s.weighData.protein||0;f=s.weighData.fat||0;}
+  return{c:Math.round(c),p:Math.round(p),f:Math.round(f)};
 }
 
 let dashCache=null;
@@ -3917,18 +4064,17 @@ async function loadDashboard(forceRefresh=false){
   }
   content.innerHTML='<div style="padding:32px;text-align:center;color:var(--gray)"><div style="font-size:32px;margin-bottom:8px">⏳</div>กำลังโหลด...</div>';
   try{
-    // รัน queries ทั้งหมดพร้อมกัน (parallel)
-    const [snap,td,hs,wc,ws]=await Promise.all([
-      db.collection('submissions').where('userId','==',user.userId).limit(50).get(),
-      db.collection('students').doc(user.userId).get().catch(()=>null),
+    // ใช้ studentSubsCache + TARGETS ที่โหลดไว้แล้ว ยิงแค่ 3 queries ที่ยังไม่มี
+    const [hs,wc,ws]=await Promise.all([
       db.collection('healthLogs').doc(user.userId).collection('days').limit(14).get().catch(()=>null),
       db.collection('weeklyChecks').doc(user.userId).collection('entries').orderBy('date','asc').limit(20).get().catch(()=>null),
       db.collection('students').doc(user.userId).collection('weeklySummaries').orderBy('weekStart','desc').limit(8).get().catch(()=>null),
     ]);
-    const subs=snap.docs.map(d=>({id:d.id,...d.data()}));
+    const subs=studentSubsCache||[];
     let targets={kcal:TARGETS.kcal,c:TARGETS.c,p:TARGETS.p,f:TARGETS.f};
     let coachNotes='';
-    if(td&&td.exists){const dd=td.data();if(dd.targets)targets={...targets,...dd.targets};if(dd.coachNotes)coachNotes=dd.coachNotes;}
+    // reload coachNotes เฉพาะถ้ายังไม่มี (เบา)
+    try{const td2=await db.collection('students').doc(user.userId).get();if(td2.exists){const dd=td2.data();if(dd.coachNotes)coachNotes=dd.coachNotes;}}catch(e){}
     let healthLogs={};
     if(hs)hs.docs.forEach(d=>{healthLogs[d.id]=d.data();});
     let weeklyChecks=[];
@@ -3943,7 +4089,7 @@ async function loadDashboard(forceRefresh=false){
 
 function renderStudentDashboard(subs, targets, coachNotes, healthLogs, weeklyChecks, weeklySummaries={}){
   const MON=getMonWeekDates();
-  const TH_SHORT=['จ','อ','พ','พฤ','ศ','ส'];
+  const TH_SHORT=['จ','อ','พ','พฤ','ศ','ส','อา'];
   const byDate={};
   subs.forEach(s=>{const k=subDate(s);if(!byDate[k])byDate[k]=[];byDate[k].push(s);});
   const today=todayStr();
@@ -4020,6 +4166,7 @@ function renderStudentDashboard(subs, targets, coachNotes, healthLogs, weeklyChe
 }
 
 function resetStudent(){
+  if(coachLogMode){exitCoachLog();return;}
   photoBase64=null;_photoProcessing=false;selectedDate=todayStr();
   document.getElementById('menu-name-input').value='';
   document.getElementById('menu-desc-input').value='';
@@ -4057,10 +4204,8 @@ function resetStudent(){
   aiParsedData=null;
   const aif=document.getElementById('ai-food-input');if(aif)aif.value='';
   const air=document.getElementById('ai-result-area');if(air)air.style.display='none';
-  selFood=null;selRestId=null;
-  const rsa=document.getElementById('rest-selected-area');if(rsa)rsa.style.display='none';
-  const rsm=document.getElementById('rest-step-menu');if(rsm)rsm.style.display='none';
-  const rsr=document.getElementById('rest-step-restaurants');if(rsr)rsr.style.display='block';
+  const bsw=document.getElementById('btn-save-weigh');if(bsw)bsw.style.display='none';
+  const bss2=document.getElementById('btn-save-success');if(bss2)bss2.style.display='none';
   document.getElementById('success-screen').style.display='none';
   document.getElementById('student-view').style.display='block';
   document.querySelectorAll('.mode-tab')[0].click();
@@ -4084,16 +4229,42 @@ function exitTestMode(){
   histCache=null;
 }
 
+// COACH LOG MODE
+function enterCoachLog(){
+  coachLogMode=true;
+  document.getElementById('coach-view').style.display='none';
+  document.getElementById('coach-log-banner').style.display='flex';
+  document.getElementById('btn-submit').textContent='บันทึกของฉัน ✓';
+  startStudent();
+}
+function exitCoachLog(){
+  coachLogMode=false;
+  document.getElementById('coach-log-banner').style.display='none';
+  document.getElementById('student-view').style.display='none';
+  document.getElementById('success-screen').style.display='none';
+  document.getElementById('coach-view').style.display='block';
+  document.getElementById('btn-submit').textContent='ส่งให้โค้ชตรวจ ✓';
+  // reset active tab back to pending
+  document.querySelectorAll('.coach-tab').forEach((t,i)=>{t.classList.toggle('active',i===0);});
+  coachTab='pending';
+  histCache=null;
+}
 // COACH
 function startCoach(){
   document.getElementById('coach-view').style.display='block';
-  db.collection('submissions').orderBy('createdAt','desc')
-    .onSnapshot(snap=>{allSubs=snap.docs.map(d=>({id:d.id,...d.data()}));renderCoach();},err=>console.error(err));
+  // จำกัดแค่ 30 วันล่าสุด + limit 200 docs — ลดข้อมูลโหลดจาก "ทั้งหมด" เป็น "เดือนนี้"
+  const cutoff=firebase.firestore.Timestamp.fromDate(new Date(Date.now()-30*24*60*60*1000));
+  db.collection('submissions').where('createdAt','>=',cutoff).orderBy('createdAt','desc').limit(200)
+    .onSnapshot(snap=>{
+      allSubs=snap.docs.map(d=>{const dat=d.data();delete dat.photoBase64;return{id:d.id,...dat};});
+      renderCoach();
+    },err=>console.error(err));
 }
 function selCoachTab(tab){
   document.querySelectorAll('.coach-tab').forEach(t=>t.classList.remove('active'));
   tab.classList.add('active');
   coachTab=tab.dataset.tab;
+  if(coachTab==='mylog'){enterCoachLog();return;}
   renderCoach();
   if(coachTab==='students')loadStudentList();
 }
@@ -4158,12 +4329,12 @@ async function loadStudentList(){
 }
 
 function buildStudentCard(u){
-  const MON=getMonWeekDates(); // จ-ส ของสัปดาห์นี้
+  const MON=getMonWeekDates(); // จ-อา ของสัปดาห์นี้
   const byDate={};
   u.subs.forEach(s=>{const k=subDate(s);if(!byDate[k])byDate[k]=[];byDate[k].push(s);});
   const streak=calcStreak(u.subs);
-  // week dots จ-ส
-  const TH_SHORT=['จ','อ','พ','พฤ','ศ','ส'];
+  // week dots จ-อา
+  const TH_SHORT=['จ','อ','พ','พฤ','ศ','ส','อา'];
   const dotsHtml=MON.map((d,i)=>{
     const hasSub=!!(byDate[d]&&byDate[d].length);
     return`<div class="stu-day-col">
@@ -4200,17 +4371,17 @@ function buildStudentCard(u){
 }
 
 function getMonWeekDates(){
-  // ส่งคืน array ของวันจันทร์ - เสาร์ของสัปดาห์นี้ (YYYY-MM-DD)
+  // ส่งคืน array ของวันจันทร์ - อาทิตย์ของสัปดาห์นี้ (YYYY-MM-DD)
   const today=new Date();
   const dow=today.getDay(); // 0=อา 1=จ ... 6=ส
   const mondayOffset=dow===0?-6:1-dow; // shift to monday
   const monday=new Date(today);
   monday.setDate(today.getDate()+mondayOffset);
   const dates=[];
-  for(let i=0;i<6;i++){
+  for(let i=0;i<7;i++){
     const d=new Date(monday);
     d.setDate(monday.getDate()+i);
-    dates.push(d.toISOString().split('T')[0]);
+    const pad2=n=>String(n).padStart(2,'0');dates.push(`${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`);
   }
   return dates;
 }
@@ -4239,6 +4410,12 @@ async function openStudentDetail(userId){
       const d=td.data();
       if(d.targets)targets=d.targets;
       if(d.coachNotes)targets.coachNotes=d.coachNotes;
+      targets.programStart=d.programStart||'';
+      targets.programWeeks=d.programWeeks||12;
+      targets.pausedDays=d.pausedDays||0;
+      targets.isPaused=d.isPaused||false;
+      targets.discountCode=d.discountCode||'';
+      targets.discountPercent=d.discountPercent||0;
     }
   }catch(e){}
   // load health logs
@@ -4263,18 +4440,50 @@ async function openStudentDetail(userId){
   const byDateTmp={};u.subs.forEach(s=>{const k=subDate(s);if(!byDateTmp[k])byDateTmp[k]=[];byDateTmp[k].push(s);});
   autoMarkMissedDays(userId,byDateTmp).catch(()=>{});
   renderStudentDetail(u,targets,healthLogs,weeklySummaries,weeklyChecks);
+  loadCoachStudentPlan(userId);
 }
 
 function closeStudentDetail(){
   document.getElementById('student-detail').style.display='none';
   currentStudentData=null;
 }
+async function loadCoachStudentPlan(uid){
+  const el=document.getElementById('coach-plan-'+uid);
+  if(!el)return;
+  try{
+    const tomorrow=tomorrowStr();
+    const today=todayStr();
+    const[tmDoc,todDoc]=await Promise.all([
+      db.collection('mealPlans').doc(uid).collection('plans').doc(tomorrow).get(),
+      db.collection('mealPlans').doc(uid).collection('plans').doc(today).get()
+    ]);
+    let html='';
+    for(const[dateStr,doc,label] of[[tomorrow,tmDoc,'พรุ่งนี้'],[today,todDoc,'วันนี้']]){
+      if(!doc.exists)continue;
+      const items=doc.data().items||[];
+      if(!items.length)continue;
+      const tC=Math.round(items.reduce((a,i)=>a+(i.c||0),0));
+      const tP=Math.round(items.reduce((a,i)=>a+(i.p||0),0));
+      const tF=Math.round(items.reduce((a,i)=>a+(i.f||0),0));
+      const tKcal=Math.round(tC*4+tP*4+tF*9);
+      html+=`<div style="margin-bottom:12px">
+        <div style="font-size:11px;font-weight:700;color:var(--primary-dark);margin-bottom:5px">📅 ${label} (${dateStr})</div>
+        ${items.map(it=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 8px;background:white;border-radius:8px;border:1px solid var(--border);margin-bottom:3px">
+          <span style="font-size:12px;font-weight:600;flex:1;margin-right:8px">${escHtml(it.name||'')}</span>
+          <span style="font-size:11px;color:var(--gray);white-space:nowrap">C${it.c||0} P${it.p||0} F${it.f||0} ⚡${Math.round((it.c||0)*4+(it.p||0)*4+(it.f||0)*9)}</span>
+        </div>`).join('')}
+        <div style="text-align:right;font-size:11px;font-weight:700;color:#059669;padding:2px 4px">รวม ⚡${tKcal} kcal · C${tC} P${tP} F${tF}</div>
+      </div>`;
+    }
+    el.innerHTML=html||'<div style="color:var(--gray);font-size:12px;text-align:center;padding:8px">ยังไม่มีแผนมื้ออาหารค่ะ</div>';
+  }catch(e){el.innerHTML='<div style="color:#EF4444;font-size:12px">โหลดไม่ได้: '+e.message+'</div>';}
+}
 
 function buildMacro7Html(MON, TH_SHORT, byDate, targets){
   const macro7Rows=MON.map((d,i)=>{
     const daySubs=byDate[d]||[];
     if(!daySubs.length)return`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #F3F4F6">
-      <span style="font-size:11px;color:var(--gray)">${TH_SHORT[i]} ${formatDateShort(d)}</span>
+      <span style="font-size:11px;color:var(--gray)">${TH_SHORT[i]} ${parseInt(d.split('-')[2])}</span>
       <span style="font-size:10px;color:#D1D5DB">ไม่ส่ง</span>
     </div>`;
     let tc=0,tp=0,tf=0;
@@ -4284,7 +4493,7 @@ function buildMacro7Html(MON, TH_SHORT, byDate, targets){
     const chipColor=kcal>targets.kcal+200?'color:#EF4444':kcal<targets.kcal-200?'color:#3B82F6':'color:#22C55E';
     return`<div style="padding:7px 0;border-bottom:1px solid #F3F4F6">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
-        <span style="font-size:11px;font-weight:600;color:var(--text)">${TH_SHORT[i]} ${formatDateShort(d)}</span>
+        <span style="font-size:11px;font-weight:600;color:var(--text)">${TH_SHORT[i]} ${parseInt(d.split('-')[2])}</span>
         <span style="font-size:12px;font-weight:700;${chipColor}">${kcal} kcal</span>
       </div>
       <div class="m7-bars">
@@ -4303,14 +4512,631 @@ function buildMacro7Html(MON, TH_SHORT, byDate, targets){
   </div>`;
 }
 
+
+
+// ===== COACH FEEDBACK CARD =====
+function setToneBtn(id,tone){
+  if(!cState[id])cState[id]={};
+  cState[id]._tone=tone;
+  const DEFAULTS={
+    good:'ดีมากเลยค่ะ! ทำได้ดีมาก 💪\nมื้อถัดไปปรับได้ตาม target เลยนะคะ',
+    fix:'โค้ชปรับค่า macro ให้แล้วนะคะ\nลองสังเกตครั้งหน้าด้วยนะคะ 🙏',
+    warn:'Fat/Carb วันนี้เกินเป้านะคะ\nมื้อถัดไปลดของทอด+แป้งด้วยนะคะ ⚠️'
+  };
+  ['good','fix','warn'].forEach(t=>{
+    const btn=document.getElementById(`tone-${t}-${id}`);
+    if(!btn)return;
+    if(t===tone){btn.style.background=t==='good'?'#059669':t==='fix'?'#D97706':'#DC2626';btn.style.color='white';btn.style.fontWeight='700';}
+    else{btn.style.background='#F3F4F6';btn.style.color='var(--text)';btn.style.fontWeight='400';}
+  });
+  const ta=document.getElementById(`approve-comment-${id}`);
+  if(ta&&!ta._userEdited)ta.value=DEFAULTS[tone];
+}
+async function checkCoachComments(){
+  if(!studentSubsCache)return;
+  const unnotified=studentSubsCache.filter(s=>s.coachComment&&!s.coachCommentSent&&(s.status==='approved'||s.status==='corrected'));
+  if(!unnotified.length)return;
+  if(!liff.isInClient())return;
+  for(const s of unnotified){
+    try{
+      const card=buildCoachCommentCard(s,s.coachComment,s.coachCommentTone||'good',s.coachCommentWithPhoto);
+      await liff.sendMessages([card]);
+      await db.collection('submissions').doc(s.id).update({coachCommentSent:true});
+      s.coachCommentSent=true;
+    }catch(e){console.log('send coach comment err',e);}
+  }
+}
+function buildCoachCommentCard(s,comment,tone,withPhoto){
+  const TONES={
+    good:{bg:'#059669',title:'✅ โค้ชตรวจแล้วค่ะ',subtint:'#A7F3D0'},
+    fix:{bg:'#059669',title:'✅ โค้ชตรวจและปรับค่าให้แล้วค่ะ',subtint:'#A7F3D0'},
+    warn:{bg:'#DC2626',title:'⚠️ โค้ชมีข้อความถึงคุณ',subtint:'#FECACA'}
+  };
+  const T=TONES[tone]||TONES.good;
+  const m=getSubMacros(s);
+  const mealLabel=`มื้อ${s.meal||''} · ${s.mealDate||''}`;
+  const photoUrl=(withPhoto&&s.photoUrl&&s.photoUrl.startsWith('https://'))?s.photoUrl:null;
+  const heroBlock=photoUrl?{"type":"image","url":photoUrl,"size":"full","aspectRatio":"20:13","aspectMode":"cover"}:null;
+  // ถ้ามีการแก้ค่า — หา original macro ก่อนแก้
+  const hasCorrected=tone==='fix'&&s.correction;
+  const origM=hasCorrected?getSubMacros({...s,correction:null,status:'pending'}):null;
+  const corrRows=hasCorrected?[
+    {"type":"box","layout":"horizontal","margin":"sm","contents":[
+      {"type":"text","text":"เดิม","size":"xs","color":"#9CA3AF","flex":0},
+      {"type":"text","text":`C ${origM.c}g · P ${origM.p}g · F ${origM.f}g`,"size":"xs","color":"#9CA3AF","flex":1,"margin":"sm","decoration":"line-through"}
+    ]},
+    {"type":"box","layout":"horizontal","margin":"xs","contents":[
+      {"type":"text","text":"ใหม่","size":"xs","color":"#059669","flex":0,"weight":"bold"},
+      {"type":"text","text":`C ${m.c}g · P ${m.p}g · F ${m.f}g`,"size":"xs","color":"#059669","flex":1,"margin":"sm","weight":"bold"}
+    ]}
+  ]:[
+    {"type":"box","layout":"horizontal","margin":"none","contents":[
+      {"type":"text","text":`⚡ ${m.kcal}`,"size":"xs","color":"#6B7280","flex":1},
+      {"type":"text","text":`C ${m.c}g`,"size":"xs","color":"#1D4ED8","flex":1},
+      {"type":"text","text":`P ${m.p}g`,"size":"xs","color":"#059669","flex":1},
+      {"type":"text","text":`F ${m.f}g`,"size":"xs","color":"#C2410C","flex":1}
+    ]}
+  ];
+  return{
+    "type":"flex","altText":T.title,
+    "contents":{"type":"bubble","size":"kilo",
+      ...(heroBlock?{"hero":heroBlock}:{}),
+      "header":{"type":"box","layout":"vertical","backgroundColor":T.bg,"paddingAll":"14px","contents":[
+        {"type":"text","text":T.title,"color":"#FFFFFF","weight":"bold","size":"md"},
+        {"type":"text","text":mealLabel,"color":T.subtint,"size":"xs","margin":"xs"}
+      ]},
+      "body":{"type":"box","layout":"vertical","paddingAll":"14px","spacing":"none","contents":[
+        ...corrRows,
+        {"type":"separator","margin":"sm"},
+        {"type":"text","text":comment,"size":"sm","color":"#374151","margin":"sm","wrap":true}
+      ]}
+    }
+  };
+}
+
+// ===== MEAL PLANNING =====
+function tomorrowStr(){
+  const d=new Date();d.setDate(d.getDate()+1);
+  const pad=n=>String(n).padStart(2,'0');
+  return`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+}
+function renderPlanPanel(){
+  if(!mealPlanDate)mealPlanDate=tomorrowStr();
+  const container=document.getElementById('panel-plan');
+  if(!container)return;
+  const totC=mealPlan.reduce((a,x)=>a+x.c,0);
+  const totP=mealPlan.reduce((a,x)=>a+x.p,0);
+  const totF=mealPlan.reduce((a,x)=>a+x.f,0);
+  const totK=Math.round(totC*4+totP*4+totF*9);
+  const pct=(v,max)=>Math.min(100,Math.round(v/max*100));
+  const bar=(v,max,col)=>`<div style="background:#E5E7EB;border-radius:4px;height:5px;overflow:hidden;flex:1"><div style="height:100%;background:${col};border-radius:4px;width:${pct(v,max)}%"></div></div>`;
+  container.innerHTML=`
+    <div style="margin-bottom:12px">
+      <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:6px">📋 วางแผนมื้ออาหารล่วงหน้า</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:12px;color:var(--gray)">วันที่วางแผน:</span>
+        <input type="date" id="plan-date-input" value="${mealPlanDate}"
+          onchange="mealPlanDate=this.value;loadPlanFromFirestore()"
+          style="border:1.5px solid var(--border);border-radius:8px;padding:4px 8px;font-size:12px;font-family:'Prompt',sans-serif;flex:1">
+      </div>
+    </div>
+    <div class="plan-total-bar">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <span style="font-size:12px;font-weight:700;color:#1D4ED8">⚡ ${totK} kcal</span>
+        <span style="font-size:10px;color:var(--gray)">เป้า ${TARGETS.kcal} kcal</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
+        <div style="font-size:10px;color:#1D4ED8">C ${totC}/${TARGETS.c}g${bar(totC,TARGETS.c,'#3B82F6')}</div>
+        <div style="font-size:10px;color:#059669">P ${totP}/${TARGETS.p}g${bar(totP,TARGETS.p,'#10B981')}</div>
+        <div style="font-size:10px;color:#C2410C">F ${totF}/${TARGETS.f}g${bar(totF,TARGETS.f,'#F59E0B')}</div>
+      </div>
+    </div>
+    ${mealPlan.length?mealPlan.map((item,i)=>`
+      <div class="plan-item">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div>
+            <div style="font-size:13px;font-weight:600;color:var(--text)">${item.meal?`<span style="font-size:10px;background:#F3F4F6;color:var(--gray);border-radius:6px;padding:1px 6px;margin-right:5px">${item.meal}</span>`:''}${escHtml(item.name||'ไม่ระบุชื่อ')}</div>
+            <div style="font-size:11px;color:var(--gray);margin-top:2px">C ${item.c}g · P ${item.p}g · F ${item.f}g · ⚡${Math.round(item.c*4+item.p*4+item.f*9)} kcal</div>
+          </div>
+          <button onclick="removePlanItem(${i})" style="border:none;background:none;color:#9CA3AF;font-size:16px;cursor:pointer;padding:0 4px">✕</button>
+        </div>
+      </div>`).join(''):`<div style="text-align:center;padding:24px 16px;color:var(--gray)">
+        <div style="font-size:28px;margin-bottom:8px">🍽️</div>
+        <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px">ยังไม่มีรายการค่ะ</div>
+        <div style="font-size:12px">กดปุ่ม "+ เพิ่มมื้ออาหาร" ด้านล่าง<br>เพื่อวางแผนว่าจะกินอะไร</div>
+      </div>`}
+    ${savedMenusCache&&savedMenusCache.length?`<div style="background:#FFFBEB;border:1.5px solid #FCD34D;border-radius:12px;padding:10px 12px;margin-top:6px;margin-bottom:2px">
+      <div style="font-size:11px;color:#92400E;font-weight:700;margin-bottom:7px">⭐ เมนูโปรด — แตะเพื่อเพิ่มได้เลย</div>
+      <div style="display:flex;flex-wrap:wrap;gap:5px">${savedMenusCache.map(m=>{const sid=JSON.stringify(m.id).replace(/"/g,'&quot;');const kcal=Math.round((m.total?.c||0)*4+(m.total?.p||0)*4+(m.total?.f||0)*9);return`<button onclick="addSavedMenuToPlan(${sid})" style="font-size:11px;padding:5px 9px;border-radius:8px;border:1px solid #FCD34D;background:white;color:#92400E;cursor:pointer;font-family:'Prompt',sans-serif">${escHtml(m.name||'เมนู')}<span style="font-size:10px;color:#B45309;margin-left:3px">⚡${kcal}</span></button>`;}).join('')}</div>
+    </div>`:''}
+    <button onclick="showAddPlanItem()" id="btn-add-plan"
+      style="width:100%;padding:11px;background:var(--primary);color:white;border:none;border-radius:10px;font-size:14px;font-weight:700;font-family:'Prompt',sans-serif;cursor:pointer;margin-top:8px">
+      + เพิ่มมื้ออาหาร
+    </button>
+    <div id="add-plan-form" style="display:none;background:white;border:1.5px solid var(--border);border-radius:12px;padding:14px;margin-top:8px">
+      <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:10px">➕ เพิ่มรายการอาหาร</div>
+      <!-- Mode Tabs -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:3px;background:#F3F4F6;border-radius:10px;padding:3px;margin-bottom:12px">
+        <button id="plan-tab-hand" onclick="setPlanMode('hand')" style="padding:7px 4px;border:none;border-radius:8px;font-size:12px;font-weight:600;font-family:'Prompt',sans-serif;cursor:pointer;background:var(--primary);color:white">👊 Hand</button>
+        <button id="plan-tab-fill" onclick="setPlanMode('fill')" style="padding:7px 4px;border:none;border-radius:8px;font-size:12px;font-weight:600;font-family:'Prompt',sans-serif;cursor:pointer;background:transparent;color:var(--gray)">✍️ กรอก</button>
+        <button id="plan-tab-ai" onclick="setPlanMode('ai')" style="padding:7px 4px;border:none;border-radius:8px;font-size:12px;font-weight:600;font-family:'Prompt',sans-serif;cursor:pointer;background:transparent;color:var(--gray)">✨ AI</button>
+      </div>
+      <!-- Meal + Name always visible -->
+      <div style="display:grid;grid-template-columns:auto 1fr;gap:6px;margin-bottom:10px">
+        <div>
+          <div style="font-size:10px;color:var(--gray);margin-bottom:3px">มื้อ</div>
+          <select id="plan-meal" class="plan-input" style="width:80px">
+            <option>เช้า</option><option>กลางวัน</option><option>เย็น</option><option>ขนม</option>
+          </select>
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--gray);margin-bottom:3px">ชื่อเมนู</div>
+          <input type="text" id="plan-name" class="plan-input" placeholder="เช่น ก๋วยเตี๋ยวหมู">
+        </div>
+      </div>
+      <!-- HAND MODE -->
+      <div id="plan-mode-hand">
+        <div class="hmb-subtitle" style="margin-bottom:6px">🌾 คาร์บ — ความหนาแน่น</div>
+        <div class="dens-grid" style="margin-bottom:4px">${['veggie','light','normal','dense','heavy'].map(d=>`<button class="dens-btn${d===planHandCarbDensity?' active':''}" data-d="${d}" onclick="setPlanCarbD('${d}')">${CARB_D[d].emoji} ${CARB_D[d].label}</button>`).join('')}</div>
+        <div class="hmb-subtitle" style="margin-top:8px;margin-bottom:4px">จำนวน</div>
+        <div class="hmb-stepper" style="margin-bottom:14px">
+          <button onclick="adjPlanHand('carb',-0.5)">−</button>
+          <span id="ph-carb-qty" class="hval">${planHandCarbQty.toFixed(1)}</span>
+          <span class="hunit">ทัพพี</span>
+          <button onclick="adjPlanHand('carb',0.5)">+</button>
+        </div>
+        <div class="hmb-subtitle" style="margin-bottom:6px">🍗 โปรตีน</div>
+        <div class="ptype-grid" style="margin-bottom:4px">
+          <button class="ptype-btn${planHandProtType==='lean'?' active':''}" data-pt="lean" onclick="setPlanProtT('lean')">💪 ไม่ติดมัน<span class="ptype-sub">อกไก่ · หมูสันใน · ปลา · กุ้ง · ทูน่า</span><span class="ptype-sub" style="color:var(--primary-dark);font-weight:600">~145 kcal/ฝ่ามือ</span></button>
+          <button class="ptype-btn${planHandProtType==='semilean'?' active':''}" data-pt="semilean" onclick="setPlanProtT('semilean')">🍗 ติดมัน<span class="ptype-sub">ไก่มีหนัง · แซลมอน · เต้าหู้ · เนื้อวัว</span><span class="ptype-sub" style="color:var(--primary-dark);font-weight:600">~185 kcal/ฝ่ามือ</span></button>
+        </div>
+        <div class="hmb-subtitle" style="margin-top:8px;margin-bottom:4px">จำนวน</div>
+        <div class="hmb-stepper" style="margin-bottom:14px">
+          <button onclick="adjPlanHand('prot',-0.5)">−</button>
+          <span id="ph-prot-qty" class="hval">${planHandProtQty.toFixed(1)}</span>
+          <span class="hunit">ฝ่ามือ</span>
+          <button onclick="adjPlanHand('prot',0.5)">+</button>
+        </div>
+        <div class="hmb-subtitle" style="margin-bottom:6px">🍳 วิธีปรุง + ไขมัน</div>
+        <div class="cook-grid" style="margin-bottom:10px">${[['none','🟢 ต้ม/นึ่ง/ย่าง','ไม่มีน้ำมัน'],['stirfry','🟡 ผัด (ร้าน)','+90 kcal'],['deep','🔴 ทอด/กะทิ','+180 kcal']].map(([m,lbl,sub])=>`<button class="cook-btn${m===planCookMethod?' active':''}" data-ck="${m}" onclick="setPlanCook('${m}')">${lbl}<span class="dens-kcal">${sub}</span></button>`).join('')}</div>
+        <div class="hmb-subtitle" style="margin-bottom:4px">🫒 น้ำมันมองเห็น (ช้อนชา)</div>
+        <div class="hmb-stepper" style="margin-bottom:14px">
+          <button onclick="adjPlanHand('fat',-0.5)">−</button>
+          <span id="ph-fat-qty" class="hval">${planVisibleFat.toFixed(1)}</span>
+          <span class="hunit">ช้อนชา</span>
+          <button onclick="adjPlanHand('fat',0.5)">+</button>
+        </div>
+        <div id="ph-preview" style="background:#F0FDF4;border-radius:10px;padding:10px 14px;margin-bottom:10px;font-size:14px;font-weight:700;color:#065F46;text-align:center">
+          <span id="ph-preview-text">C 24g · P 28g · F 3g → ⚡ 235 kcal</span>
+        </div>
+      </div>
+      <!-- กรอก MODE -->
+      <div id="plan-mode-fill" style="display:none">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:10px">
+          <div><div style="font-size:10px;color:var(--gray);margin-bottom:3px">Carb (g)</div><input type="number" id="plan-carb" class="plan-input" placeholder="0" min="0"></div>
+          <div><div style="font-size:10px;color:var(--gray);margin-bottom:3px">Protein (g)</div><input type="number" id="plan-prot" class="plan-input" placeholder="0" min="0"></div>
+          <div><div style="font-size:10px;color:var(--gray);margin-bottom:3px">Fat (g)</div><input type="number" id="plan-fat" class="plan-input" placeholder="0" min="0"></div>
+        </div>
+      </div>
+      <!-- AI MODE -->
+      <div id="plan-mode-ai" style="display:none">
+        <div style="border:1.5px dashed #D1D5DB;border-radius:10px;padding:14px;text-align:center;margin-bottom:8px;cursor:pointer;background:#FAFAFA" onclick="document.getElementById('plan-ai-photo').click()">
+          <input type="file" id="plan-ai-photo" accept="image/*" capture="environment" style="display:none" onchange="handlePlanAIPhoto(this)">
+          <div id="plan-ai-photo-preview" style="display:none;text-align:center"><img id="plan-ai-photo-img" style="max-height:120px;border-radius:8px;margin-bottom:4px"></div>
+          <div id="plan-ai-photo-placeholder"><div style="font-size:28px">📷</div><div style="font-size:12px;color:var(--gray);margin-top:4px">ถ่ายรูปหรืออธิบายอาหาร<br>หรือพิมพ์ชื่อเมนูในช่องบน</div></div>
+        </div>
+        <input type="text" id="plan-ai-text" class="plan-input" placeholder="หรือพิมพ์เมนูให้ AI คำนวณ เช่น ก๋วยเตี๋ยวหมู 1 ชาม" style="margin-bottom:8px">
+        <button onclick="runPlanAI()" id="btn-plan-ai" style="width:100%;padding:9px;background:#7C3AED;color:white;border:none;border-radius:8px;font-size:13px;font-weight:600;font-family:'Prompt',sans-serif;cursor:pointer;margin-bottom:8px">✨ AI คำนวณ</button>
+        <div id="plan-ai-result" style="display:none;background:#F0FDF4;border-radius:8px;padding:9px 12px;margin-bottom:8px;font-size:13px">
+          <div style="font-size:11px;color:#059669;font-weight:600;margin-bottom:3px">✨ AI คำนวณแล้วค่ะ</div>
+          <div id="plan-ai-result-text" style="color:#065F46;font-weight:600"></div>
+        </div>
+      </div>
+      <!-- Buttons -->
+      <div style="display:flex;gap:6px">
+        <button onclick="addPlanItem()" style="flex:1;padding:9px;background:var(--primary);color:white;border:none;border-radius:8px;font-size:13px;font-weight:600;font-family:'Prompt',sans-serif;cursor:pointer">เพิ่ม</button>
+        <button onclick="document.getElementById('add-plan-form').style.display='none'" style="padding:9px 14px;background:#F3F4F6;border:none;border-radius:8px;font-size:12px;font-family:'Prompt',sans-serif;cursor:pointer">ยกเลิก</button>
+      </div>
+    </div>
+    ${mealPlan.length?`<button onclick="savePlanToFirestore()"
+      style="width:100%;margin-top:10px;padding:10px;background:#059669;color:white;border:none;border-radius:10px;font-size:13px;font-weight:600;font-family:'Prompt',sans-serif;cursor:pointer">
+      💾 บันทึกแผนอาหาร
+    </button>
+    <button onclick="sendPlanToLine()"
+      style="width:100%;margin-top:6px;padding:10px;background:#06B6D4;color:white;border:none;border-radius:10px;font-size:13px;font-weight:600;font-family:'Prompt',sans-serif;cursor:pointer">
+      📤 ส่งแผนไป LINE
+    </button>`:''}
+    <div id="plan-coach-comment" style="display:none;background:#EFF6FF;border-radius:10px;padding:12px;margin-top:10px;border:1px solid #BFDBFE">
+      <div style="font-size:11px;font-weight:700;color:#1D4ED8;margin-bottom:4px">💬 Feedback จากโค้ช</div>
+      <div id="plan-coach-comment-text" style="font-size:13px;color:#374151;line-height:1.6"></div>
+    </div>`;
+}
+function showAddPlanItem(){
+  const f=document.getElementById('add-plan-form');
+  if(!f)return;
+  const opening=f.style.display==='none';
+  f.style.display=opening?'block':'none';
+  if(opening){setPlanMode(planAddMode);updatePlanHandPreview();}
+}
+function quickFillPlanItem(name,c,p,f){
+  const ni=document.getElementById('plan-name');const ci=document.getElementById('plan-carb');
+  const pi=document.getElementById('plan-prot');const fi=document.getElementById('plan-fat');
+  if(ni)ni.value=name;if(ci)ci.value=c||0;if(pi)pi.value=p||0;if(fi)fi.value=f||0;
+}
+function setPlanMode(mode){
+  planAddMode=mode;
+  ['hand','fill','ai'].forEach(m=>{
+    const tab=document.getElementById('plan-tab-'+m);
+    const panel=document.getElementById('plan-mode-'+m);
+    if(tab){tab.style.background=m===mode?'var(--primary)':'transparent';tab.style.color=m===mode?'white':'var(--gray)';}
+    if(panel)panel.style.display=m===mode?'block':'none';
+  });
+  if(mode==='hand')updatePlanHandPreview();
+}
+function adjPlanHand(which,delta){
+  if(which==='carb'){
+    planHandCarbQty=Math.max(0,Math.round((planHandCarbQty+delta)*2)/2);
+    const el=document.getElementById('ph-carb-qty');if(el)el.textContent=planHandCarbQty.toFixed(1);
+  }else if(which==='prot'){
+    planHandProtQty=Math.max(0,Math.round((planHandProtQty+delta)*2)/2);
+    const el=document.getElementById('ph-prot-qty');if(el)el.textContent=planHandProtQty.toFixed(1);
+  }else if(which==='fat'){
+    planVisibleFat=Math.max(0,Math.round((planVisibleFat+delta)*2)/2);
+    const el=document.getElementById('ph-fat-qty');if(el)el.textContent=planVisibleFat.toFixed(1);
+  }
+  updatePlanHandPreview();
+}
+function setPlanCook(method){
+  planCookMethod=method;
+  const panel=document.getElementById('plan-mode-hand');
+  if(panel)panel.querySelectorAll('.cook-btn').forEach(b=>b.classList.toggle('active',b.dataset.ck===method));
+  updatePlanHandPreview();
+}
+function setPlanCarbD(density){
+  planHandCarbDensity=density;
+  const panel=document.getElementById('plan-mode-hand');
+  if(panel)panel.querySelectorAll('.dens-btn').forEach(b=>b.classList.toggle('active',b.dataset.d===density));
+  updatePlanHandPreview();
+}
+function setPlanProtT(type){
+  planHandProtType=type;
+  const panel=document.getElementById('plan-mode-hand');
+  if(panel)panel.querySelectorAll('.ptype-btn').forEach(b=>b.classList.toggle('active',b.dataset.pt===type));
+  updatePlanHandPreview();
+}
+function updatePlanHandPreview(){
+  const cd=CARB_D[planHandCarbDensity]||CARB_D.normal;
+  const pt=PROT_T[planHandProtType]||PROT_T.lean;
+  const cm=COOK_M[planCookMethod]||COOK_M.none;
+  const c=Math.round(cd.c*planHandCarbQty+pt.c*planHandProtQty);
+  const p=Math.round(cd.p*planHandCarbQty+pt.p*planHandProtQty);
+  const f=Math.round(cd.f*planHandCarbQty+pt.f*planHandProtQty+cm.f+planVisibleFat*VIS_FAT_G);
+  const kcal=c*4+p*4+f*9;
+  const el=document.getElementById('ph-preview-text');
+  if(el)el.textContent=`C ${c}g · P ${p}g · F ${f}g → ⚡ ${kcal} kcal`;
+}
+function handlePlanAIPhoto(input){
+  const file=input.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=function(e){
+    const img=document.getElementById('plan-ai-photo-img');
+    const preview=document.getElementById('plan-ai-photo-preview');
+    const placeholder=document.getElementById('plan-ai-photo-placeholder');
+    if(img)img.src=e.target.result;
+    if(preview)preview.style.display='block';
+    if(placeholder)placeholder.style.display='none';
+  };
+  reader.readAsDataURL(file);
+}
+async function runPlanAI(){
+  const text=document.getElementById('plan-ai-text')?.value.trim();
+  const name=document.getElementById('plan-name')?.value.trim();
+  const photoImg=document.getElementById('plan-ai-photo-img');
+  const photoSrc=(photoImg?.src&&photoImg.src.startsWith('data:'))?photoImg.src:null;
+  const query=text||(name?`${name} 1 จาน`:'');
+  if(!query&&!photoSrc){showToast('พิมพ์ชื่อเมนูหรือถ่ายรูปก่อนนะคะ');return;}
+  const btn=document.getElementById('btn-plan-ai');
+  if(btn){btn.textContent='⏳ AI กำลังคิด...';btn.disabled=true;}
+  try{
+    const isVision=!!photoSrc;
+    const model=isVision?'meta-llama/llama-4-scout-17b-16e-instruct':'llama-3.3-70b-versatile';
+    const userContent=isVision?[
+      {type:'image_url',image_url:{url:photoSrc}},
+      {type:'text',text:`วิเคราะห์อาหารในรูป${query?` (${query})`:''}แล้วตอบเป็น JSON เท่านั้น: {"name":"ชื่อ","carb":0,"protein":0,"fat":0} (กรัม)`}
+    ]:`วิเคราะห์อาหาร: "${query}" แล้วตอบเป็น JSON เท่านั้น: {"name":"ชื่ออาหาร","carb":0,"protein":0,"fat":0} (กรัมต่อ 1 จาน)`;
+    const res=await fetch('https://api.groq.com/openai/v1/chat/completions',{
+      method:'POST',
+      headers:{'Authorization':'Bearer '+GROQ_KEY,'Content-Type':'application/json'},
+      body:JSON.stringify({model,messages:[{role:'user',content:userContent}],max_tokens:200,temperature:0.2})
+    });
+    const data=await res.json();
+    const raw=data.choices?.[0]?.message?.content||'{}';
+    const match=raw.match(/\{[\s\S]*?\}/);
+    const parsed=JSON.parse(match?match[0]:'{}');
+    if(!parsed.carb&&!parsed.protein&&!parsed.fat)throw new Error('ไม่ได้ข้อมูล macro');
+    planAIData={c:Math.round(parsed.carb||0),p:Math.round(parsed.protein||0),f:Math.round(parsed.fat||0),name:parsed.name||query};
+    const resultEl=document.getElementById('plan-ai-result');
+    const resultText=document.getElementById('plan-ai-result-text');
+    if(resultEl)resultEl.style.display='block';
+    if(resultText){
+      const kcal=planAIData.c*4+planAIData.p*4+planAIData.f*9;
+      resultText.innerHTML=`<strong>${escHtml(planAIData.name)}</strong><br>C ${planAIData.c}g · P ${planAIData.p}g · F ${planAIData.f}g · ⚡ ${kcal} kcal`;
+    }
+    const ni=document.getElementById('plan-name');if(ni&&!ni.value)ni.value=planAIData.name;
+  }catch(e){showToast('AI คำนวณไม่ได้: '+e.message);}
+  if(btn){btn.textContent='✨ AI คำนวณ';btn.disabled=false;}
+}
+function addPlanItem(){
+  const meal=document.getElementById('plan-meal')?.value||'';
+  let c=0,p=0,f=0,autoName='';
+  if(planAddMode==='hand'){
+    const cd=CARB_D[planHandCarbDensity]||CARB_D.normal;
+    const pt=PROT_T[planHandProtType]||PROT_T.lean;
+    const cm=COOK_M[planCookMethod]||COOK_M.none;
+    c=Math.round(cd.c*planHandCarbQty+pt.c*planHandProtQty);
+    p=Math.round(cd.p*planHandCarbQty+pt.p*planHandProtQty);
+    f=Math.round(cd.f*planHandCarbQty+pt.f*planHandProtQty+cm.f+planVisibleFat*VIS_FAT_G);
+    if(!c&&!p&&!f){showToast('ปรับ qty คาร์บหรือโปรตีนก่อนนะคะ');return;}
+    autoName=`${cd.emoji} ${cd.label} ${planHandCarbQty}ทัพพี + ${planHandProtType==='lean'?'💪':'🍗'} โปรตีน ${planHandProtQty}ฝ่ามือ`;
+  }else if(planAddMode==='fill'){
+    c=parseFloat(document.getElementById('plan-carb')?.value)||0;
+    p=parseFloat(document.getElementById('plan-prot')?.value)||0;
+    f=parseFloat(document.getElementById('plan-fat')?.value)||0;
+    if(!c&&!p&&!f){showToast('กรอก macro อย่างน้อย 1 ช่องนะคะ');return;}
+  }else if(planAddMode==='ai'){
+    if(!planAIData){showToast('กด ✨ AI คำนวณ ก่อนนะคะ');return;}
+    c=planAIData.c;p=planAIData.p;f=planAIData.f;autoName=planAIData.name||'';
+  }
+  const name=document.getElementById('plan-name')?.value.trim()||autoName||'อาหาร';
+  mealPlan.push({name,meal,c,p,f,mode:planAddMode});
+  // reset state
+  planHandCarbQty=1.5;planHandProtQty=1.0;planCookMethod='none';planAIData=null;
+  planHandCarbDensity='normal';planHandProtType='lean';planVisibleFat=0;
+  renderPlanPanel();
+}
+function removePlanItem(i){mealPlan.splice(i,1);renderPlanPanel();}
+function addSavedMenuToPlan(id){
+  const menu=(savedMenusCache||[]).find(m=>m.id===id);
+  if(!menu)return;
+  const c=Math.round(menu.total?.c||0);
+  const p=Math.round(menu.total?.p||0);
+  const f=Math.round(menu.total?.f||0);
+  if(!c&&!p&&!f){showToast('เมนูนี้ไม่มีข้อมูล macro ค่ะ');return;}
+  mealPlan.push({name:menu.name||'เมนู',c,p,f,mode:'saved'});
+  showToast('เพิ่ม '+escHtml(menu.name||'เมนู')+' แล้วค่ะ ✓');
+  renderPlanPanel();
+}
+async function savePlanToFirestore(){
+  if(!mealPlan.length){alert('ยังไม่มีรายการค่ะ');return;}
+  const btn=document.querySelector('#panel-plan button[onclick="savePlanToFirestore()"]');
+  if(btn){btn.textContent='⏳ กำลังบันทึก...';btn.disabled=true;}
+  try{
+    await db.collection('mealPlans').doc(user.userId).collection('plans').doc(mealPlanDate).set({
+      items:mealPlan,date:mealPlanDate,userId:user.userId,
+      updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    showToast('บันทึกแผนอาหารแล้วค่ะ ✅');
+  }catch(e){showToast('บันทึกไม่ได้: '+e.message);}
+  if(btn){btn.textContent='💾 บันทึกแผนอาหาร';btn.disabled=false;}
+}
+async function sendPlanToLine(){
+  if(typeof liff==='undefined'||!liff.isInClient()){showToast('กรุณาเปิดในแอป LINE ค่ะ');return;}
+  if(!mealPlan||!mealPlan.length){showToast('ยังไม่มีแผนค่ะ');return;}
+  const tC=Math.round(mealPlan.reduce((a,i)=>a+(i.c||0),0));
+  const tP=Math.round(mealPlan.reduce((a,i)=>a+(i.p||0),0));
+  const tF=Math.round(mealPlan.reduce((a,i)=>a+(i.f||0),0));
+  const tKcal=Math.round(tC*4+tP*4+tF*9);
+  const dateLabel=formatDateLong(mealPlanDate);
+  const lines=mealPlan.map((it,i)=>{
+    const kcal=Math.round((it.c||0)*4+(it.p||0)*4+(it.f||0)*9);
+    return`${i+1}. ${it.name} — C${it.c||0} P${it.p||0} F${it.f||0} ⚡${kcal} kcal`;
+  }).join('\n');
+  const msg=`📋 แผนมื้ออาหาร ${dateLabel}\n\n${lines}\n\n─────────────────\n🧮 รวม C${tC}g · P${tP}g · F${tF}g\n⚡ ${tKcal} kcal`;
+  try{
+    await liff.sendMessages([{type:'text',text:msg}]);
+    showToast('✅ ส่งแผนไป LINE แล้วค่ะ');
+  }catch(e){showToast('ส่งไม่ได้: '+e.message);}
+}
+async function loadPlanFromFirestore(){
+  if(!mealPlanDate)mealPlanDate=tomorrowStr(); // guard: Firestore ไม่รับ empty doc ID
+  mealPlan=[];renderPlanPanel(); // clear ทันทีก่อน query — ไม่ให้เห็นข้อมูลวันเก่า
+  try{
+    const doc=await db.collection('mealPlans').doc(user.userId).collection('plans').doc(mealPlanDate).get();
+    if(doc.exists){
+      const d=doc.data();
+      mealPlan=d.items||[];
+      // show coach comment if any
+      const cc=document.getElementById('plan-coach-comment');
+      const ct=document.getElementById('plan-coach-comment-text');
+      if(cc&&ct&&d.coachComment){ct.textContent=d.coachComment;cc.style.display='block';}
+    }else{mealPlan=[];}
+    renderPlanPanel();
+  }catch(e){console.log('load plan err',e);mealPlan=[];renderPlanPanel();} // render even on error
+}
+
+// ===== PROGRAM HELPERS =====
+function calcProgramEndDate(prog){
+  if(!prog||!prog.programStart)return null;
+  const start=new Date(prog.programStart+'T00:00:00');
+  const totalDays=(prog.programWeeks||12)*7+(prog.pausedDays||0);
+  const end=new Date(start);
+  end.setDate(start.getDate()+totalDays);
+  return end;
+}
+function getProgramDaysLeft(prog){
+  const end=calcProgramEndDate(prog);
+  if(!end)return null;
+  const now=new Date();now.setHours(0,0,0,0);
+  return Math.ceil((end-now)/(1000*60*60*24));
+}
+function formatDateLong(dateStr){
+  if(!dateStr)return'-';
+  const [y,m,d]=dateStr.split('-');
+  const months=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+  return`${parseInt(d)} ${months[parseInt(m)-1]} ${parseInt(y)+543}`;
+}
+function renderProgramBar(){
+  const bar=document.getElementById('program-bar');if(!bar)return;
+  const prog=studentProgramData;
+  if(!prog||!prog.programStart){bar.style.display='none';return;}
+  const end=calcProgramEndDate(prog);if(!end){bar.style.display='none';return;}
+  const start=new Date(prog.programStart+'T00:00:00');
+  const totalDays=(prog.programWeeks||12)*7+(prog.pausedDays||0);
+  const elapsed=Math.max(0,Math.floor((new Date()-start)/(1000*60*60*24)));
+  const pct=Math.min(100,Math.round(elapsed/totalDays*100));
+  const left=getProgramDaysLeft(prog);
+  const leftLabel=left===null?'':(left<=0?'✅ จบคอร์สแล้ว':left===1?'🔥 เหลือ 1 วัน':`⏰ เหลือ ${left} วัน`);
+  const pauseTag=prog.isPaused?'<span class="prog-paused">⏸ พักเทรน</span>':'';
+  bar.innerHTML=`<div class="prog-badge">${leftLabel}</div><div class="prog-track"><div class="prog-fill" style="width:${pct}%"></div></div><div class="prog-label">${pct}% ${pauseTag}</div>`;
+  bar.style.display='flex';
+}
+async function checkNearEnd(){
+  const prog=studentProgramData;
+  if(!prog||!prog.programStart)return;
+  if(prog.isPaused)return;
+  const left=getProgramDaysLeft(prog);
+  if(left===null||left>7||left<=0)return;
+  const today=todayStr();
+  if(nearEndSentDate===today)return;
+  if(!liff.isInClient())return;
+  nearEndSentDate=today;
+  const end=calcProgramEndDate(prog);
+  const endStr=`${end.getDate()}/${end.getMonth()+1}/${end.getFullYear()+543}`;
+  try{await liff.sendMessages([buildNearEndCard(left,endStr,prog.discountCode||'',prog.discountPercent||0)]);}
+  catch(e){console.log('near-end card err',e);}
+}
+function buildNearEndCard(daysLeft,endDate,code,pct){
+  const codeBlock=code?[
+    {"type":"separator","margin":"md"},
+    {"type":"box","layout":"vertical","margin":"md","paddingAll":"10px","backgroundColor":"#F0FDF4","cornerRadius":"8px","contents":[
+      {"type":"text","text":"🎁 ส่วนลดต่อคอร์สใหม่","size":"sm","weight":"bold","color":"#059669"},
+      {"type":"text","text":`ลด ${pct}% เมื่อสมัครคอร์สถัดไป`,"size":"sm","color":"#6B7280","margin":"xs"},
+      {"type":"box","layout":"horizontal","margin":"sm","contents":[
+        {"type":"text","text":"Code:","size":"sm","color":"#374151","flex":0},
+        {"type":"text","text":code,"size":"md","weight":"bold","color":"#7C3AED","flex":1,"align":"end"}
+      ]}
+    ]}
+  ]:[];
+  return{"type":"flex","altText":`⏰ เหลืออีก ${daysLeft} วันจะจบคอร์สแล้วค่ะ!`,
+    "contents":{"type":"bubble","size":"kilo",
+      "header":{"type":"box","layout":"vertical","backgroundColor":"#1D4ED8","paddingAll":"14px","contents":[
+        {"type":"text","text":"⏰ ใกล้จบคอร์สแล้วค่ะ!","color":"#FFFFFF","weight":"bold","size":"md"},
+        {"type":"text","text":`วันสุดท้าย ${endDate}`,"color":"#BFDBFE","size":"xs","margin":"xs"}
+      ]},
+      "body":{"type":"box","layout":"vertical","paddingAll":"14px","spacing":"none","contents":[
+        {"type":"text","text":`เหลืออีกแค่ ${daysLeft} วัน!`,"weight":"bold","size":"xl","color":"#1D4ED8"},
+        {"type":"text","text":"คุณทำได้ดีมากตลอดคอร์สนี้ 💪","size":"sm","color":"#6B7280","margin":"sm"},
+        ...codeBlock
+      ]}
+    }
+  };
+}
+function buildProgramSection(uid, prog){
+  const hasProgram=!!prog.programStart;
+  const end=hasProgram?calcProgramEndDate(prog):null;
+  const left=hasProgram?getProgramDaysLeft(prog):null;
+  const totalDays=hasProgram?(prog.programWeeks||12)*7+(prog.pausedDays||0):0;
+  const start=hasProgram?new Date(prog.programStart+'T00:00:00'):null;
+  const elapsed=start?Math.max(0,Math.floor((new Date()-start)/(1000*60*60*24))):0;
+  const pct=totalDays>0?Math.min(100,Math.round(elapsed/totalDays*100)):0;
+  const statusLine=!hasProgram?'ยังไม่ได้ตั้งค่าคอร์ส':
+    left===null?'-':left<=0?'✅ จบคอร์สแล้ว':
+    `เหลือ ${left} วัน (${pct}%)${prog.isPaused?' ⏸ พักเทรน':''}`;
+  const progBarHtml=hasProgram?`<div style="background:#E5E7EB;border-radius:6px;height:8px;overflow:hidden;margin:8px 0">
+    <div style="height:100%;background:#1D4ED8;border-radius:6px;width:${pct}%"></div></div>`:'';
+  const pauseBtn=hasProgram?(prog.isPaused
+    ?`<button class="pause-btn resume" onclick="resumeStudentProgram('${uid}')">▶ กลับมาเทรนต่อ — คำนวณวันจบใหม่</button>`
+    :`<button class="pause-btn pause" onclick="pauseStudentProgram('${uid}')">⏸ พักเทรน — ขยายวันจบ</button>`
+  ):'';
+  const endDateStr=end?(()=>{const pad=n=>String(n).padStart(2,'0');return formatDateLong(`${end.getFullYear()}-${pad(end.getMonth()+1)}-${pad(end.getDate())}`)})():'—';
+  return`<div class="sd-prog-section">
+    <div class="sd-prog-title">📅 ข้อมูลคอร์ส</div>
+    <div id="prog-status-${uid}" style="font-size:12px;color:var(--text);margin-bottom:6px;font-weight:600">${statusLine}</div>
+    ${progBarHtml}
+    <div style="margin-bottom:8px">
+      <div style="font-size:10px;color:var(--gray);margin-bottom:2px">วันเริ่มเทรน</div>
+      <input type="date" id="prog-start-${uid}" class="prog-input" value="${prog.programStart||''}" oninput="updateProgEndPreview('${uid}')">
+    </div>
+    <div style="margin-bottom:8px">
+      <div style="font-size:10px;color:var(--gray);margin-bottom:2px">ระยะเวลา</div>
+      <select id="prog-weeks-${uid}" class="prog-input" onchange="updateProgEndPreview('${uid}')">
+        ${[4,8,12,16,20,24].map(w=>`<option value="${w}"${prog.programWeeks===w?' selected':''}>${w} สัปดาห์</option>`).join('')}
+      </select>
+    </div>
+    <div id="prog-end-preview-${uid}" style="font-size:12px;color:#1D4ED8;background:#EFF6FF;border-radius:8px;padding:7px 10px;margin-bottom:10px">
+      📅 วันจบคอร์ส: <strong>${endDateStr}</strong>${hasProgram&&prog.pausedDays>0?` <span style="font-size:10px;color:var(--gray)">· พักสะสม ${prog.pausedDays} วัน</span>`:''}
+    </div>
+    <button onclick="saveProgramSettings('${uid}')"
+      style="width:100%;padding:8px;background:#1D4ED8;color:white;border:none;border-radius:9px;font-size:13px;font-weight:600;font-family:'Prompt',sans-serif;cursor:pointer;margin-bottom:6px">
+      💾 บันทึกข้อมูลคอร์ส
+    </button>
+    ${pauseBtn}
+  </div>`;
+}
+function updateProgEndPreview(uid){
+  const startEl=document.getElementById(`prog-start-${uid}`);
+  const weeksEl=document.getElementById(`prog-weeks-${uid}`);
+  const previewEl=document.getElementById(`prog-end-preview-${uid}`);
+  if(!startEl||!weeksEl||!previewEl)return;
+  const startVal=startEl.value;
+  const weeks=parseInt(weeksEl.value)||12;
+  if(!startVal){previewEl.innerHTML='📅 วันจบคอร์ส: <strong>—</strong>';return;}
+  const start=new Date(startVal+'T00:00:00');
+  const end=new Date(start);end.setDate(start.getDate()+weeks*7);
+  const pad=n=>String(n).padStart(2,'0');
+  const endStr=formatDateLong(`${end.getFullYear()}-${pad(end.getMonth()+1)}-${pad(end.getDate())}`);
+  previewEl.innerHTML=`📅 วันจบคอร์ส: <strong>${endStr}</strong>`;
+}
+async function saveProgramSettings(uid){
+  const startEl=document.getElementById(`prog-start-${uid}`);
+  const weeksEl=document.getElementById(`prog-weeks-${uid}`);
+  if(!startEl||!weeksEl)return;
+  const payload={programStart:startEl.value,programWeeks:parseInt(weeksEl.value)};
+  try{
+    await db.collection('students').doc(uid).set(payload,{merge:true});
+    showToast('บันทึกข้อมูลคอร์สแล้วค่ะ ✅');
+    if(currentStudentData&&currentStudentData.userId===uid)openStudentDetail(uid);
+  }catch(e){showToast('บันทึกไม่ได้: '+e.message);}
+}
+async function pauseStudentProgram(uid){
+  if(!confirm('พักเทรนนักเรียนคนนี้? วันจบจะถูกเลื่อนออกไปทุกวันที่พัก'))return;
+  try{
+    await db.collection('students').doc(uid).set({isPaused:true,pauseStartDate:todayStr()},{merge:true});
+    showToast('⏸ พักเทรนแล้วค่ะ วันจบจะถูกคำนวณใหม่');
+    if(currentStudentData&&currentStudentData.userId===uid)openStudentDetail(uid);
+  }catch(e){showToast('เกิดข้อผิดพลาด: '+e.message);}
+}
+async function resumeStudentProgram(uid){
+  try{
+    // calculate days paused
+    const doc=await db.collection('students').doc(uid).get();
+    const d=doc.data()||{};
+    let extra=0;
+    if(d.pauseStartDate){
+      const pauseStart=new Date(d.pauseStartDate+'T00:00:00');
+      extra=Math.max(0,Math.floor((new Date()-pauseStart)/(1000*60*60*24)));
+    }
+    const prevPaused=d.pausedDays||0;
+    await db.collection('students').doc(uid).set({isPaused:false,pauseStartDate:null,pausedDays:prevPaused+extra},{merge:true});
+    showToast(`▶ กลับมาเทรนต่อแล้วค่ะ เพิ่มเวลา ${extra} วัน`);
+    if(currentStudentData&&currentStudentData.userId===uid)openStudentDetail(uid);
+  }catch(e){showToast('เกิดข้อผิดพลาด: '+e.message);}
+}
+
 function renderStudentDetail(u, targets, healthLogs, weeklySummaries={}, weeklyChecks=[]){
   const MON=getMonWeekDates();
-  const TH_SHORT=['จ','อ','พ','พฤ','ศ','ส'];
+  const TH_SHORT=['จ','อ','พ','พฤ','ศ','ส','อา'];
   const byDate={};
   u.subs.forEach(s=>{const k=subDate(s);if(!byDate[k])byDate[k]=[];byDate[k].push(s);});
 
-  // --- COACH NOTES ---
+  // --- PROGRAM ---
   const uid=u.userId;
+  const progData={programStart:targets.programStart||'',programWeeks:targets.programWeeks||12,
+    pausedDays:targets.pausedDays||0,isPaused:targets.isPaused||false,
+    discountCode:targets.discountCode||'',discountPercent:targets.discountPercent||0};
+  const progHtml=buildProgramSection(uid,progData);
+
+  // --- COACH NOTES ---
   const notesHtml=`<div class="sd-section">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
       <div class="sd-section-title" style="margin-bottom:0">📋 โน้ตเกี่ยวกับนักเรียน</div>
@@ -4368,7 +5194,11 @@ function renderStudentDetail(u, targets, healthLogs, weeklySummaries={}, weeklyC
   const weeklyHtml=buildWeeklySummaryAccordion(u, byDate, targets, healthLogs, weeklySummaries);
 
   const progressHtml=buildProgressSection(weeklyChecks, u.userId);
-  document.getElementById('sd-content').innerHTML=notesHtml+targHtml+macro7Html+progressHtml+zigzagHtml+lifestyleHtml+weeklyHtml;
+  const planSectionHtml=`<div class="sd-section">
+    <div class="sd-section-title">📋 แผนมื้ออาหาร</div>
+    <div id="coach-plan-${uid}"><div style="color:var(--gray);font-size:12px;text-align:center;padding:8px">⏳ กำลังโหลด...</div></div>
+  </div>`;
+  document.getElementById('sd-content').innerHTML=planSectionHtml+progHtml+notesHtml+targHtml+macro7Html+progressHtml+zigzagHtml+lifestyleHtml+weeklyHtml;
 }
 
 // ===== LIFESTYLE 7 วัน (bar charts) =====
@@ -4480,7 +5310,7 @@ function buildLifestyleSection(MON, TH_SHORT, healthLogs){
 function buildCard(s){
   const cs=cState[s.id]||{},showCorr=cs.open||false;
   const DL={veggie:'🟢ผัก',light:'🔵เบา',normal:'🟡ปกติ',dense:'🟠แน่น',heavy:'🔴ตัวตึง'};
-  const modeLabel={hand:'👊 Hand portion',label:'🏷️ ฉลาก',weigh:'✨ AI',restaurant:'🏪 ร้านดัง'}[s.mode]||s.mode;
+  const modeLabel={hand:'👊 Hand portion',label:'🏷️ ฉลาก',weigh:'✨ AI'}[s.mode]||s.mode;
   let chips='';
   if(s.mode==='hand'&&s.handData){
     const hd=s.handData;
@@ -4496,13 +5326,6 @@ function buildCard(s){
     chips+=`<span class="est-chip">${cookL}${hd.visibleFat>0?' +น้ำมัน'+hd.visibleFat+'ช':''}</span>`;
     if(hd.avo>0)chips+=`<span class="est-chip">🥑×${hd.avo}</span>`;
     chips+=`<span class="est-chip">⚡ ${hd.totalKcal} kcal</span>`;
-  }else if(s.mode==='restaurant'&&s.restaurantData){
-    const rd=s.restaurantData;
-    chips=`<span class="est-chip" style="background:#FEE2E2;color:#B91C1C;font-weight:600">🏪 ${escHtml(rd.restaurantName)}</span>`;
-    chips+=`<span class="est-chip">🍽️ ${escHtml(rd.foodName)}</span>`;
-    if(rd.servingDesc)chips+=`<span class="est-chip" style="font-size:11px">${escHtml(rd.servingDesc)}</span>`;
-    chips+=`<span class="est-chip gram">C:${rd.carb}g · P:${rd.protein}g · F:${rd.fat}g</span>`;
-    if(rd.dataSource==='estimated')chips+=`<span class="est-chip" style="background:#FEF3C7;color:#B45309;font-size:11px">โดยประมาณ</span>`;
   }else if(s.mode==='label'&&s.labelData){
     chips=`<span class="est-chip gram">คาร์บ ${s.labelData.carb.toFixed(1)}g</span><span class="est-chip gram">โปรตีน ${s.labelData.protein.toFixed(1)}g</span><span class="est-chip gram">ไขมัน ${s.labelData.fat.toFixed(1)}g</span>`;
   }else if(s.mode==='weigh'&&s.weighData){
@@ -4517,13 +5340,36 @@ function buildCard(s){
   const m=getSubMacros(s);
   const macroBar=`<div class="macro-summary"><div class="ms-item">${m.c}g<span>คาร์บ</span></div><div class="ms-item">${m.p}g<span>โปรตีน</span></div><div class="ms-item">${m.f}g<span>ไขมัน</span></div><div class="ms-kcal">⚡ ${m.kcal} kcal</div></div>`;
   const statusBadge={pending:'<span class="status-badge pending">รออนุมัติ</span>',approved:'<span class="status-badge approved">✓ อนุมัติ</span>',corrected:'<span class="status-badge corrected">✏️ แก้ไข</span>'}[s.status]||'';
-  const timeStr=s.createdAt?formatTime(s.createdAt.toDate()):'';
+  const timeStr=s.createdAt?(s.createdAt.toDate?formatTime(s.createdAt.toDate()):formatTime(new Date(s.createdAt))):'';
   const dateLabel=s.mealDate?formatDateTH(s.mealDate)+' · ':'';
-  const corrNote=(s.status==='corrected'&&s.correction)?`<div class="corr-note">✏️ C ${s.correction.carb} · P ${s.correction.protein} · F ${s.correction.fat}${s.correction.note?'<br>💬 '+escHtml(s.correction.note):''}</div>`:'';
-  const photoHtml=s.photoBase64?`<img class="card-photo" src="${s.photoBase64}" loading="lazy">`:'';
+  const corrNote=s.correction?`<div class="corr-note">✏️ ปรับค่า → C ${s.correction.carb} · P ${s.correction.protein} · F ${s.correction.fat}${s.correction.note?'<br>💬 '+escHtml(s.correction.note):''}</div>`:'';
+  const photoHtml=(s.photoBase64||s.photoUrl)?`<img class="card-photo" src="${s.photoBase64||s.photoUrl}" loading="lazy">`:'';
   const avatarHtml=s.pictureUrl?`<img src="${s.pictureUrl}" onerror="this.src=''" alt="">`:`<div style="width:38px;height:38px;border-radius:50%;background:var(--light);display:flex;align-items:center;justify-content:center;font-size:18px">👤</div>`;
   let actions='';
-  if(s.status==='pending')actions=`<div class="card-actions"><button class="btn-approve" onclick="approveCard('${s.id}')">✓ ถูกต้อง</button><button class="btn-correct" onclick="toggleCorr('${s.id}')">${showCorr?'✕ ยกเลิก':'✏️ แก้ไข'}</button></div>`;
+  const showApprove=cs.approveOpen||false;
+  const TONE_DEFAULTS={
+    good:'ดีมากเลยค่ะ! ทำได้ดีมาก 💪\nมื้อถัดไปปรับได้ตาม target เลยนะคะ',
+    fix:'โค้ชปรับค่า macro ให้แล้วนะคะ\nลองสังเกตครั้งหน้าด้วยนะคะ 🙏',
+    warn:'Fat/Carb วันนี้เกินเป้านะคะ\nมื้อถัดไปลดของทอด+แป้งด้วยนะคะ ⚠️'
+  };
+  const approvePanel=showApprove?`<div style="background:#F0FDF4;border-radius:10px;padding:12px;margin-top:8px;border:1px solid #BBF7D0">
+    <div style="font-size:11px;font-weight:700;color:#065F46;margin-bottom:8px">💬 ข้อความถึงนักเรียน</div>
+    <div style="display:flex;gap:5px;margin-bottom:8px">
+      ${['good','fix','warn'].map(t=>`<button class="tone-btn" id="tone-${t}-${s.id}" onclick="setToneBtn('${s.id}','${t}')"
+        style="${(cs._tone||'good')===t?'background:'+(t==='good'?'#059669':t==='fix'?'#D97706':'#DC2626')+';color:white;font-weight:700':''}">${{good:'✅ ชม',fix:'📝 แนะนำ',warn:'⚠️ เตือน'}[t]}</button>`).join('')}
+    </div>
+    <textarea id="approve-comment-${s.id}" rows="3"
+      style="width:100%;border:1.5px solid #BBF7D0;border-radius:8px;padding:8px;font-size:12px;font-family:'Prompt',sans-serif;background:white;resize:none;box-sizing:border-box"
+      placeholder="ข้อความสำหรับนักเรียน...">${TONE_DEFAULTS[cs._tone||'good']}</textarea>
+    ${(s.photoBase64||s.photoUrl)?`<label style="display:flex;align-items:center;gap:6px;font-size:11px;color:#374151;margin-top:6px">
+      <input type="checkbox" id="approve-photo-${s.id}" checked> แนบรูปอาหารไปด้วย</label>`:''}
+    <div style="display:flex;gap:6px;margin-top:8px">
+      <button onclick="doApprove('${s.id}')" style="flex:1;padding:8px;background:#059669;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;font-family:'Prompt',sans-serif;cursor:pointer">ส่ง Card + อนุมัติ ✓</button>
+      <button onclick="approveCard('${s.id}')" style="padding:8px 12px;background:#F3F4F6;border:none;border-radius:8px;font-size:12px;font-family:'Prompt',sans-serif;cursor:pointer;color:var(--text)">ยกเลิก</button>
+    </div>
+  </div>`:'';
+  const commentBadge=s.coachComment&&s.status!=='pending'?`<div class="hist-coach-comment" style="background:#F0FDF4;color:#065F46;margin-top:6px">💬 ${escHtml(s.coachComment)}</div>`:'';
+  if(s.status==='pending')actions=`<div class="card-actions"><button class="btn-approve" onclick="doApproveQuiet('${s.id}')">✅ อนุมัติ</button><button class="btn-correct" onclick="toggleCorr('${s.id}')">${showCorr?'✕ ยกเลิก':'✏️ แก้ไข + ส่ง Card'}</button></div>`;
   const corrPanel=showCorr?buildCorrPanel(s,cs):'';
   const testBadge=s.isTest?'<span style="background:#EDE9FE;color:#7C3AED;border-radius:6px;padding:1px 7px;font-size:11px;margin-left:4px">🧪 ทดสอบ</span>':'';
   return`<div class="card" id="card-${s.id}"><div class="card-header">${avatarHtml}<div><div class="card-name">${escHtml(s.displayName||'นักเรียน')}<span class="mode-tag ${s.mode}">${modeLabel}</span>${testBadge}</div><div class="card-meta">${dateLabel}มื้อ${s.meal} &nbsp;${statusBadge}</div></div><div class="card-time">${timeStr}</div></div>${photoHtml}<div class="card-body"><div class="est-chips">${chips}</div>${macroBar}${corrNote}${actions}</div>${corrPanel}</div>`;
@@ -4533,7 +5379,7 @@ function buildCorrPanel(s,cs){
   // === HAND PORTION MODE ===
   if(s.mode==='hand'){
     if(!cState[s.id])cState[s.id]={};
-    cState[s.id]._sub=s;
+    cState[s.id]._sub=s; // store ref so updateHandCorrPreview can access it
     const hd=s.handData||{};
     const density=cs.carbDensity||(hd.carbSlots?.[0]?.density||'normal');
     const carbQty=cs.carbQty!==undefined?cs.carbQty:(hd.carbSlots?.reduce((t,sl)=>t+(sl.qty||0),0)||1.5);
@@ -4541,78 +5387,78 @@ function buildCorrPanel(s,cs){
     const protQty=cs.protQty!==undefined?cs.protQty:(hd.protein||1);
     const cookMethod=cs.cookMethod||hd.cookMethod||'none';
     const visFat=cs.visFat!==undefined?cs.visFat:(hd.visibleFat||0);
-    const eggWhole=cs.eggWhole!==undefined?cs.eggWhole:(hd.eggWhole||0);
-    const eggWhite=cs.eggWhite!==undefined?cs.eggWhite:(hd.eggWhite||0);
-    const avo=cs.avo!==undefined?cs.avo:(hd.avo||0);
-    const fruitLadles=cs.fruitLadles!==undefined?cs.fruitLadles:(hd.fruitLadles||0);
     const cd=CARB_D[density]||CARB_D.normal;
     const pt=PROT_T[protType]||PROT_T.lean;
     const ck=COOK_M[cookMethod]||COOK_M.none;
-    const eggsC=eggWhole*EGG_W.c+eggWhite*EGG_WH.c;
-    const eggsP=eggWhole*EGG_W.p+eggWhite*EGG_WH.p;
-    const eggsF=eggWhole*EGG_W.f;
-    const avoC=avo*AVO.c,avoP=avo*AVO.p,avoF=avo*AVO.f;
-    const fruitC=fruitLadles*15;
+    const eggsC=(hd.eggWhole||0)*EGG_W.c+(hd.eggWhite||0)*EGG_WH.c;
+    const eggsP=(hd.eggWhole||0)*EGG_W.p+(hd.eggWhite||0)*EGG_WH.p;
+    const eggsF=(hd.eggWhole||0)*EGG_W.f;
+    const avoC=(hd.avo||0)*AVO.c,avoP=(hd.avo||0)*AVO.p,avoF=(hd.avo||0)*AVO.f;
+    const fruitC=(hd.fruitLadles||0)*15;
     const preC=Math.round(cd.c*carbQty+pt.c*protQty+eggsC+avoC+fruitC);
     const preP=Math.round(cd.p*carbQty+pt.p*protQty+eggsP+avoP);
     const preF=Math.round(cd.f*carbQty+pt.f*protQty+ck.f+visFat*VIS_FAT_G+eggsF+avoF);
     const preKcal=Math.round(preC*4+preP*4+preF*9);
-    const dBtn=(d)=>`<button id="hcd-${d}-${s.id}" onclick="setHCorrCarbD('${s.id}','${d}')" style="border:none;border-radius:8px;padding:5px 9px;font-size:12px;font-family:'Prompt',sans-serif;cursor:pointer;transition:all .15s;${d===density?'background:#F5A623;color:white;font-weight:700':'background:#F3F4F6;color:var(--text)'}">${CARB_D[d].emoji} ${CARB_D[d].label}</button>`;
-    const ptBtn=(t,lbl)=>`<button id="hpt-${t}-${s.id}" onclick="setHCorrProtT('${s.id}','${t}')" style="border:none;border-radius:8px;padding:5px 12px;font-size:12px;font-family:'Prompt',sans-serif;cursor:pointer;transition:all .15s;${t===protType?'background:#3B82F6;color:white;font-weight:700':'background:#F3F4F6;color:var(--text)'}">${lbl}</button>`;
-    const ckBtn=(m,lbl)=>`<button id="hck-${m}-${s.id}" onclick="setHCorrCookM('${s.id}','${m}')" style="border:none;border-radius:8px;padding:5px 10px;font-size:12px;font-family:'Prompt',sans-serif;cursor:pointer;transition:all .15s;${m===cookMethod?'background:#8B5CF6;color:white;font-weight:700':'background:#F3F4F6;color:var(--text)'}">${lbl}</button>`;
-    const hRow=(label,field,val,step)=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid #F3F4F6">
-  <span style="font-size:13px;color:var(--text)">${label}</span>
-  <div class="corr-s-row" style="margin:0"><button onclick="adjHCorr('${s.id}','${field}',-${step})">−</button><input type="number" class="corr-input" id="hc-${field}-${s.id}" value="${val}" min="0" step="${step}" style="width:48px" onchange="syncHCorr('${s.id}','${field}')"><button onclick="adjHCorr('${s.id}','${field}',${step})">+</button></div>
-</div>`;
+    const dBtn=(d)=>`<button class="dens-btn${d===density?' active':''}" data-d="${d}" onclick="setHCorrCarbD('${s.id}','${d}')">${CARB_D[d].emoji} ${CARB_D[d].label}</button>`;
+    const ptBtn=(t,lbl,sub)=>`<button class="ptype-btn${t===protType?' active':''}" data-pt="${t}" onclick="setHCorrProtT('${s.id}','${t}')">${lbl}<span class="ptype-sub">${sub}</span></button>`;
+    const ckBtn=(m,lbl,sub)=>`<button class="cook-btn${m===cookMethod?' active':''}" data-ck="${m}" onclick="setHCorrCookM('${s.id}','${m}')">${lbl}<span class="dens-kcal">${sub}</span></button>`;
     return`<div class="correction-panel">
 <h4>✏️ แก้ค่า — Hand Portion</h4>
 <div style="margin-bottom:10px">
-  <div style="font-size:12px;font-weight:700;color:var(--gray);margin-bottom:5px">🟡 คาร์บ — ความหนาแน่น</div>
-  <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px">${['veggie','light','normal','dense','heavy'].map(dBtn).join('')}</div>
-  <div style="font-size:12px;font-weight:700;color:var(--gray);margin-bottom:4px">จำนวน (มือ)</div>
+  <div class="hmb-subtitle" style="margin-bottom:5px">🌾 คาร์บ — ความหนาแน่น</div>
+  <div class="dens-grid" style="margin-bottom:8px">${['veggie','light','normal','dense','heavy'].map(dBtn).join('')}</div>
+  <div class="hmb-subtitle" style="margin-bottom:4px">จำนวน (ทัพพี)</div>
   <div class="corr-s-row"><button onclick="adjHCorr('${s.id}','carbQty',-0.5)">−</button><input type="number" class="corr-input" id="hc-carbQty-${s.id}" value="${carbQty}" min="0" step="0.5" onchange="syncHCorr('${s.id}','carbQty')"><button onclick="adjHCorr('${s.id}','carbQty',0.5)">+</button></div>
 </div>
 <div style="margin-bottom:10px">
-  <div style="font-size:12px;font-weight:700;color:var(--gray);margin-bottom:5px">🔴 โปรตีน</div>
-  <div style="display:flex;gap:6px;margin-bottom:8px">${ptBtn('lean','💪 ไม่ติดมัน')}${ptBtn('semilean','🍗 ติดมัน')}</div>
-  <div style="font-size:12px;font-weight:700;color:var(--gray);margin-bottom:4px">จำนวน (ฝ่ามือ)</div>
+  <div class="hmb-subtitle" style="margin-bottom:5px">🍗 โปรตีน</div>
+  <div class="ptype-grid" style="margin-bottom:8px">${ptBtn('lean','💪 ไม่ติดมัน','อกไก่ · หมูสันใน · ปลา · กุ้ง')}${ptBtn('semilean','🍗 ติดมัน','ไก่มีหนัง · แซลมอน · เต้าหู้ · เนื้อวัว')}</div>
+  <div class="hmb-subtitle" style="margin-bottom:4px">จำนวน (ฝ่ามือ)</div>
   <div class="corr-s-row"><button onclick="adjHCorr('${s.id}','protQty',-0.5)">−</button><input type="number" class="corr-input" id="hc-protQty-${s.id}" value="${protQty}" min="0" step="0.5" onchange="syncHCorr('${s.id}','protQty')"><button onclick="adjHCorr('${s.id}','protQty',0.5)">+</button></div>
 </div>
 <div style="margin-bottom:10px">
-  <div style="font-size:12px;font-weight:700;color:var(--gray);margin-bottom:5px">🍳 วิธีปรุง + น้ำมัน</div>
-  <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px">${ckBtn('none','🥗 ต้ม/ย่าง')}${ckBtn('stirfry','🥘 ผัด')}${ckBtn('deep','🍳 ทอด/กะทิ')}</div>
-  <div style="font-size:12px;font-weight:700;color:var(--gray);margin-bottom:4px">น้ำมันมองเห็น (ช้อนชา)</div>
+  <div class="hmb-subtitle" style="margin-bottom:5px">🍳 วิธีปรุง + น้ำมัน</div>
+  <div class="cook-grid" style="margin-bottom:8px">${ckBtn('none','🟢 ต้ม/นึ่ง/ย่าง','ไม่มีน้ำมัน')}${ckBtn('stirfry','🟡 ผัด (ร้าน)','+90 kcal')}${ckBtn('deep','🔴 ทอด/กะทิ','+180 kcal')}</div>
+  <div class="hmb-subtitle" style="margin-bottom:4px">น้ำมันมองเห็น (ช้อนชา)</div>
   <div class="corr-s-row"><button onclick="adjHCorr('${s.id}','visFat',-0.5)">−</button><input type="number" class="corr-input" id="hc-visFat-${s.id}" value="${visFat}" min="0" step="0.5" onchange="syncHCorr('${s.id}','visFat')"><button onclick="adjHCorr('${s.id}','visFat',0.5)">+</button></div>
 </div>
-<div style="margin-bottom:10px;background:#F9FAFB;border-radius:10px;padding:8px 10px">
-  <div style="font-size:12px;font-weight:700;color:var(--gray);margin-bottom:4px">🥚 ไข่ + อาโวคาโด + ผลไม้</div>
-  ${hRow('🥚 ไข่ทั้งฟอง (ฟอง)','eggWhole',eggWhole,1)}
-  ${hRow('🤍 ไข่ขาว (ฟอง)','eggWhite',eggWhite,1)}
-  ${hRow('🥑 อาโวคาโด (ลูก)','avo',avo,0.5)}
-  ${hRow('🍓 ผลไม้ (ทัพพีคาร์บ)','fruitLadles',fruitLadles,0.5)}
-</div>
 <div id="hc-preview-${s.id}" style="background:#F0FDF4;border-radius:8px;padding:8px 12px;margin:6px 0 4px;font-size:13px;font-weight:700;color:#15803D;text-align:center">C ${preC}g · P ${preP}g · F ${preF}g → ⚡ ${preKcal} kcal</div>
-<textarea class="corr-note-ta" id="cc-note-${s.id}" rows="2" placeholder="ข้อความถึงนักเรียน (ไม่บังคับ)..." oninput="syncNote('${s.id}',this.value)">${escHtml(cs.note||'')}</textarea>
-<button class="btn-send-corr" onclick="sendCorrection('${s.id}')">ส่ง Feedback ✓</button>
+<textarea class="corr-note-ta" id="cc-note-${s.id}" rows="2" placeholder="ข้อความถึงนักเรียน (ไม่บังคับ)...">${escHtml(cs.note||'')}</textarea>
+<div style="display:flex;gap:8px;margin-top:6px"><button class="btn-send-corr" style="flex:1" onclick="sendCorrection('${s.id}','save')">💾 บันทึก</button><button class="btn-send-corr" style="flex:1;background:#2563EB" onclick="sendCorrection('${s.id}','copy')">📋 Copy ข้อความ</button></div>
 </div>`;
   }
-  // === LABEL / WEIGH / RESTAURANT MODE — gram steppers ===
-  let carb,prot,fat;
+  // === LABEL / WEIGH MODE — gram steppers with strikethrough original ===
+  let carb,prot,fat,origC,origP,origF;
   if(s.mode==='label'&&s.labelData){
-    carb=cs.carb!==undefined?cs.carb:Math.round(s.labelData.carb||0);
-    prot=cs.protein!==undefined?cs.protein:Math.round(s.labelData.protein||0);
-    fat=cs.fat!==undefined?cs.fat:Math.round(s.labelData.fat||0);
-  }else if(s.mode==='restaurant'&&s.restaurantData){
-    carb=cs.carb!==undefined?cs.carb:Math.round(s.restaurantData.carb||0);
-    prot=cs.protein!==undefined?cs.protein:Math.round(s.restaurantData.protein||0);
-    fat=cs.fat!==undefined?cs.fat:Math.round(s.restaurantData.fat||0);
+    origC=Math.round(s.labelData.carb||0);
+    origP=Math.round(s.labelData.protein||0);
+    origF=Math.round(s.labelData.fat||0);
   }else{
-    carb=cs.carb!==undefined?cs.carb:Math.round(s.weighData?.carb||0);
-    prot=cs.protein!==undefined?cs.protein:Math.round(s.weighData?.protein||0);
-    fat=cs.fat!==undefined?cs.fat:Math.round(s.weighData?.fat||0);
+    origC=Math.round(s.weighData?.carb||0);
+    origP=Math.round(s.weighData?.protein||0);
+    origF=Math.round(s.weighData?.fat||0);
   }
+  if(!cState[s.id])cState[s.id]={};
+  cState[s.id]._sub=s;
+  carb=cs.carb!==undefined?cs.carb:origC;
+  prot=cs.protein!==undefined?cs.protein:origP;
+  fat=cs.fat!==undefined?cs.fat:origF;
+  const origKcal=Math.round(origC*4+origP*4+origF*9);
   const prevKcal=Math.round(carb*4+prot*4+fat*9);
-  return`<div class="correction-panel"><h4>✏️ แก้ไขค่าที่ถูกต้อง</h4><div class="corr-steppers"><div class="corr-s-item"><label>🟡 คาร์บ (g)</label><div class="corr-s-row"><button onclick="adjCorr('${s.id}','carb',-1)">−</button><input type="number" class="corr-input" id="cc-carb-${s.id}" value="${carb}" min="0" step="1" onchange="syncCorr('${s.id}','carb')"><button onclick="adjCorr('${s.id}','carb',1)">+</button></div></div><div class="corr-s-item"><label>🔴 โปรตีน (g)</label><div class="corr-s-row"><button onclick="adjCorr('${s.id}','protein',-1)">−</button><input type="number" class="corr-input" id="cc-protein-${s.id}" value="${prot}" min="0" step="1" onchange="syncCorr('${s.id}','protein')"><button onclick="adjCorr('${s.id}','protein',1)">+</button></div></div><div class="corr-s-item"><label>🟢 ไขมัน (g)</label><div class="corr-s-row"><button onclick="adjCorr('${s.id}','fat',-1)">−</button><input type="number" class="corr-input" id="cc-fat-${s.id}" value="${fat}" min="0" step="1" onchange="syncCorr('${s.id}','fat')"><button onclick="adjCorr('${s.id}','fat',1)">+</button></div></div></div><div id="corr-preview-${s.id}" style="background:#F0FDF4;border-radius:8px;padding:8px 12px;margin:6px 0 4px;font-size:13px;font-weight:700;color:#15803D;text-align:center">C ${carb}g · P ${prot}g · F ${fat}g → ⚡ ${prevKcal} kcal</div><textarea class="corr-note-ta" id="cc-note-${s.id}" rows="2" placeholder="ข้อความถึงนักเรียน (ไม่บังคับ)..." oninput="syncNote('${s.id}',this.value)">${escHtml(cs.note||'')}</textarea><button class="btn-send-corr" onclick="sendCorrection('${s.id}')">ส่ง Feedback ✓</button></div>`;
+  const kcalDiff=prevKcal-origKcal;
+  const kcalDiffStr=kcalDiff===0?'':(kcalDiff>0?`+${kcalDiff}`:`${kcalDiff}`);
+  const kcalDiffBadge=kcalDiff===0?'':`<span style="font-size:11px;padding:2px 7px;border-radius:10px;margin-left:6px;background:${kcalDiff>0?'#FEE2E2':'#DCFCE7'};color:${kcalDiff>0?'#DC2626':'#059669'};font-weight:700">${kcalDiffStr} kcal</span>`;
+  const mBadge=(dv,mult)=>{const kc=Math.round(dv*mult);if(Math.abs(kc)<1)return'';const sg=kc>0?'+':'';return`<span style="font-size:10px;padding:1px 5px;border-radius:8px;background:${kc>0?'#FEE2E2':'#DCFCE7'};color:${kc>0?'#DC2626':'#059669'};font-weight:700">${sg}${kc} kcal</span>`;};
+  return`<div class="correction-panel"><h4>✏️ แก้ไขค่าที่ถูกต้อง</h4>
+<div style="text-align:center;font-size:12px;color:#9CA3AF;margin-bottom:8px">นักเรียนกรอก: <del>C ${origC}g · P ${origP}g · F ${origF}g → ⚡ ${origKcal} kcal</del></div>
+<div class="corr-steppers">
+<div class="corr-s-item"><label>🟡 คาร์บ (g) <span id="badge-carb-${s.id}">${mBadge(carb-origC,4)}</span></label><div class="corr-s-row"><button onclick="adjCorr('${s.id}','carb',-1)">−</button><input type="number" class="corr-input" id="cc-carb-${s.id}" value="${carb}" min="0" step="1" onchange="syncCorr('${s.id}','carb')"><button onclick="adjCorr('${s.id}','carb',1)">+</button></div></div>
+<div class="corr-s-item"><label>🔴 โปรตีน (g) <span id="badge-protein-${s.id}">${mBadge(prot-origP,4)}</span></label><div class="corr-s-row"><button onclick="adjCorr('${s.id}','protein',-1)">−</button><input type="number" class="corr-input" id="cc-protein-${s.id}" value="${prot}" min="0" step="1" onchange="syncCorr('${s.id}','protein')"><button onclick="adjCorr('${s.id}','protein',1)">+</button></div></div>
+<div class="corr-s-item"><label>🟢 ไขมัน (g) <span id="badge-fat-${s.id}">${mBadge(fat-origF,9)}</span></label><div class="corr-s-row"><button onclick="adjCorr('${s.id}','fat',-1)">−</button><input type="number" class="corr-input" id="cc-fat-${s.id}" value="${fat}" min="0" step="1" onchange="syncCorr('${s.id}','fat')"><button onclick="adjCorr('${s.id}','fat',1)">+</button></div></div>
+</div>
+<div id="corr-preview-${s.id}" data-origc="${origC}" data-origp="${origP}" data-origf="${origF}" style="background:#F0FDF4;border-radius:8px;padding:8px 12px;margin:6px 0 4px;font-size:13px;font-weight:700;color:#15803D;text-align:center">C ${carb}g · P ${prot}g · F ${fat}g → ⚡ ${prevKcal} kcal${kcalDiffBadge}</div>
+<textarea class="corr-note-ta" id="cc-note-${s.id}" rows="2" placeholder="ข้อความถึงนักเรียน (ไม่บังคับ)...">${escHtml(cs.note||'')}</textarea>
+<div style="display:flex;gap:8px;margin-top:6px"><button class="btn-send-corr" style="flex:1" onclick="sendCorrection('${s.id}','save')">💾 บันทึก</button><button class="btn-send-corr" style="flex:1;background:#2563EB" onclick="sendCorrection('${s.id}','copy')">📋 Copy ข้อความ</button></div></div>`;
 }
 
 function toggleCorr(id){if(!cState[id])cState[id]={};cState[id].open=!cState[id].open;renderCoach();}
@@ -4620,9 +5466,17 @@ function updateCorrPreview(id){
   const c=parseFloat(document.getElementById(`cc-carb-${id}`)?.value)||0;
   const p=parseFloat(document.getElementById(`cc-protein-${id}`)?.value)||0;
   const f=parseFloat(document.getElementById(`cc-fat-${id}`)?.value)||0;
-  const kcal=Math.round(c*4+p*4+f*9);
   const el=document.getElementById(`corr-preview-${id}`);
-  if(el)el.textContent=`C ${c}g · P ${p}g · F ${f}g → ⚡ ${kcal} kcal`;
+  if(!el)return;
+  const kcal=Math.round(c*4+p*4+f*9);
+  const oC=parseFloat(el.dataset.origc)||0,oP=parseFloat(el.dataset.origp)||0,oF=parseFloat(el.dataset.origf)||0;
+  const origKcal=Math.round(oC*4+oP*4+oF*9);
+  const diff=kcal-origKcal;
+  const diffBadge=diff===0?'':`<span style="font-size:11px;padding:2px 7px;border-radius:10px;margin-left:6px;background:${diff>0?'#FEE2E2':'#DCFCE7'};color:${diff>0?'#DC2626':'#059669'};font-weight:700">${diff>0?'+'+diff:diff} kcal</span>`;
+  el.innerHTML=`C ${c}g · P ${p}g · F ${f}g → ⚡ ${kcal} kcal${diffBadge}`;
+  // Update per-macro diff badges live
+  const upBadge=(key,val,orig,mult)=>{const bEl=document.getElementById(`badge-${key}-${id}`);if(!bEl)return;const kc=Math.round((val-orig)*mult);if(Math.abs(kc)<1){bEl.innerHTML='';return;}const sg=kc>0?'+':'';bEl.innerHTML=`<span style="font-size:10px;padding:1px 5px;border-radius:8px;background:${kc>0?'#FEE2E2':'#DCFCE7'};color:${kc>0?'#DC2626':'#059669'};font-weight:700">${sg}${kc} kcal</span>`;};
+  upBadge('carb',c,oC,4);upBadge('protein',p,oP,4);upBadge('fat',f,oF,9);
 }
 function adjCorr(id,macro,delta){
   if(!cState[id])cState[id]={};
@@ -4643,28 +5497,22 @@ function syncCorr(id,macro){
 function setHCorrCarbD(id,density){
   if(!cState[id])cState[id]={};
   cState[id].carbDensity=density;
-  ['veggie','light','normal','dense','heavy'].forEach(d=>{
-    const btn=document.getElementById(`hcd-${d}-${id}`);
-    if(btn){btn.style.background=d===density?'#F5A623':'#F3F4F6';btn.style.color=d===density?'white':'var(--text)';btn.style.fontWeight=d===density?'700':'400';}
-  });
+  const card=document.getElementById('card-'+id);
+  if(card)card.querySelectorAll('.dens-btn').forEach(b=>b.classList.toggle('active',b.dataset.d===density));
   updateHandCorrPreview(id);
 }
 function setHCorrProtT(id,type){
   if(!cState[id])cState[id]={};
   cState[id].protType=type;
-  ['lean','semilean'].forEach(t=>{
-    const btn=document.getElementById(`hpt-${t}-${id}`);
-    if(btn){btn.style.background=t===type?'#3B82F6':'#F3F4F6';btn.style.color=t===type?'white':'var(--text)';btn.style.fontWeight=t===type?'700':'400';}
-  });
+  const card=document.getElementById('card-'+id);
+  if(card)card.querySelectorAll('.ptype-btn').forEach(b=>b.classList.toggle('active',b.dataset.pt===type));
   updateHandCorrPreview(id);
 }
 function setHCorrCookM(id,method){
   if(!cState[id])cState[id]={};
   cState[id].cookMethod=method;
-  ['none','stirfry','deep'].forEach(m=>{
-    const btn=document.getElementById(`hck-${m}-${id}`);
-    if(btn){btn.style.background=m===method?'#8B5CF6':'#F3F4F6';btn.style.color=m===method?'white':'var(--text)';btn.style.fontWeight=m===method?'700':'400';}
-  });
+  const card=document.getElementById('card-'+id);
+  if(card)card.querySelectorAll('.cook-btn').forEach(b=>b.classList.toggle('active',b.dataset.ck===method));
   updateHandCorrPreview(id);
 }
 function adjHCorr(id,field,delta){
@@ -4682,71 +5530,6 @@ function syncHCorr(id,field){
   cState[id][field]=val;el.value=val;
   updateHandCorrPreview(id);
 }
-function syncNote(id,val){
-  if(!cState[id])cState[id]={};
-  cState[id].note=val;
-}
-// === RESTAURANT MODE ===
-function renderRestGrid(){
-  const grid=document.getElementById('rest-grid');
-  if(!grid)return;
-  const rids=[...new Set(RESTAURANT_DB.map(f=>f.rid))];
-  grid.innerHTML=rids.map(rid=>{
-    const meta=REST_META[rid]||{name:rid,emoji:'🏪'};
-    const count=RESTAURANT_DB.filter(f=>f.rid===rid).length;
-    return`<button class="rest-btn" onclick="selectRest('${rid}')">${meta.emoji} ${meta.name}<div style="font-size:10px;font-weight:400;color:var(--gray);margin-top:2px">${count} เมนู</div></button>`;
-  }).join('');
-}
-function selectRest(rid){
-  selRestId=rid;
-  const meta=REST_META[rid]||{name:rid,emoji:'🏪'};
-  const items=RESTAURANT_DB.filter(f=>f.rid===rid);
-  document.getElementById('rest-step-restaurants').style.display='none';
-  document.getElementById('rest-step-menu').style.display='block';
-  document.getElementById('rest-menu-title').textContent=meta.emoji+' '+meta.name;
-  const list=document.getElementById('rest-menu-list');
-  list.innerHTML=items.map(item=>{
-    const srcBadge=item.src==='estimated'?`<span style="font-size:9px;color:#B45309;background:#FEF3C7;padding:1px 5px;border-radius:5px;margin-left:4px">โดยประมาณ</span>`:'';
-    return`<div class="rest-menu-item" onclick="selectFood('${item.id}')">
-      <div style="flex:1;min-width:0">
-        <div style="font-size:13px;font-weight:600;color:var(--text)">${escHtml(item.th)}</div>
-        <div style="font-size:11px;color:var(--gray);margin-top:1px">${escHtml(item.srv)}${srcBadge}</div>
-      </div>
-      <div style="text-align:right;flex-shrink:0">
-        <div style="font-size:13px;font-weight:700;color:var(--primary-dark)">${item.kcal} kcal</div>
-        <div style="font-size:10px;color:var(--gray)">C${item.c} P${item.p} F${item.f}</div>
-      </div>
-    </div>`;
-  }).join('');
-}
-function selectFood(foodId){
-  selFood=FOOD_MAP[foodId];
-  if(!selFood)return;
-  const srcBadge=selFood.src==='estimated'
-    ?`<span style="font-size:10px;color:#B45309;background:#FEF3C7;padding:1px 6px;border-radius:6px">โดยประมาณ</span>`
-    :`<span style="font-size:10px;color:#065F46;background:#D1FAE5;padding:1px 6px;border-radius:6px">ข้อมูลทางการ</span>`;
-  document.getElementById('rest-sel-rest').textContent='🏪 '+(REST_META[selFood.rid]?.name||selFood.r);
-  document.getElementById('rest-sel-name').textContent=selFood.th;
-  document.getElementById('rest-sel-detail').innerHTML=`
-    <div style="font-size:11px;color:var(--gray);margin-bottom:8px;display:flex;align-items:center;gap:6px">${escHtml(selFood.srv)} ${srcBadge}</div>
-    <div style="display:flex;gap:10px;flex-wrap:wrap">
-      <span style="font-size:13px;font-weight:700;color:#92400E">คาร์บ ${selFood.c}g</span>
-      <span style="font-size:13px;font-weight:700;color:#1D4ED8">โปรตีน ${selFood.p}g</span>
-      <span style="font-size:13px;font-weight:700;color:#166534">ไขมัน ${selFood.f}g</span>
-      <span style="font-size:13px;font-weight:700;color:var(--primary-dark);margin-left:auto">⚡ ${selFood.kcal} kcal</span>
-    </div>`;
-  document.getElementById('rest-selected-area').style.display='block';
-}
-function restBack(){
-  document.getElementById('rest-step-restaurants').style.display='block';
-  document.getElementById('rest-step-menu').style.display='none';
-  selRestId=null;
-  renderRestGrid();
-}
-function restClearSel(){
-  selFood=null;
-  document.getElementById('rest-selected-area').style.display='none';
-}
 function calcHandCorrMacros(id){
   const s=cState[id]?._sub;
   if(!s)return{C:0,P:0,F:0,kcal:0};
@@ -4758,18 +5541,14 @@ function calcHandCorrMacros(id){
   const protQty=st.protQty!==undefined?st.protQty:(hd.protein||1);
   const cookMethod=st.cookMethod||hd.cookMethod||'none';
   const visFat=st.visFat!==undefined?st.visFat:(hd.visibleFat||0);
-  const eggWhole=st.eggWhole!==undefined?st.eggWhole:(hd.eggWhole||0);
-  const eggWhite=st.eggWhite!==undefined?st.eggWhite:(hd.eggWhite||0);
-  const avo=st.avo!==undefined?st.avo:(hd.avo||0);
-  const fruitLadles=st.fruitLadles!==undefined?st.fruitLadles:(hd.fruitLadles||0);
   const cd=CARB_D[density]||CARB_D.normal;
   const pt=PROT_T[protType]||PROT_T.lean;
   const ck=COOK_M[cookMethod]||COOK_M.none;
-  const eggsC=eggWhole*EGG_W.c+eggWhite*EGG_WH.c;
-  const eggsP=eggWhole*EGG_W.p+eggWhite*EGG_WH.p;
-  const eggsF=eggWhole*EGG_W.f;
-  const avoC=avo*AVO.c,avoP=avo*AVO.p,avoF=avo*AVO.f;
-  const fruitC=fruitLadles*15;
+  const eggsC=(hd.eggWhole||0)*EGG_W.c+(hd.eggWhite||0)*EGG_WH.c;
+  const eggsP=(hd.eggWhole||0)*EGG_W.p+(hd.eggWhite||0)*EGG_WH.p;
+  const eggsF=(hd.eggWhole||0)*EGG_W.f;
+  const avoC=(hd.avo||0)*AVO.c,avoP=(hd.avo||0)*AVO.p,avoF=(hd.avo||0)*AVO.f;
+  const fruitC=(hd.fruitLadles||0)*15;
   const C=Math.round(cd.c*carbQty+pt.c*protQty+eggsC+avoC+fruitC);
   const P=Math.round(cd.p*carbQty+pt.p*protQty+eggsP+avoP);
   const F=Math.round(cd.f*carbQty+pt.f*protQty+ck.f+visFat*VIS_FAT_G+eggsF+avoF);
@@ -4780,11 +5559,51 @@ function updateHandCorrPreview(id){
   const el=document.getElementById(`hc-preview-${id}`);
   if(el)el.textContent=`C ${C}g · P ${P}g · F ${F}g → ⚡ ${kcal} kcal`;
 }
-async function approveCard(id){try{await db.collection('submissions').doc(id).update({status:'approved'});}catch(e){alert('Error: '+e.message);}}
-async function sendCorrection(id){
+function approveCard(id){if(!cState[id])cState[id]={};cState[id].approveOpen=!cState[id].approveOpen;renderCoach();}
+async function doApproveQuiet(id){
+  try{
+    await db.collection('submissions').doc(id).update({
+      status:'approved',coachComment:'',coachCommentSent:true
+    });
+    if(cState[id])delete cState[id].approveOpen;
+    renderCoach();
+    showToast('✅ อนุมัติแล้วค่ะ');
+  }catch(e){alert('Error: '+e.message);}
+}
+async function doApprove(id){
+  const tone=cState[id]?._tone||'good';
+  const comment=(document.getElementById(`approve-comment-${id}`)?.value||'').trim();
+  const withPhoto=document.getElementById(`approve-photo-${id}`)?.checked||false;
+  const s=allSubs.find(x=>x.id===id);
+  try{
+    await db.collection('submissions').doc(id).update({
+      status:'approved',coachComment:comment,coachCommentTone:tone,
+      coachCommentSent:false,coachCommentWithPhoto:withPhoto
+    });
+    // ลองส่ง Card ทันทีจาก LIFF ของโค้ช
+    // ถ้าโค้ชเปิด LIFF จากใน chat เดียวกับนักเรียน → ส่งถึงนักเรียนเลย
+    let sentNow=false;
+    if(s&&liff.isInClient()){
+      try{
+        const cardData=Object.assign({},s,{coachComment:comment,coachCommentTone:tone,coachCommentWithPhoto:withPhoto,status:'approved'});
+        const card=buildCoachCommentCard(cardData,comment,tone,withPhoto);
+        await liff.sendMessages([card]);
+        await db.collection('submissions').doc(id).update({coachCommentSent:true});
+        sentNow=true;
+      }catch(sendErr){
+        // ไม่ได้อยู่ใน chat → นักเรียนจะรับ Card ครั้งหน้าที่เปิดแอป
+        console.log('coach send card err',sendErr);
+      }
+    }
+    if(cState[id])cState[id].approveOpen=false;
+    renderCoach();
+    showToast(sentNow?'✅ ส่ง Card ให้นักเรียนแล้วค่ะ':'✅ อนุมัติแล้ว — Card จะส่งเมื่อนักเรียนเปิดแอปค่ะ');
+  }catch(e){alert('Error: '+e.message);}
+}
+async function sendCorrection(id,action='save'){
+  const existingSub=cState[id]?._sub||{};
   let carb,prot,fat;
-  const s=cState[id]?._sub;
-  if(s&&s.mode==='hand'){
+  if(existingSub.mode==='hand'){
     const{C,P,F}=calcHandCorrMacros(id);
     carb=C;prot=P;fat=F;
   }else{
@@ -4793,8 +5612,47 @@ async function sendCorrection(id){
     fat=parseFloat(document.getElementById(`cc-fat-${id}`)?.value)||0;
   }
   const note=document.getElementById(`cc-note-${id}`)?.value.trim()||'';
-  try{await db.collection('submissions').doc(id).update({status:'corrected',correction:{carb,protein:prot,fat,note}});cState[id]={};}
-  catch(e){alert('Error: '+e.message);}
+  const origM=getSubOrigMacros(existingSub);
+  const kcalNew=Math.round(carb*4+prot*4+fat*9);
+  const kcalOrig=Math.round(origM.c*4+origM.p*4+origM.f*9);
+  const kcalDiff=kcalNew-kcalOrig;
+  const kcalDiffStr=kcalDiff===0?'ไม่เปลี่ยน':(kcalDiff>0?`+${kcalDiff} kcal`:`${kcalDiff} kcal`);
+  if(action==='copy'){
+    const meal=existingSub.meal||'?';
+    const dateStr=existingSub.createdAt?new Date(existingSub.createdAt.seconds*1000).toLocaleDateString('th-TH',{day:'numeric',month:'short'}):'-';
+    const txt=[
+      `✏️ โค้ชปรับค่ามื้อที่ ${meal} (${dateStr})`,
+      ``,
+      `📊 ค่าเดิม:    C ${origM.c}g | P ${origM.p}g | F ${origM.f}g → ⚡ ${kcalOrig} kcal`,
+      `✅ ค่าที่ถูกต้อง: C ${carb}g | P ${prot}g | F ${fat}g → ⚡ ${kcalNew} kcal (${kcalDiffStr})`,
+      ...(note?[``,`💬 ${note}`]:[])
+    ].join('\n');
+    try{await navigator.clipboard.writeText(txt);}catch(_){const ta=document.createElement('textarea');ta.value=txt;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);}
+    showToast('📋 Copy แล้ว! วางใน LINE ได้เลยค่ะ');
+    return;
+  }
+  // action === 'save'
+  try{
+    const prevHistory=existingSub.editHistory||[];
+    const editHistory=[
+      ...prevHistory,
+      {at:new Date().toISOString(),fields:[
+        ...(Math.abs(origM.c-carb)>0.5?[{k:'Carb',from:origM.c,to:carb}]:[]),
+        ...(Math.abs(origM.p-prot)>0.5?[{k:'Protein',from:origM.p,to:prot}]:[]),
+        ...(Math.abs(origM.f-fat)>0.5?[{k:'Fat',from:origM.f,to:fat}]:[])
+      ]}
+    ].filter(h=>h.fields.length);
+    await db.collection('submissions').doc(id).update({
+      status:'approved',correction:{carb,protein:prot,fat,note},
+      coachComment:note||'โค้ชปรับค่า macro ให้แล้วนะคะ',
+      coachCommentTone:'fix',coachCommentSent:true,coachCommentWithPhoto:false,
+      origMacros:{c:origM.c,p:origM.p,f:origM.f},
+      editHistory
+    });
+    cState[id]={};
+    renderCoach();
+    showToast('✅ บันทึกแล้วค่ะ');
+  }catch(e){alert('Error: '+e.message);}
 }
 
 function formatTime(date){
@@ -4804,6 +5662,15 @@ function formatTime(date){
   return date.toLocaleDateString('th-TH',{day:'numeric',month:'short'});
 }
 function escHtml(str){if(!str)return'';return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function showToast(msg,dur){
+  dur=dur||2500;
+  var t=document.getElementById('_toast');
+  if(!t){t=document.createElement('div');t.id='_toast';
+    t.style.cssText='position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#1F2937;color:white;padding:10px 18px;border-radius:10px;font-size:13px;font-family:\'Prompt\',sans-serif;z-index:9999;opacity:0;transition:opacity 0.3s;pointer-events:none;max-width:80vw;text-align:center;white-space:pre-wrap';
+    document.body.appendChild(t);}
+  t.textContent=msg;t.style.opacity='1';
+  clearTimeout(t._timer);t._timer=setTimeout(function(){t.style.opacity='0';},dur);
+}
 
 // ===== ZIGZAG CALORIES =====
 const ZIGZAG_TEXTS={
@@ -4841,7 +5708,7 @@ function buildZigzagSection(MON, TH_SHORT, byDate, targets, userId){
 
   const zz=calcZigzag(yActual,targets);
 
-  // Net 7-day chart (จ-ส vs target)
+  // Net 7-day chart (จ-อา vs target)
   const maxKcal=Math.max(...MON.map(d=>{let k=0;(byDate[d]||[]).forEach(s=>{k+=getSubMacros(s).kcal;});return k;}),targets.kcal*1.3,1);
   const netBars=MON.map((d,i)=>{
     const hasSub=(byDate[d]||[]).length>0;
@@ -4885,7 +5752,7 @@ function buildZigzagSection(MON, TH_SHORT, byDate, targets, userId){
     <div class="sd-section-title">⚡ Zigzag Calories</div>
 
     <div style="background:white;border:1px solid #E5E7EB;border-radius:10px;padding:11px 12px;margin-bottom:10px">
-      <div style="font-size:11px;color:var(--gray);margin-bottom:8px;font-weight:600">Net 7 วัน (จ–ส) vs เป้า</div>
+      <div style="font-size:11px;color:var(--gray);margin-bottom:8px;font-weight:600">Net 7 วัน (จ–อา) vs เป้า</div>
       <div style="display:flex;gap:5px;align-items:flex-end">${netBars}</div>
       <div style="display:flex;gap:10px;margin-top:6px;font-size:9px;color:var(--gray)">
         <span>🟢 ในเป้า</span><span style="color:#EF4444">🔴 เกิน</span><span style="color:#3B82F6">🔵 ขาด</span>
@@ -4957,7 +5824,7 @@ function buildStudentZigzagSection(MON, TH_SHORT, byDate, targets){
   return`<div class="sd-section" style="margin-top:10px">
     <div class="sd-section-title">⚡ Zigzag Calories</div>
     <div style="background:white;border:1px solid #E5E7EB;border-radius:10px;padding:11px 12px;margin-bottom:10px">
-      <div style="font-size:11px;color:var(--gray);margin-bottom:8px;font-weight:600">Net 7 วัน (จ–ส) vs เป้า</div>
+      <div style="font-size:11px;color:var(--gray);margin-bottom:8px;font-weight:600">Net 7 วัน (จ–อา) vs เป้า</div>
       <div style="display:flex;gap:5px;align-items:flex-end">${netBars}</div>
       <div style="display:flex;gap:10px;margin-top:6px;font-size:9px;color:var(--gray)">
         <span>🟢 ในเป้า</span><span style="color:#EF4444">🔴 เกิน</span><span style="color:#3B82F6">🔵 ขาด</span>
@@ -5292,7 +6159,8 @@ function buildTestimonialFlex(lostKg, lostPct, weeks){
 }
 
 // ===== LINE FEEDBACK CARD =====
-async function sendFeedbackCard(){
+async function sendFeedbackCard(currentSub){
+  currentSub=currentSub||{};
   try{
     // ดึง submissions วันนี้ทั้งหมด
     const snap=await db.collection('submissions')
@@ -5304,7 +6172,7 @@ async function sendFeedbackCard(){
     subs.forEach(s=>{const m=getSubMacros(s);totC+=m.c;totP+=m.p;totF+=m.f;totKcal+=m.kcal;});
     totC=Math.round(totC);totP=Math.round(totP);totF=Math.round(totF);totKcal=Math.round(totKcal);
 
-    const flex=buildFeedbackFlex(subs.length,totC,totP,totF,totKcal);
+    const flex=buildFeedbackFlex(subs.length,totC,totP,totF,totKcal,currentSub);
     if(typeof liff!=='undefined'&&liff.isInClient()){
       await liff.sendMessages([flex]);
     }
@@ -5325,8 +6193,12 @@ function calcSmartMsg(totC,totP,totF,totKcal){
     return`💪 Protein ดีมากเลย! มื้อถัดไปเพิ่ม Carb อีก ${TARGETS.c-totC}g นะคะ`;
   if(pctP<60)
     return`⚠️ ยังขาด Protein อีก ${TARGETS.p-totP}g อย่าลืมมื้อถัดไปนะคะ`;
-  if(pctC>=90&&pctP>=90)
-    return`✨ Carb และ Protein ดีมาก! Fat ยังเหลืออีก ${TARGETS.f-totF}g ค่ะ`;
+  if(pctC>=90&&pctP>=90){
+    const fatDiff=Math.round(TARGETS.f-totF);
+    if(fatDiff<-5)return`✨ Carb และ Protein ดีมาก! แต่ Fat เกินเป้า ${Math.abs(fatDiff)}g นะคะ`;
+    if(fatDiff>5)return`✨ Carb และ Protein ดีมาก! Fat ยังเหลืออีก ${fatDiff}g ค่ะ`;
+    return`✨ Carb, Protein และ Fat ครบพอดีเลยค่ะ 🎯`;
+  }
   const lacking=[];
   if(TARGETS.c-totC>10)lacking.push(`Carb ${TARGETS.c-totC}g`);
   if(TARGETS.p-totP>5)lacking.push(`Protein ${TARGETS.p-totP}g`);
@@ -5337,8 +6209,10 @@ function calcSmartMsg(totC,totP,totF,totKcal){
 function flexProgressBar(pct, color){
   const fill=Math.min(Math.round(pct),100);
   const empty=100-fill;
-  const parts=[{flex:fill,bg:color}];
+  const parts=[];
+  if(fill>0)parts.push({flex:fill,bg:color});
   if(empty>0)parts.push({flex:empty,bg:'#E5E7EB'});
+  if(!parts.length)parts.push({flex:100,bg:'#E5E7EB'});
   return{
     type:'box',layout:'horizontal',height:'6px',margin:'sm',cornerRadius:'3px',
     contents:parts.map(p=>({
@@ -5364,61 +6238,146 @@ function flexMacroRow(name, val, target, color){
   };
 }
 
-function buildFeedbackFlex(mealCount, totC, totP, totF, totKcal){
+function buildFeedbackFlex(mealCount, totC, totP, totF, totKcal, currentSub){
+  currentSub=currentSub||{};
   const pctKcal=Math.round(totKcal/TARGETS.kcal*100);
   const smartMsg=calcSmartMsg(totC,totP,totF,totKcal);
   const surplus=totKcal-TARGETS.kcal;
   const kcalColor=surplus>200?'#EF4444':surplus<-200?'#3B82F6':'#D4891A';
 
-  return{
-    type:'flex',
-    altText:`📊 Macro วันนี้ ${totKcal}/${TARGETS.kcal} kcal`,
-    contents:{
-      type:'bubble',
-      size:'kilo',
-      header:{
-        type:'box',layout:'vertical',
-        backgroundColor:'#F5A623',paddingAll:'16px',
-        contents:[
-          {type:'text',text:'✅ ส่ง log แล้ว!',color:'#FFFFFF',weight:'bold',size:'lg'},
-          {type:'text',text:`วันนี้รวม ${mealCount} มื้อ`,color:'#FFFFFF',size:'sm',margin:'xs'}
-        ]
-      },
-      body:{
-        type:'box',layout:'vertical',paddingAll:'16px',
-        contents:[
-          flexMacroRow('Carb',  totC, TARGETS.c, '#F5A623'),
-          flexMacroRow('Protein',totP,TARGETS.p,'#3B82F6'),
-          flexMacroRow('Fat',   totF, TARGETS.f, '#8B5CF6'),
-          {type:'separator',margin:'lg'},
-          {
-            type:'box',layout:'horizontal',margin:'lg',
-            backgroundColor:'#FEF9EE',cornerRadius:'8px',paddingAll:'12px',
-            contents:[
-              {type:'box',layout:'vertical',flex:1,contents:[
-                {type:'text',text:`${totKcal.toLocaleString()}`,size:'xl',weight:'bold',color:kcalColor},
-                {type:'text',text:'kcal วันนี้',size:'xs',color:'#999999'}
-              ]},
-              {type:'box',layout:'vertical',flex:1,alignItems:'flex-end',contents:[
-                {type:'text',text:`/ ${TARGETS.kcal.toLocaleString()}`,size:'sm',color:'#999999'},
-                {type:'text',text:`${pctKcal}% ของเป้า`,size:'xs',color:kcalColor,weight:'bold'}
-              ]}
-            ]
-          },
-          {type:'separator',margin:'lg'},
-          {
-            type:'box',layout:'vertical',margin:'lg',
-            backgroundColor:'#F0FDF4',cornerRadius:'8px',paddingAll:'12px',
-            contents:[{type:'text',text:smartMsg,size:'sm',color:'#166534',wrap:true}]
-          }
-        ]
-      },
-      footer:{
-        type:'box',layout:'vertical',paddingAll:'10px',
-        contents:[{type:'text',text:'DO IT FIT · ส่งอัตโนมัติหลังบันทึก log',size:'xxs',color:'#aaaaaa',align:'center'}]
-      }
+  // hero image (ต้องเป็น HTTPS URL เท่านั้น — ข้ามถ้าไม่มีรูป)
+  const heroBlock=(currentSub.photoUrl&&currentSub.photoUrl.startsWith('https://'))?{
+    type:'image',url:currentSub.photoUrl,size:'full',
+    aspectRatio:'20:13',aspectMode:'cover'
+  }:null;
+
+  // === MEAL DETAIL BLOCK (ข้อมูลมื้อนั้น แยกตาม mode) ===
+  const mode=currentSub.mode;
+  const hd=currentSub.handData;
+  const wd=currentSub.weighData;
+  const ld=currentSub.labelData;
+  let mealRows=[],mealLabel='',mealBg='#FFFBEB',mealLabelColor='#D97706';
+
+  if(mode==='hand'&&hd){
+    mealLabel='👊 Hand Portion';
+    // carb slots
+    (hd.carbSlots||[]).forEach(s=>{
+      const cm=CARB_D[s.density]||CARB_D.normal;
+      const kc=Math.round((cm.c*s.qty)*4+(cm.p*s.qty)*4+(cm.f*s.qty)*9);
+      mealRows.push({type:'box',layout:'horizontal',margin:'sm',contents:[
+        {type:'text',text:`${cm.emoji} คาร์บ${cm.label} ${s.qty} ทัพพี`,size:'xs',color:'#92400E',flex:1,wrap:true},
+        {type:'text',text:`C${Math.round(cm.c*s.qty)} · ${kc}kcal`,size:'xs',color:'#B45309',align:'end',flex:0}
+      ]});
+    });
+    // protein
+    const pm=PROT_T[hd.protType]||PROT_T.lean;
+    const protLabel=hd.protType==='lean'?'โปรตีนไขมันต่ำ':'โปรตีนปกติ';
+    if((hd.protein||0)>0){
+      const kc=Math.round(pm.p*(hd.protein)*4+pm.f*(hd.protein)*9);
+      mealRows.push({type:'box',layout:'horizontal',margin:'sm',contents:[
+        {type:'text',text:`🥩 ${protLabel} ${hd.protein} ฝ่ามือ`,size:'xs',color:'#92400E',flex:1},
+        {type:'text',text:`P${Math.round(pm.p*(hd.protein))} · ${kc}kcal`,size:'xs',color:'#B45309',align:'end',flex:0}
+      ]});
     }
+    // fat (cooking + visible)
+    const ck=COOK_M[hd.cookMethod]||COOK_M.none;
+    const fatTsp=(ck.f/VIS_FAT_G)+((hd.visibleFat)||0)+((hd.avo||0)*AVO.f/VIS_FAT_G);
+    if(fatTsp>0){
+      mealRows.push({type:'box',layout:'horizontal',margin:'sm',contents:[
+        {type:'text',text:`🫙 น้ำมัน ${Math.round(fatTsp*10)/10} ช้อนชา`,size:'xs',color:'#92400E',flex:1},
+        {type:'text',text:`F${Math.round(fatTsp*VIS_FAT_G)} · ${Math.round(fatTsp*VIS_FAT_G*9)}kcal`,size:'xs',color:'#B45309',align:'end',flex:0}
+      ]});
+    }
+    // eggs
+    if((hd.eggWhole||0)>0){
+      mealRows.push({type:'box',layout:'horizontal',margin:'sm',contents:[
+        {type:'text',text:`🥚 ไข่ทั้งฟอง ${hd.eggWhole} ฟอง`,size:'xs',color:'#92400E',flex:1},
+        {type:'text',text:`${Math.round(EGG_W.p*hd.eggWhole*4+EGG_W.f*hd.eggWhole*9)}kcal`,size:'xs',color:'#B45309',align:'end',flex:0}
+      ]});
+    }
+    // total row
+    const hKcal=hd.totalKcal||Math.round((hd.totalCarb||0)*4+(hd.totalProtein||0)*4+(hd.totalFat||0)*9);
+    mealRows.push({type:'separator',margin:'sm'});
+    mealRows.push({type:'box',layout:'horizontal',margin:'sm',contents:[
+      {type:'text',text:'รวมมื้อนี้',size:'xs',weight:'bold',color:'#92400E',flex:1},
+      {type:'text',text:`C${hd.totalCarb||0} P${hd.totalProtein||0} F${hd.totalFat||0} · ${hKcal}kcal`,size:'xs',weight:'bold',color:'#D97706',align:'end',flex:0}
+    ]});
+  } else if(mode==='label'&&ld){
+    mealLabel='🏷️ กรอกฉลาก';
+    mealBg='#F0FDF4';mealLabelColor='#065F46';
+    const lKcal=Math.round((ld.carb||0)*4+(ld.protein||0)*4+(ld.fat||0)*9);
+    mealRows.push({type:'box',layout:'horizontal',margin:'sm',contents:[
+      {type:'text',text:`C${Math.round(ld.carb||0)}g · P${Math.round(ld.protein||0)}g · F${Math.round(ld.fat||0)}g`,size:'xs',color:'#065F46',flex:1},
+      {type:'text',text:`${lKcal} kcal`,size:'xs',weight:'bold',color:'#059669',align:'end',flex:0}
+    ]});
+  } else if(wd&&wd.aiItems&&wd.aiItems.length){
+    mealLabel='✨ AI วิเคราะห์';
+    mealBg='#EFF6FF';mealLabelColor='#1D4ED8';
+    const items=wd.aiItems;
+    if(items.length<=3){
+      items.forEach(it=>{mealRows.push({type:'box',layout:'horizontal',margin:'sm',contents:[
+        {type:'text',text:it.name||'',size:'xs',color:'#1E3A5F',flex:1,wrap:true},
+        {type:'text',text:`C${it.c} P${it.p} F${it.f} · ${it.kcal}kcal`,size:'xs',color:'#3B82F6',align:'end',flex:0}
+      ]});});
+    } else {
+      const tot=items.reduce((a,it)=>({c:a.c+(it.c||0),p:a.p+(it.p||0),f:a.f+(it.f||0),kcal:a.kcal+(it.kcal||0)}),{c:0,p:0,f:0,kcal:0});
+      mealRows.push({type:'box',layout:'horizontal',margin:'sm',contents:[
+        {type:'text',text:`${items.length} รายการ`,size:'xs',color:'#1E3A5F',flex:1},
+        {type:'text',text:`C${Math.round(tot.c)} P${Math.round(tot.p)} F${Math.round(tot.f)} · ${Math.round(tot.kcal)}kcal`,size:'xs',color:'#3B82F6',align:'end',flex:0}
+      ]});
+    }
+  }
+
+  const mealDetailBlock=mealRows.length>0?{
+    type:'box',layout:'vertical',
+    backgroundColor:mealBg,cornerRadius:'8px',paddingAll:'10px',
+    contents:[
+      {type:'text',text:mealLabel,size:'xxs',weight:'bold',color:mealLabelColor,margin:'none'},
+      ...mealRows
+    ]
+  }:null;
+
+  // Body: meal detail → separator → macros → kcal box → advice
+  const bodyContents=[];
+  if(mealDetailBlock){bodyContents.push(mealDetailBlock);bodyContents.push({type:'separator',margin:'lg'});}
+  bodyContents.push(
+    flexMacroRow('Carb',  totC, TARGETS.c, '#F5A623'),
+    flexMacroRow('Protein',totP,TARGETS.p,'#3B82F6'),
+    flexMacroRow('Fat',   totF, TARGETS.f, '#8B5CF6'),
+    {type:'separator',margin:'lg'},
+    {
+      type:'box',layout:'horizontal',margin:'lg',
+      backgroundColor:'#FEF9EE',cornerRadius:'8px',paddingAll:'12px',
+      contents:[
+        {type:'box',layout:'vertical',flex:1,contents:[
+          {type:'text',text:`${totKcal.toLocaleString()}`,size:'xl',weight:'bold',color:kcalColor},
+          {type:'text',text:'kcal วันนี้',size:'xs',color:'#999999'}
+        ]},
+        {type:'box',layout:'vertical',flex:1,alignItems:'flex-end',contents:[
+          {type:'text',text:`/ ${TARGETS.kcal.toLocaleString()}`,size:'sm',color:'#999999'},
+          {type:'text',text:`${pctKcal}% ของเป้า`,size:'xs',color:kcalColor,weight:'bold'}
+        ]}
+      ]
+    },
+    {type:'separator',margin:'lg'},
+    {type:'box',layout:'vertical',margin:'lg',backgroundColor:'#F0FDF4',cornerRadius:'8px',paddingAll:'12px',
+      contents:[{type:'text',text:smartMsg,size:'sm',color:'#166534',wrap:true}]}
+  );
+
+  const bubble={
+    type:'bubble',size:'kilo',
+    header:{type:'box',layout:'vertical',backgroundColor:'#F5A623',paddingAll:'16px',
+      contents:[
+        {type:'text',text:'✅ ส่ง log แล้ว!',color:'#FFFFFF',weight:'bold',size:'lg'},
+        {type:'text',text:`วันนี้รวม ${mealCount} มื้อ`,color:'#FFFFFF',size:'sm',margin:'xs'}
+      ]},
+    body:{type:'box',layout:'vertical',paddingAll:'16px',contents:bodyContents},
+    footer:{type:'box',layout:'vertical',paddingAll:'10px',
+      contents:[{type:'text',text:'DO IT FIT · ส่งอัตโนมัติหลังบันทึก log',size:'xxs',color:'#aaaaaa',align:'center'}]}
   };
+  if(heroBlock)bubble.hero=heroBlock;
+
+  return{type:'flex',altText:`📊 Macro วันนี้ ${totKcal}/${TARGETS.kcal} kcal`,contents:bubble};
 }
 
 window.addEventListener('load',init);
