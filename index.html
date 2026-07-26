@@ -3805,6 +3805,7 @@ function applySavedMenu(id){
 // SUBMIT
 async function submitMeal(){
   const btn=document.getElementById('btn-submit');btn.disabled=true;btn.textContent='กำลังส่ง...';
+  const resetBtn=()=>{btn.disabled=false;btn.textContent=coachLogMode?'บันทึกของฉัน ✓':'ส่งให้โค้ชตรวจ ✓';};
   try{
     let handData=null,labelData=null,weighData=null;
     if(curMode==='hand'){
@@ -3829,7 +3830,7 @@ async function submitMeal(){
       labelData=getLabelData();
     }else if(curMode==='weigh'){
       weighData=getWeighData();
-      if(!weighData){alert('กรุณาให้ AI คำนวณก่อนค่ะ');btn.disabled=false;btn.textContent=coachLogMode?'บันทึกของฉัน ✓':'ส่งให้โค้ชตรวจ ✓';return;}
+      if(!weighData){alert('กรุณาให้ AI คำนวณก่อนค่ะ');resetBtn();return;}
     }
     // อัปโหลดรูปไป Firebase Storage (timeout 8s — ถ้าเกินเวลาหรือ fail ก็ใช้ base64 ใน Firestore แทน)
     let photoUrl=null;
@@ -3837,7 +3838,7 @@ async function submitMeal(){
       try{
         const ref=storage.ref(`photos/${user.userId}/${Date.now()}.jpg`);
         const uploadPromise=ref.putString(photoBase64,'data_url').then(()=>ref.getDownloadURL());
-        const timeoutPromise=new Promise((_,rej)=>setTimeout(()=>rej(new Error('upload timeout')),20000));
+        const timeoutPromise=new Promise((_,rej)=>setTimeout(()=>rej(new Error('upload timeout')),8000));
         photoUrl=await Promise.race([uploadPromise,timeoutPromise]);
       }catch(uploadErr){console.log('photo upload skipped:',uploadErr.message);}
     }
@@ -3860,7 +3861,8 @@ async function submitMeal(){
     const bss=document.getElementById('btn-save-success');
     if(bss)bss.style.display=(curMode==='restaurant')?'none':'inline-block';
     if(!testMode)sendFeedbackCard({mode:curMode,handData,weighData,photoUrl}); // ไม่ส่ง LINE card ใน test mode
-  }catch(e){console.error(e);alert('เกิดข้อผิดพลาด: '+e.message);btn.disabled=false;btn.textContent=coachLogMode?'บันทึกของฉัน ✓':'ส่งให้โค้ชตรวจ ✓';}
+  }catch(e){console.error(e);alert('เกิดข้อผิดพลาด: '+e.message);resetBtn();}
+  finally{resetBtn();}
 }
 
 function showSuccess(mode,handData,labelData,weighData){
