@@ -3800,14 +3800,15 @@ async function submitMeal(){
       weighData=getWeighData();
       if(!weighData){alert('กรุณาให้ AI คำนวณก่อนค่ะ');btn.disabled=false;btn.textContent=coachLogMode?'บันทึกของฉัน ✓':'ส่งให้โค้ชตรวจ ✓';return;}
     }
-    // อัปโหลดรูปไป Firebase Storage ก่อน (non-blocking ถ้า fail ก็ไม่เป็นไร)
+    // อัปโหลดรูปไป Firebase Storage (timeout 8s — ถ้าเกินเวลาหรือ fail ก็ใช้ base64 ใน Firestore แทน)
     let photoUrl=null;
     if(photoBase64){
       try{
         const ref=storage.ref(`photos/${user.userId}/${Date.now()}.jpg`);
-        await ref.putString(photoBase64,'data_url');
-        photoUrl=await ref.getDownloadURL();
-      }catch(uploadErr){console.log('photo upload err',uploadErr);}
+        const uploadPromise=ref.putString(photoBase64,'data_url').then(()=>ref.getDownloadURL());
+        const timeoutPromise=new Promise((_,rej)=>setTimeout(()=>rej(new Error('upload timeout')),8000));
+        photoUrl=await Promise.race([uploadPromise,timeoutPromise]);
+      }catch(uploadErr){console.log('photo upload skipped:',uploadErr.message);}
     }
     await db.collection('submissions').add({
       userId:user.userId,displayName:user.displayName,pictureUrl:user.pictureUrl||null,
@@ -3968,6 +3969,13 @@ function getSubMacros(s){
   }
   const kcal=(s.mode==='weigh'&&s.weighData&&s.weighData.kcal&&!s.correction)?s.weighData.kcal:Math.round(c*4+p*4+f*9);
   return{kcal,c,p,f};
+}
+function getSubOrigMacros(s){
+  let c=0,p=0,f=0;
+  if(s.mode==='hand'&&s.handData){c=s.handData.totalCarb||0;p=s.handData.totalProtein||0;f=s.handData.totalFat||0;}
+  else if(s.mode==='label'&&s.labelData){c=s.labelData.carb||0;p=s.labelData.protein||0;f=s.labelData.fat||0;}
+  else if(s.mode==='weigh'&&s.weighData){c=s.weighData.carb||0;p=s.weighData.protein||0;f=s.weighData.fat||0;}
+  return{c:Math.round(c),p:Math.round(p),f:Math.round(f)};
 }
 
 let dashCache=null;
@@ -5334,22 +5342,41 @@ function buildCorrPanel(s,cs){
 </div>
 <div id="hc-preview-${s.id}" style="background:#F0FDF4;border-radius:8px;padding:8px 12px;margin:6px 0 4px;font-size:13px;font-weight:700;color:#15803D;text-align:center">C ${preC}g · P ${preP}g · F ${preF}g → ⚡ ${preKcal} kcal</div>
 <textarea class="corr-note-ta" id="cc-note-${s.id}" rows="2" placeholder="ข้อความถึงนักเรียน (ไม่บังคับ)...">${escHtml(cs.note||'')}</textarea>
-<button class="btn-send-corr" onclick="sendCorrection('${s.id}')">📤 ส่ง Correction Card → LINE ✓</button>
+<div style="display:flex;gap:8px;margin-top:6px"><button class="btn-send-corr" style="flex:1" onclick="sendCorrection('${s.id}','save')">💾 บันทึก</button><button class="btn-send-corr" style="flex:1;background:#2563EB" onclick="sendCorrection('${s.id}','copy')">📋 Copy ข้อความ</button></div>
 </div>`;
   }
-  // === LABEL / WEIGH MODE — gram steppers ===
-  let carb,prot,fat;
+  // === LABEL / WEIGH MODE — gram steppers with strikethrough original ===
+  let carb,prot,fat,origC,origP,origF;
   if(s.mode==='label'&&s.labelData){
-    carb=cs.carb!==undefined?cs.carb:Math.round(s.labelData.carb||0);
-    prot=cs.protein!==undefined?cs.protein:Math.round(s.labelData.protein||0);
-    fat=cs.fat!==undefined?cs.fat:Math.round(s.labelData.fat||0);
+    origC=Math.round(s.labelData.carb||0);
+    origP=Math.round(s.labelData.protein||0);
+    origF=Math.round(s.labelData.fat||0);
   }else{
-    carb=cs.carb!==undefined?cs.carb:Math.round(s.weighData?.carb||0);
-    prot=cs.protein!==undefined?cs.protein:Math.round(s.weighData?.protein||0);
-    fat=cs.fat!==undefined?cs.fat:Math.round(s.weighData?.fat||0);
+    origC=Math.round(s.weighData?.carb||0);
+    origP=Math.round(s.weighData?.protein||0);
+    origF=Math.round(s.weighData?.fat||0);
   }
+  if(!cState[s.id])cState[s.id]={};
+  cState[s.id]._sub=s;
+  carb=cs.carb!==undefined?cs.carb:origC;
+  prot=cs.protein!==undefined?cs.protein:origP;
+  fat=cs.fat!==undefined?cs.fat:origF;
+  const origKcal=Math.round(origC*4+origP*4+origF*9);
   const prevKcal=Math.round(carb*4+prot*4+fat*9);
-  return`<div class="correction-panel"><h4>✏️ แก้ไขค่าที่ถูกต้อง</h4><div class="corr-steppers"><div class="corr-s-item"><label>🟡 คาร์บ (g)</label><div class="corr-s-row"><button onclick="adjCorr('${s.id}','carb',-1)">−</button><input type="number" class="corr-input" id="cc-carb-${s.id}" value="${carb}" min="0" step="1" onchange="syncCorr('${s.id}','carb')"><button onclick="adjCorr('${s.id}','carb',1)">+</button></div></div><div class="corr-s-item"><label>🔴 โปรตีน (g)</label><div class="corr-s-row"><button onclick="adjCorr('${s.id}','protein',-1)">−</button><input type="number" class="corr-input" id="cc-protein-${s.id}" value="${prot}" min="0" step="1" onchange="syncCorr('${s.id}','protein')"><button onclick="adjCorr('${s.id}','protein',1)">+</button></div></div><div class="corr-s-item"><label>🟢 ไขมัน (g)</label><div class="corr-s-row"><button onclick="adjCorr('${s.id}','fat',-1)">−</button><input type="number" class="corr-input" id="cc-fat-${s.id}" value="${fat}" min="0" step="1" onchange="syncCorr('${s.id}','fat')"><button onclick="adjCorr('${s.id}','fat',1)">+</button></div></div></div><div id="corr-preview-${s.id}" style="background:#F0FDF4;border-radius:8px;padding:8px 12px;margin:6px 0 4px;font-size:13px;font-weight:700;color:#15803D;text-align:center">C ${carb}g · P ${prot}g · F ${fat}g → ⚡ ${prevKcal} kcal</div><textarea class="corr-note-ta" id="cc-note-${s.id}" rows="2" placeholder="ข้อความถึงนักเรียน (ไม่บังคับ)...">${escHtml(cs.note||'')}</textarea><button class="btn-send-corr" onclick="sendCorrection('${s.id}')">📤 ส่ง Correction Card → LINE ✓</button></div>`;
+  const kcalDiff=prevKcal-origKcal;
+  const kcalDiffStr=kcalDiff===0?'':(kcalDiff>0?`+${kcalDiff}`:`${kcalDiff}`);
+  const kcalDiffBadge=kcalDiff===0?'':`<span style="font-size:11px;padding:2px 7px;border-radius:10px;margin-left:6px;background:${kcalDiff>0?'#FEE2E2':'#DCFCE7'};color:${kcalDiff>0?'#DC2626':'#059669'};font-weight:700">${kcalDiffStr} kcal</span>`;
+  const mBadge=(dv,mult)=>{const kc=Math.round(dv*mult);if(Math.abs(kc)<1)return'';const sg=kc>0?'+':'';return`<span style="font-size:10px;padding:1px 5px;border-radius:8px;background:${kc>0?'#FEE2E2':'#DCFCE7'};color:${kc>0?'#DC2626':'#059669'};font-weight:700">${sg}${kc} kcal</span>`;};
+  return`<div class="correction-panel"><h4>✏️ แก้ไขค่าที่ถูกต้อง</h4>
+<div style="text-align:center;font-size:12px;color:#9CA3AF;margin-bottom:8px">นักเรียนกรอก: <del>C ${origC}g · P ${origP}g · F ${origF}g → ⚡ ${origKcal} kcal</del></div>
+<div class="corr-steppers">
+<div class="corr-s-item"><label>🟡 คาร์บ (g) <span id="badge-carb-${s.id}">${mBadge(carb-origC,4)}</span></label><div class="corr-s-row"><button onclick="adjCorr('${s.id}','carb',-1)">−</button><input type="number" class="corr-input" id="cc-carb-${s.id}" value="${carb}" min="0" step="1" onchange="syncCorr('${s.id}','carb')"><button onclick="adjCorr('${s.id}','carb',1)">+</button></div></div>
+<div class="corr-s-item"><label>🔴 โปรตีน (g) <span id="badge-protein-${s.id}">${mBadge(prot-origP,4)}</span></label><div class="corr-s-row"><button onclick="adjCorr('${s.id}','protein',-1)">−</button><input type="number" class="corr-input" id="cc-protein-${s.id}" value="${prot}" min="0" step="1" onchange="syncCorr('${s.id}','protein')"><button onclick="adjCorr('${s.id}','protein',1)">+</button></div></div>
+<div class="corr-s-item"><label>🟢 ไขมัน (g) <span id="badge-fat-${s.id}">${mBadge(fat-origF,9)}</span></label><div class="corr-s-row"><button onclick="adjCorr('${s.id}','fat',-1)">−</button><input type="number" class="corr-input" id="cc-fat-${s.id}" value="${fat}" min="0" step="1" onchange="syncCorr('${s.id}','fat')"><button onclick="adjCorr('${s.id}','fat',1)">+</button></div></div>
+</div>
+<div id="corr-preview-${s.id}" data-origc="${origC}" data-origp="${origP}" data-origf="${origF}" style="background:#F0FDF4;border-radius:8px;padding:8px 12px;margin:6px 0 4px;font-size:13px;font-weight:700;color:#15803D;text-align:center">C ${carb}g · P ${prot}g · F ${fat}g → ⚡ ${prevKcal} kcal${kcalDiffBadge}</div>
+<textarea class="corr-note-ta" id="cc-note-${s.id}" rows="2" placeholder="ข้อความถึงนักเรียน (ไม่บังคับ)...">${escHtml(cs.note||'')}</textarea>
+<div style="display:flex;gap:8px;margin-top:6px"><button class="btn-send-corr" style="flex:1" onclick="sendCorrection('${s.id}','save')">💾 บันทึก</button><button class="btn-send-corr" style="flex:1;background:#2563EB" onclick="sendCorrection('${s.id}','copy')">📋 Copy ข้อความ</button></div></div>`;
 }
 
 function toggleCorr(id){if(!cState[id])cState[id]={};cState[id].open=!cState[id].open;renderCoach();}
@@ -5357,9 +5384,17 @@ function updateCorrPreview(id){
   const c=parseFloat(document.getElementById(`cc-carb-${id}`)?.value)||0;
   const p=parseFloat(document.getElementById(`cc-protein-${id}`)?.value)||0;
   const f=parseFloat(document.getElementById(`cc-fat-${id}`)?.value)||0;
-  const kcal=Math.round(c*4+p*4+f*9);
   const el=document.getElementById(`corr-preview-${id}`);
-  if(el)el.textContent=`C ${c}g · P ${p}g · F ${f}g → ⚡ ${kcal} kcal`;
+  if(!el)return;
+  const kcal=Math.round(c*4+p*4+f*9);
+  const oC=parseFloat(el.dataset.origc)||0,oP=parseFloat(el.dataset.origp)||0,oF=parseFloat(el.dataset.origf)||0;
+  const origKcal=Math.round(oC*4+oP*4+oF*9);
+  const diff=kcal-origKcal;
+  const diffBadge=diff===0?'':`<span style="font-size:11px;padding:2px 7px;border-radius:10px;margin-left:6px;background:${diff>0?'#FEE2E2':'#DCFCE7'};color:${diff>0?'#DC2626':'#059669'};font-weight:700">${diff>0?'+'+diff:diff} kcal</span>`;
+  el.innerHTML=`C ${c}g · P ${p}g · F ${f}g → ⚡ ${kcal} kcal${diffBadge}`;
+  // Update per-macro diff badges live
+  const upBadge=(key,val,orig,mult)=>{const bEl=document.getElementById(`badge-${key}-${id}`);if(!bEl)return;const kc=Math.round((val-orig)*mult);if(Math.abs(kc)<1){bEl.innerHTML='';return;}const sg=kc>0?'+':'';bEl.innerHTML=`<span style="font-size:10px;padding:1px 5px;border-radius:8px;background:${kc>0?'#FEE2E2':'#DCFCE7'};color:${kc>0?'#DC2626':'#059669'};font-weight:700">${sg}${kc} kcal</span>`;};
+  upBadge('carb',c,oC,4);upBadge('protein',p,oP,4);upBadge('fat',f,oF,9);
 }
 function adjCorr(id,macro,delta){
   if(!cState[id])cState[id]={};
@@ -5483,10 +5518,10 @@ async function doApprove(id){
     showToast(sentNow?'✅ ส่ง Card ให้นักเรียนแล้วค่ะ':'✅ อนุมัติแล้ว — Card จะส่งเมื่อนักเรียนเปิดแอปค่ะ');
   }catch(e){alert('Error: '+e.message);}
 }
-async function sendCorrection(id){
+async function sendCorrection(id,action='save'){
+  const existingSub=cState[id]?._sub||{};
   let carb,prot,fat;
-  const s=cState[id]?._sub;
-  if(s&&s.mode==='hand'){
+  if(existingSub.mode==='hand'){
     const{C,P,F}=calcHandCorrMacros(id);
     carb=C;prot=P;fat=F;
   }else{
@@ -5495,10 +5530,27 @@ async function sendCorrection(id){
     fat=parseFloat(document.getElementById(`cc-fat-${id}`)?.value)||0;
   }
   const note=document.getElementById(`cc-note-${id}`)?.value.trim()||'';
+  const origM=getSubOrigMacros(existingSub);
+  const kcalNew=Math.round(carb*4+prot*4+fat*9);
+  const kcalOrig=Math.round(origM.c*4+origM.p*4+origM.f*9);
+  const kcalDiff=kcalNew-kcalOrig;
+  const kcalDiffStr=kcalDiff===0?'ไม่เปลี่ยน':(kcalDiff>0?`+${kcalDiff} kcal`:`${kcalDiff} kcal`);
+  if(action==='copy'){
+    const meal=existingSub.meal||'?';
+    const dateStr=existingSub.createdAt?new Date(existingSub.createdAt.seconds*1000).toLocaleDateString('th-TH',{day:'numeric',month:'short'}):'-';
+    const txt=[
+      `✏️ โค้ชปรับค่ามื้อที่ ${meal} (${dateStr})`,
+      ``,
+      `📊 ค่าเดิม:    C ${origM.c}g | P ${origM.p}g | F ${origM.f}g → ⚡ ${kcalOrig} kcal`,
+      `✅ ค่าที่ถูกต้อง: C ${carb}g | P ${prot}g | F ${fat}g → ⚡ ${kcalNew} kcal (${kcalDiffStr})`,
+      ...(note?[``,`💬 ${note}`]:[])
+    ].join('\n');
+    try{await navigator.clipboard.writeText(txt);}catch(_){const ta=document.createElement('textarea');ta.value=txt;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);}
+    showToast('📋 Copy แล้ว! วางใน LINE ได้เลยค่ะ');
+    return;
+  }
+  // action === 'save'
   try{
-    // ใช้ข้อมูลที่โหลดมาแล้วจาก cState แทน (ไม่ต้อง Firestore read เพิ่ม)
-    const existingSub=cState[id]?._sub||{};
-    const origM=getSubMacros({...existingSub,id});
     const prevHistory=existingSub.editHistory||[];
     const editHistory=[
       ...prevHistory,
@@ -5510,12 +5562,14 @@ async function sendCorrection(id){
     ].filter(h=>h.fields.length);
     await db.collection('submissions').doc(id).update({
       status:'approved',correction:{carb,protein:prot,fat,note},
-      coachComment:note||'โค้ชปรับค่า macro ให้แล้วนะคะ',coachCommentTone:'fix',coachCommentSent:false,coachCommentWithPhoto:false,
+      coachComment:note||'โค้ชปรับค่า macro ให้แล้วนะคะ',
+      coachCommentTone:'fix',coachCommentSent:true,coachCommentWithPhoto:false,
+      origMacros:{c:origM.c,p:origM.p,f:origM.f},
       editHistory
     });
     cState[id]={};
     renderCoach();
-    showToast('✅ ส่ง Correction แล้วค่ะ — Card จะส่งเมื่อนักเรียนเปิดแอป');
+    showToast('✅ บันทึกแล้วค่ะ');
   }catch(e){alert('Error: '+e.message);}
 }
 
