@@ -2715,7 +2715,7 @@ let planAIData=null; // {c,p,f,name} from AI result
 let planHandCarbDensity='normal'; // carb chip selection
 let planHandProtType='lean';      // protein toggle
 let planVisibleFat=0;             // visible fat tsp
-const GROQ_KEY='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';
+let GROQ_KEY=null; // โหลดจาก Firestore config/app.groqKey (ไม่เก็บใน source code)
 let aiParsedData=null;
 let _photoProcessing=false;
 let selectedDate=todayStr();
@@ -2892,11 +2892,13 @@ function startStudent(){
 }
 async function loadStudentData(){
   try{
-    const [snap,td,savedSnap]=await Promise.all([
+    const [snap,td,savedSnap,cfgSnap]=await Promise.all([
       db.collection('submissions').where('userId','==',user.userId).limit(30).get(),
       db.collection('students').doc(user.userId).get().catch(()=>null),
-      db.collection('users').doc(user.userId).collection('savedMenus').limit(12).get().catch(()=>null)
+      db.collection('users').doc(user.userId).collection('savedMenus').limit(12).get().catch(()=>null),
+      db.collection('config').doc('app').get().catch(()=>null)
     ]);
+    if(cfgSnap&&cfgSnap.exists)GROQ_KEY=cfgSnap.data().groqKey||null;
     // sort client-side + ลบ photoBase64 ออกจาก RAM (ยังใช้ photoUrl แทนได้)
     studentSubsCache=snap.docs.map(d=>{const dat=d.data();delete dat.photoBase64;return{id:d.id,...dat};}).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
     applyTargets(td);
@@ -3580,6 +3582,7 @@ function getLabelData(){
 async function callGeminiAI(){
   const text=document.getElementById('ai-food-input').value.trim();
   if(!text){alert('กรุณาพิมพ์รายการอาหารก่อนค่ะ');return;}
+  if(!GROQ_KEY){alert('ระบบยังโหลดไม่เสร็จ กรุณารอสักครู่แล้วลองใหม่ค่ะ');return;}
   const btn=document.getElementById('ai-calc-btn');
   btn.disabled=true;btn.textContent='⏳ กำลังวิเคราะห์...';
   document.getElementById('ai-result-area').style.display='none';
