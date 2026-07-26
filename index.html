@@ -3903,7 +3903,7 @@ async function submitMeal(){
     showSuccess(curMode,handData,labelData,weighData);
     const bss=document.getElementById('btn-save-success');
     if(bss)bss.style.display=(curMode==='restaurant')?'none':'inline-block';
-    if(!testMode)sendFeedbackCard({mode:curMode,handData,weighData,photoUrl}); // ไม่ส่ง LINE card ใน test mode
+    if(!testMode)sendFeedbackCard({mode:curMode,handData,labelData,weighData,photoUrl}); // ไม่ส่ง LINE card ใน test mode
   }catch(e){console.error(e);alert('เกิดข้อผิดพลาด: '+e.message);resetBtn();}
   finally{resetBtn();}
 }
@@ -6245,48 +6245,102 @@ function buildFeedbackFlex(mealCount, totC, totP, totF, totKcal, currentSub){
   const surplus=totKcal-TARGETS.kcal;
   const kcalColor=surplus>200?'#EF4444':surplus<-200?'#3B82F6':'#D4891A';
 
-  // hero image (ต้องเป็น HTTPS URL เท่านั้น)
+  // hero image (ต้องเป็น HTTPS URL เท่านั้น — ข้ามถ้าไม่มีรูป)
   const heroBlock=(currentSub.photoUrl&&currentSub.photoUrl.startsWith('https://'))?{
     type:'image',url:currentSub.photoUrl,size:'full',
     aspectRatio:'20:13',aspectMode:'cover'
   }:null;
 
-  // food info block (มื้อนี้: ชื่อ+คำอธิบาย หรือ AI items)
+  // === MEAL DETAIL BLOCK (ข้อมูลมื้อนั้น แยกตาม mode) ===
   const mode=currentSub.mode;
   const hd=currentSub.handData;
   const wd=currentSub.weighData;
-  let foodBlock=null;
-  if(mode==='hand'&&hd&&(hd.menuName||hd.menuDesc)){
-    const lines=[];
-    if(hd.menuName)lines.push({type:'text',text:hd.menuName,size:'sm',weight:'bold',color:'#92400E',wrap:true});
-    if(hd.menuDesc)lines.push({type:'text',text:hd.menuDesc,size:'xs',color:'#B45309',wrap:true,margin:'xs'});
-    foodBlock={
-      type:'box',layout:'vertical',margin:'lg',
-      backgroundColor:'#FFFBEB',cornerRadius:'8px',paddingAll:'10px',
-      contents:[
-        {type:'text',text:'🍽️ มื้อนี้',size:'xxs',weight:'bold',color:'#D97706',margin:'none'},
-        ...lines
-      ]
-    };
-  }else if(mode==='weigh'&&wd&&wd.aiItems&&wd.aiItems.length){
-    const rows=wd.aiItems.slice(0,5).map(it=>({
-      type:'box',layout:'horizontal',margin:'sm',
-      contents:[
+  const ld=currentSub.labelData;
+  let mealRows=[],mealLabel='',mealBg='#FFFBEB',mealLabelColor='#D97706';
+
+  if(mode==='hand'&&hd){
+    mealLabel='👊 Hand Portion';
+    // carb slots
+    (hd.carbSlots||[]).forEach(s=>{
+      const cm=CARB_D[s.density]||CARB_D.normal;
+      const kc=Math.round((cm.c*s.qty)*4+(cm.p*s.qty)*4+(cm.f*s.qty)*9);
+      mealRows.push({type:'box',layout:'horizontal',margin:'sm',contents:[
+        {type:'text',text:`${cm.emoji} คาร์บ${cm.label} ${s.qty} ทัพพี`,size:'xs',color:'#92400E',flex:1,wrap:true},
+        {type:'text',text:`C${Math.round(cm.c*s.qty)} · ${kc}kcal`,size:'xs',color:'#B45309',align:'end',flex:0}
+      ]});
+    });
+    // protein
+    const pm=PROT_T[hd.protType]||PROT_T.lean;
+    const protLabel=hd.protType==='lean'?'โปรตีนไขมันต่ำ':'โปรตีนปกติ';
+    if((hd.protein||0)>0){
+      const kc=Math.round(pm.p*(hd.protein)*4+pm.f*(hd.protein)*9);
+      mealRows.push({type:'box',layout:'horizontal',margin:'sm',contents:[
+        {type:'text',text:`🥩 ${protLabel} ${hd.protein} ฝ่ามือ`,size:'xs',color:'#92400E',flex:1},
+        {type:'text',text:`P${Math.round(pm.p*(hd.protein))} · ${kc}kcal`,size:'xs',color:'#B45309',align:'end',flex:0}
+      ]});
+    }
+    // fat (cooking + visible)
+    const ck=COOK_M[hd.cookMethod]||COOK_M.none;
+    const fatTsp=(ck.f/VIS_FAT_G)+((hd.visibleFat)||0)+((hd.avo||0)*AVO.f/VIS_FAT_G);
+    if(fatTsp>0){
+      mealRows.push({type:'box',layout:'horizontal',margin:'sm',contents:[
+        {type:'text',text:`🫙 น้ำมัน ${Math.round(fatTsp*10)/10} ช้อนชา`,size:'xs',color:'#92400E',flex:1},
+        {type:'text',text:`F${Math.round(fatTsp*VIS_FAT_G)} · ${Math.round(fatTsp*VIS_FAT_G*9)}kcal`,size:'xs',color:'#B45309',align:'end',flex:0}
+      ]});
+    }
+    // eggs
+    if((hd.eggWhole||0)>0){
+      mealRows.push({type:'box',layout:'horizontal',margin:'sm',contents:[
+        {type:'text',text:`🥚 ไข่ทั้งฟอง ${hd.eggWhole} ฟอง`,size:'xs',color:'#92400E',flex:1},
+        {type:'text',text:`${Math.round(EGG_W.p*hd.eggWhole*4+EGG_W.f*hd.eggWhole*9)}kcal`,size:'xs',color:'#B45309',align:'end',flex:0}
+      ]});
+    }
+    // total row
+    const hKcal=hd.totalKcal||Math.round((hd.totalCarb||0)*4+(hd.totalProtein||0)*4+(hd.totalFat||0)*9);
+    mealRows.push({type:'separator',margin:'sm'});
+    mealRows.push({type:'box',layout:'horizontal',margin:'sm',contents:[
+      {type:'text',text:'รวมมื้อนี้',size:'xs',weight:'bold',color:'#92400E',flex:1},
+      {type:'text',text:`C${hd.totalCarb||0} P${hd.totalProtein||0} F${hd.totalFat||0} · ${hKcal}kcal`,size:'xs',weight:'bold',color:'#D97706',align:'end',flex:0}
+    ]});
+  } else if(mode==='label'&&ld){
+    mealLabel='🏷️ กรอกฉลาก';
+    mealBg='#F0FDF4';mealLabelColor='#065F46';
+    const lKcal=Math.round((ld.carb||0)*4+(ld.protein||0)*4+(ld.fat||0)*9);
+    mealRows.push({type:'box',layout:'horizontal',margin:'sm',contents:[
+      {type:'text',text:`C${Math.round(ld.carb||0)}g · P${Math.round(ld.protein||0)}g · F${Math.round(ld.fat||0)}g`,size:'xs',color:'#065F46',flex:1},
+      {type:'text',text:`${lKcal} kcal`,size:'xs',weight:'bold',color:'#059669',align:'end',flex:0}
+    ]});
+  } else if(wd&&wd.aiItems&&wd.aiItems.length){
+    mealLabel='✨ AI วิเคราะห์';
+    mealBg='#EFF6FF';mealLabelColor='#1D4ED8';
+    const items=wd.aiItems;
+    if(items.length<=3){
+      items.forEach(it=>{mealRows.push({type:'box',layout:'horizontal',margin:'sm',contents:[
         {type:'text',text:it.name||'',size:'xs',color:'#1E3A5F',flex:1,wrap:true},
-        {type:'text',text:`${it.amount||''} · C${it.c} P${it.p} F${it.f}`,size:'xs',color:'#60A5FA',align:'end',flex:0}
-      ]
-    }));
-    foodBlock={
-      type:'box',layout:'vertical',margin:'lg',
-      backgroundColor:'#EFF6FF',cornerRadius:'8px',paddingAll:'10px',
-      contents:[
-        {type:'text',text:'✨ AI วิเคราะห์ได้',size:'xxs',weight:'bold',color:'#1D4ED8',margin:'none'},
-        ...rows
-      ]
-    };
+        {type:'text',text:`C${it.c} P${it.p} F${it.f} · ${it.kcal}kcal`,size:'xs',color:'#3B82F6',align:'end',flex:0}
+      ]});});
+    } else {
+      const tot=items.reduce((a,it)=>({c:a.c+(it.c||0),p:a.p+(it.p||0),f:a.f+(it.f||0),kcal:a.kcal+(it.kcal||0)}),{c:0,p:0,f:0,kcal:0});
+      mealRows.push({type:'box',layout:'horizontal',margin:'sm',contents:[
+        {type:'text',text:`${items.length} รายการ`,size:'xs',color:'#1E3A5F',flex:1},
+        {type:'text',text:`C${Math.round(tot.c)} P${Math.round(tot.p)} F${Math.round(tot.f)} · ${Math.round(tot.kcal)}kcal`,size:'xs',color:'#3B82F6',align:'end',flex:0}
+      ]});
+    }
   }
 
-  const bodyContents=[
+  const mealDetailBlock=mealRows.length>0?{
+    type:'box',layout:'vertical',
+    backgroundColor:mealBg,cornerRadius:'8px',paddingAll:'10px',
+    contents:[
+      {type:'text',text:mealLabel,size:'xxs',weight:'bold',color:mealLabelColor,margin:'none'},
+      ...mealRows
+    ]
+  }:null;
+
+  // Body: meal detail → separator → macros → kcal box → advice
+  const bodyContents=[];
+  if(mealDetailBlock){bodyContents.push(mealDetailBlock);bodyContents.push({type:'separator',margin:'lg'});}
+  bodyContents.push(
     flexMacroRow('Carb',  totC, TARGETS.c, '#F5A623'),
     flexMacroRow('Protein',totP,TARGETS.p,'#3B82F6'),
     flexMacroRow('Fat',   totF, TARGETS.f, '#8B5CF6'),
@@ -6306,29 +6360,20 @@ function buildFeedbackFlex(mealCount, totC, totP, totF, totKcal, currentSub){
       ]
     },
     {type:'separator',margin:'lg'},
-    {
-      type:'box',layout:'vertical',margin:'lg',
-      backgroundColor:'#F0FDF4',cornerRadius:'8px',paddingAll:'12px',
-      contents:[{type:'text',text:smartMsg,size:'sm',color:'#166534',wrap:true}]
-    }
-  ];
-  if(foodBlock)bodyContents.push(foodBlock);
+    {type:'box',layout:'vertical',margin:'lg',backgroundColor:'#F0FDF4',cornerRadius:'8px',paddingAll:'12px',
+      contents:[{type:'text',text:smartMsg,size:'sm',color:'#166534',wrap:true}]}
+  );
 
   const bubble={
     type:'bubble',size:'kilo',
-    header:{
-      type:'box',layout:'vertical',
-      backgroundColor:'#F5A623',paddingAll:'16px',
+    header:{type:'box',layout:'vertical',backgroundColor:'#F5A623',paddingAll:'16px',
       contents:[
         {type:'text',text:'✅ ส่ง log แล้ว!',color:'#FFFFFF',weight:'bold',size:'lg'},
         {type:'text',text:`วันนี้รวม ${mealCount} มื้อ`,color:'#FFFFFF',size:'sm',margin:'xs'}
-      ]
-    },
+      ]},
     body:{type:'box',layout:'vertical',paddingAll:'16px',contents:bodyContents},
-    footer:{
-      type:'box',layout:'vertical',paddingAll:'10px',
-      contents:[{type:'text',text:'DO IT FIT · ส่งอัตโนมัติหลังบันทึก log',size:'xxs',color:'#aaaaaa',align:'center'}]
-    }
+    footer:{type:'box',layout:'vertical',paddingAll:'10px',
+      contents:[{type:'text',text:'DO IT FIT · ส่งอัตโนมัติหลังบันทึก log',size:'xxs',color:'#aaaaaa',align:'center'}]}
   };
   if(heroBlock)bubble.hero=heroBlock;
 
