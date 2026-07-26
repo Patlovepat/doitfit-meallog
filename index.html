@@ -2725,6 +2725,7 @@ let planHandCarbDensity='normal'; // carb chip selection
 let planHandProtType='lean';      // protein toggle
 let planVisibleFat=0;             // visible fat tsp
 let planEggWhole=0, planEggWhite=0, planAvoQty=0, planFruitLadles=0;
+let planFruitCounts={};
 let GROQ_KEY=null; // โหลดจาก Firestore config/app.groqKey (ไม่เก็บใน source code)
 let aiParsedData=null;
 let _photoProcessing=false;
@@ -2779,6 +2780,7 @@ const FRUIT_ITEMS=[
 ];
 let fruitCounts={};
 FRUIT_ITEMS.forEach(f=>fruitCounts[f.id]=0);
+FRUIT_ITEMS.forEach(f=>planFruitCounts[f.id]=0);
 const TH_MONTHS=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
 const TH_DAYS=['อา','จ','อ','พ','พฤ','ศ','ส'];
 const TARGETS={kcal:1600,c:160,p:120,f:55};
@@ -3551,6 +3553,27 @@ function initFruitGrid(){
   }).join('');
 }
 function getFruitLadles(){return FRUIT_ITEMS.reduce((s,f)=>s+fruitCounts[f.id]/f.perLadle,0);}
+function getPlanFruitLadles(){return FRUIT_ITEMS.reduce((s,f)=>s+(planFruitCounts[f.id]||0)/f.perLadle,0);}
+function adjPlanFruit(id,delta){
+  if(!planFruitCounts[id])planFruitCounts[id]=0;
+  planFruitCounts[id]=Math.max(0,Math.round((planFruitCounts[id]+delta)*10)/10);
+  const v=planFruitCounts[id];
+  const countEl=document.getElementById('pfc-'+id);
+  if(countEl)countEl.textContent=Number.isInteger(v)?v:v.toFixed(1);
+  const unitEl=document.getElementById('pfu-'+id);
+  if(unitEl)unitEl.style.display=v>0?'block':'none';
+  const itemEl=document.getElementById('pfi-'+id);
+  if(itemEl)itemEl.classList.toggle('has-fruit',v>0);
+  const total=getPlanFruitLadles();
+  const totalRd=Math.round(total*10)/10;
+  const bar=document.getElementById('plan-fruit-total-bar');
+  if(bar)bar.style.display=total>0?'block':'none';
+  const totalVal=document.getElementById('plan-fruit-total-val');
+  if(totalVal)totalVal.textContent=Number.isInteger(totalRd)?totalRd:totalRd.toFixed(1);
+  const kcalVal=document.getElementById('plan-fruit-kcal-val');
+  if(kcalVal)kcalVal.textContent=Math.round(total*60);
+  updatePlanHandPreview();
+}
 function adjFruit(id,delta){
   fruitCounts[id]=Math.max(0,Math.round((fruitCounts[id]+delta)*10)/10);
   const v=fruitCounts[id];
@@ -3638,7 +3661,7 @@ async function callGeminiAI(){
 
 ตอบด้วย JSON เท่านั้น:
 {"items":[{"name":"ชื่ออาหาร","amount":"จำนวน+หน่วย","c":0.0,"p":0.0,"f":0.0,"kcal":0}],"total":{"c":0.0,"p":0.0,"f":0.0,"kcal":0}}
-กฎ: c=คาร์บ p=โปรตีน f=ไขมัน หน่วยกรัม ทศนิยม1ตำแหน่ง kcal=round(c*4+p*4+f*9)`;
+กฎ: c=คาร์บ p=โปรตีน f=ไขมัน หน่วยกรัม ทศนิยม1ตำแหน่ง kcal=round(c*4+p*4+f*9) | amount ต้องมีตัวเลขเสมอ เช่น "100 กรัม" "1 ทัพพี" "2 ลูก" — ห้ามใช้คำอธิบายอย่างเดียว`;
   try{
     const res=await fetch('https://api.groq.com/openai/v1/chat/completions',{
       method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+GROQ_KEY},
@@ -4750,26 +4773,22 @@ function renderPlanPanel(){
             <div class="hmb-stepper-sm"><button onclick="adjPlanHand('eggw',-1)">−</button><span id="ph-eggw-qty" class="hval-sm">${planEggWhite}</span><span class="hunit-sm">ฟอง</span><button onclick="adjPlanHand('eggw',1)">+</button></div>
           </div>
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:14px">
-          <div>
-            <div class="hmb-subtitle" style="margin-bottom:4px">🥑 อะโวคาโด</div>
-            <div style="font-size:10px;color:var(--gray);margin-bottom:4px">C4·P1·F8 ต่อชิ้น (~80kcal)</div>
-            <div class="hmb-stepper">
-              <button onclick="adjPlanHand('avo',-1)">−</button>
-              <span id="ph-avo-qty" class="hval">${planAvoQty}</span>
-              <span class="hunit">ชิ้น</span>
-              <button onclick="adjPlanHand('avo',1)">+</button>
-            </div>
+        <div style="margin-bottom:10px">
+          <div class="hmb-subtitle" style="margin-bottom:4px">🥑 อะโวคาโด</div>
+          <div style="font-size:10px;color:var(--gray);margin-bottom:4px">C4·P1·F8 ต่อชิ้น (~80kcal)</div>
+          <div class="hmb-stepper">
+            <button onclick="adjPlanHand('avo',-1)">−</button>
+            <span id="ph-avo-qty" class="hval">${planAvoQty}</span>
+            <span class="hunit">ชิ้น</span>
+            <button onclick="adjPlanHand('avo',1)">+</button>
           </div>
-          <div>
-            <div class="hmb-subtitle" style="margin-bottom:4px">🍎 ผลไม้</div>
-            <div style="font-size:10px;color:var(--gray);margin-bottom:4px">~15g คาร์บ/ทัพพี</div>
-            <div class="hmb-stepper">
-              <button onclick="adjPlanHand('fruit',-0.5)">−</button>
-              <span id="ph-fruit-qty" class="hval">${planFruitLadles.toFixed(1)}</span>
-              <span class="hunit">ทัพพี</span>
-              <button onclick="adjPlanHand('fruit',0.5)">+</button>
-            </div>
+        </div>
+        <div class="fruit-section" style="margin-bottom:14px">
+          <div class="fruit-section-title">🍎 ผลไม้ & แป้งแลกเปลี่ยน</div>
+          <div class="fruit-hint-txt">กรอกจำนวนที่วางแผนจะกิน · ระบบแปลงเป็นทัพพีคาร์บให้</div>
+          <div class="fruit-grid">${FRUIT_ITEMS.map(f=>{const hint=f.perLadle===0.5?`½ ${f.unit}=1ทัพพี`:`${f.perLadle} ${f.unit}=1ทัพพี`;const pv=planFruitCounts[f.id]||0;return`<div class="fruit-item${pv>0?' has-fruit':''}" id="pfi-${f.id}"><span class="f-emoji">${f.emoji}</span><span class="f-name">${f.name}</span><span class="f-unit">${hint}</span><div class="f-stepper"><button class="f-btn" onclick="adjPlanFruit('${f.id}',-${f.step})">−</button><span class="f-count" id="pfc-${f.id}">${Number.isInteger(pv)?pv:pv.toFixed(1)}</span><button class="f-btn" onclick="adjPlanFruit('${f.id}',${f.step})">+</button></div><span id="pfu-${f.id}" style="display:${pv>0?'block':'none'};font-size:9px;color:#166534;margin-top:2px">${f.unit}</span></div>`;}).join('')}</div>
+          <div class="fruit-total-bar" id="plan-fruit-total-bar" style="display:${getPlanFruitLadles()>0?'block':'none'}">
+            🍽️ รวมผลไม้ = <span id="plan-fruit-total-val">${(Math.round(getPlanFruitLadles()*10)/10)}</span> ทัพพี · ~<span id="plan-fruit-kcal-val">${Math.round(getPlanFruitLadles()*60)}</span> kcal
           </div>
         </div>
         <div id="ph-preview" style="background:#F0FDF4;border-radius:10px;padding:10px 14px;margin-bottom:10px;font-size:14px;font-weight:700;color:#065F46;text-align:center">
@@ -4858,9 +4877,6 @@ function adjPlanHand(which,delta){
   }else if(which==='avo'){
     planAvoQty=Math.max(0,planAvoQty+delta);
     const el=document.getElementById('ph-avo-qty');if(el)el.textContent=planAvoQty;
-  }else if(which==='fruit'){
-    planFruitLadles=Math.max(0,Math.round((planFruitLadles+delta)*2)/2);
-    const el=document.getElementById('ph-fruit-qty');if(el)el.textContent=planFruitLadles.toFixed(1);
   }
   updatePlanHandPreview();
 }
@@ -4886,7 +4902,7 @@ function updatePlanHandPreview(){
   const cd=CARB_D[planHandCarbDensity]||CARB_D.normal;
   const pt=PROT_T[planHandProtType]||PROT_T.lean;
   const cm=COOK_M[planCookMethod]||COOK_M.none;
-  const c=Math.round(cd.c*planHandCarbQty+pt.c*planHandProtQty+EGG_W.c*planEggWhole+EGG_WH.c*planEggWhite+AVO.c*planAvoQty+planFruitLadles*15);
+  const c=Math.round(cd.c*planHandCarbQty+pt.c*planHandProtQty+EGG_W.c*planEggWhole+EGG_WH.c*planEggWhite+AVO.c*planAvoQty+getPlanFruitLadles()*15);
   const p=Math.round(cd.p*planHandCarbQty+pt.p*planHandProtQty+EGG_W.p*planEggWhole+EGG_WH.p*planEggWhite+AVO.p*planAvoQty);
   const f=Math.round(cd.f*planHandCarbQty+pt.f*planHandProtQty+cm.f+planVisibleFat*VIS_FAT_G+EGG_W.f*planEggWhole+AVO.f*planAvoQty);
   const kcal=c*4+p*4+f*9;
@@ -4951,7 +4967,7 @@ function addPlanItem(){
     const cd=CARB_D[planHandCarbDensity]||CARB_D.normal;
     const pt=PROT_T[planHandProtType]||PROT_T.lean;
     const cm=COOK_M[planCookMethod]||COOK_M.none;
-    c=Math.round(cd.c*planHandCarbQty+pt.c*planHandProtQty+EGG_W.c*planEggWhole+EGG_WH.c*planEggWhite+AVO.c*planAvoQty+planFruitLadles*15);
+    c=Math.round(cd.c*planHandCarbQty+pt.c*planHandProtQty+EGG_W.c*planEggWhole+EGG_WH.c*planEggWhite+AVO.c*planAvoQty+getPlanFruitLadles()*15);
     p=Math.round(cd.p*planHandCarbQty+pt.p*planHandProtQty+EGG_W.p*planEggWhole+EGG_WH.p*planEggWhite+AVO.p*planAvoQty);
     f=Math.round(cd.f*planHandCarbQty+pt.f*planHandProtQty+cm.f+planVisibleFat*VIS_FAT_G+EGG_W.f*planEggWhole+AVO.f*planAvoQty);
     if(!c&&!p&&!f){showToast('ปรับ qty คาร์บหรือโปรตีนก่อนนะคะ');return;}
@@ -4971,6 +4987,7 @@ function addPlanItem(){
   planHandCarbQty=1.5;planHandProtQty=1.0;planCookMethod='none';planAIData=null;
   planHandCarbDensity='normal';planHandProtType='lean';planVisibleFat=0;
   planEggWhole=0;planEggWhite=0;planAvoQty=0;planFruitLadles=0;
+  FRUIT_ITEMS.forEach(f=>planFruitCounts[f.id]=0);
   renderPlanPanel();
 }
 function removePlanItem(i){mealPlan.splice(i,1);renderPlanPanel();}
@@ -5472,7 +5489,8 @@ function buildCorrPanel(s,cs){
     const eggWhole=cs.eggWhole!==undefined?cs.eggWhole:(hd.eggWhole||0);
     const eggWhite=cs.eggWhite!==undefined?cs.eggWhite:(hd.eggWhite||0);
     const avoQty=cs.avoQty!==undefined?cs.avoQty:(hd.avo||0);
-    const fruitLadles=cs.fruitLadles!==undefined?cs.fruitLadles:(hd.fruitLadles||0);
+    const baseFruits=cs.fruitCounts||(hd.fruits?{...hd.fruits}:{});
+    const fruitLadles=FRUIT_ITEMS.reduce((sum,f)=>sum+(baseFruits[f.id]||0)/f.perLadle,0);
     const eggsC=eggWhole*EGG_W.c+eggWhite*EGG_WH.c;
     const eggsP=eggWhole*EGG_W.p+eggWhite*EGG_WH.p;
     const eggsF=eggWhole*EGG_W.f;
