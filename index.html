@@ -2897,8 +2897,8 @@ async function loadStudentData(){
       db.collection('students').doc(user.userId).get().catch(()=>null),
       db.collection('users').doc(user.userId).collection('savedMenus').limit(12).get().catch(()=>null)
     ]);
-    // sort client-side หลัง fetch — ไม่ต้องใช้ composite index
-    studentSubsCache=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
+    // sort client-side + ลบ photoBase64 ออกจาก RAM (ยังใช้ photoUrl แทนได้)
+    studentSubsCache=snap.docs.map(d=>{const dat=d.data();delete dat.photoBase64;return{id:d.id,...dat};}).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
     applyTargets(td);
     if(td&&td.exists){const d=td.data();studentProgramData={programStart:d.programStart||'',programWeeks:d.programWeeks||12,pausedDays:d.pausedDays||0,isPaused:d.isPaused||false,discountCode:d.discountCode||'',discountPercent:d.discountPercent||0};}
     if(savedSnap){savedMenusCache=savedSnap.docs.map(d=>({id:d.id,...d.data()}));}
@@ -3899,7 +3899,7 @@ function showSuccess(mode,handData,labelData,weighData){
 async function showMilestone(){
   try{
     const snap=await db.collection('submissions').where('userId','==',user.userId).limit(30).get();
-    const subs=snap.docs.map(d=>({id:d.id,...d.data()}));
+    const subs=snap.docs.map(d=>{const dat=d.data();delete dat.photoBase64;return{id:d.id,...dat};});
     const streak=calcStreak(subs);
     const pill=document.getElementById('streak-pill');
     if(streak>0){pill.innerHTML=`🔥 ${streak} วันติด`;pill.style.display='flex';}
@@ -4207,8 +4207,13 @@ function exitCoachLog(){
 // COACH
 function startCoach(){
   document.getElementById('coach-view').style.display='block';
-  db.collection('submissions').orderBy('createdAt','desc')
-    .onSnapshot(snap=>{allSubs=snap.docs.map(d=>({id:d.id,...d.data()}));renderCoach();},err=>console.error(err));
+  // จำกัดแค่ 30 วันล่าสุด + limit 200 docs — ลดข้อมูลโหลดจาก "ทั้งหมด" เป็น "เดือนนี้"
+  const cutoff=firebase.firestore.Timestamp.fromDate(new Date(Date.now()-30*24*60*60*1000));
+  db.collection('submissions').where('createdAt','>=',cutoff).orderBy('createdAt','desc').limit(200)
+    .onSnapshot(snap=>{
+      allSubs=snap.docs.map(d=>{const dat=d.data();delete dat.photoBase64;return{id:d.id,...dat};});
+      renderCoach();
+    },err=>console.error(err));
 }
 function selCoachTab(tab){
   document.querySelectorAll('.coach-tab').forEach(t=>t.classList.remove('active'));
