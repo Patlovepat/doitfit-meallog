@@ -2726,7 +2726,8 @@ let planHandProtType='lean';      // protein toggle
 let planVisibleFat=0;             // visible fat tsp
 let planEggWhole=0, planEggWhite=0, planAvoQty=0, planFruitLadles=0;
 let planFruitCounts={};
-let GROQ_KEY=null; // โหลดจาก Firestore config/app.groqKey (ไม่เก็บใน source code)
+let GROQ_KEY=null; // โหลดจาก Firestore config/app.groqKey (ใช้สำหรับ photo analysis)
+let GEMINI_KEY=null; // โหลดจาก Firestore config/app.geminiKey (ใช้สำหรับ AI text analysis)
 let aiParsedData=null;
 let _photoProcessing=false;
 let selectedDate=todayStr();
@@ -2911,7 +2912,7 @@ async function loadStudentData(){
       db.collection('users').doc(user.userId).collection('savedMenus').limit(12).get().catch(()=>null),
       db.collection('config').doc('app').get().catch(()=>null)
     ]);
-    if(cfgSnap&&cfgSnap.exists)GROQ_KEY=cfgSnap.data().groqKey||null;
+    if(cfgSnap&&cfgSnap.exists){GROQ_KEY=cfgSnap.data().groqKey||null;GEMINI_KEY=cfgSnap.data().geminiKey||null;}
     // sort client-side + ลบ photoBase64 ออกจาก RAM (ยังใช้ photoUrl แทนได้)
     studentSubsCache=snap.docs.map(d=>{const dat=d.data();delete dat.photoBase64;return{id:d.id,...dat};}).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
     applyTargets(td);
@@ -3647,7 +3648,7 @@ function buildDBContext(text){
 async function callGeminiAI(){
   const text=document.getElementById('ai-food-input').value.trim();
   if(!text){alert('กรุณาพิมพ์รายการอาหารก่อนค่ะ');return;}
-  if(!GROQ_KEY){alert('ระบบยังโหลดไม่เสร็จ กรุณารอสักครู่แล้วลองใหม่ค่ะ');return;}
+  if(!GEMINI_KEY){alert('ระบบยังโหลดไม่เสร็จ กรุณารอสักครู่แล้วลองใหม่ค่ะ');return;}
   const btn=document.getElementById('ai-calc-btn');
   btn.disabled=true;btn.textContent='⏳ กำลังวิเคราะห์...';
   document.getElementById('ai-result-area').style.display='none';
@@ -3670,16 +3671,18 @@ async function callGeminiAI(){
 {"items":[{"name":"ชื่ออาหาร","amount":"จำนวน+หน่วย","c":0.0,"p":0.0,"f":0.0,"kcal":0}],"total":{"c":0.0,"p":0.0,"f":0.0,"kcal":0}}
 กฎ: c=คาร์บ p=โปรตีน f=ไขมัน หน่วยกรัม ทศนิยม1ตำแหน่ง kcal=c*4+p*4+f*9 (ปัดเป็นจำนวนเต็ม ใส่ตัวเลขเท่านั้น) | amount ต้องมีตัวเลขเสมอ เช่น "100 กรัม" "1 ทัพพี" "2 ลูก" — ห้ามใช้คำอธิบายอย่างเดียว`;
   try{
-    const res=await fetch('https://api.groq.com/openai/v1/chat/completions',{
-      method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+GROQ_KEY},
-      body:JSON.stringify({model:'llama-3.3-70b-versatile',messages:[{role:'system',content:sysMsg},{role:'user',content:userPrompt}],temperature:0.1})
+    const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`,{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        contents:[{parts:[{text:sysMsg+'\n\n'+userPrompt}]}],
+        generationConfig:{temperature:0.1,responseMimeType:'application/json'}
+      })
     });
     const data=await res.json();
-    if(data.error)throw new Error(data.error.message);
-    const raw=data.choices[0].message.content;
-    const m=raw.match(/\{[\s\S]*\}/);
-    if(!m)throw new Error('ไม่พบ JSON ในคำตอบ');
-    aiParsedData=JSON.parse(m[0]);
+    if(data.error)throw new Error(data.error.message||JSON.stringify(data.error));
+    const raw=data.candidates?.[0]?.content?.parts?.[0]?.text||'';
+    if(!raw)throw new Error('Gemini ไม่ตอบกลับ');
+    aiParsedData=JSON.parse(raw);
     // Normalize kcal ทุก item ให้ตรงสูตร — AI อาจคืนค่าไม่ตรง
     (aiParsedData.items||[]).forEach(it=>{it.kcal=Math.round((it.c||0)*4+(it.p||0)*4+(it.f||0)*9);});
     if(aiParsedData.total){const t=aiParsedData.total;t.kcal=Math.round((t.c||0)*4+(t.p||0)*4+(t.f||0)*9);}
