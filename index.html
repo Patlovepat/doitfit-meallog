@@ -8,6 +8,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script>
 window.onerror=function(msg,src,line,col,err){
   var el=document.getElementById('loading');
@@ -862,6 +863,8 @@ firebase.initializeApp({
 });
 const db = firebase.firestore();
 const storage = firebase.storage();
+// Firebase Anonymous Auth — ให้ทุก user มี auth token สำหรับ Firestore Rules
+firebase.auth().signInAnonymously().catch(e=>console.warn('anon auth:',e));
 // Offline persistence — reload ครั้งที่ 2+ โหลดจาก cache ทันที
 db.enablePersistence({synchronizeTabs:true}).catch(e=>{console.warn('Persistence:',e.code);});
 
@@ -2913,6 +2916,12 @@ async function loadStudentData(){
       db.collection('config').doc('app').get().catch(()=>null)
     ]);
     if(cfgSnap&&cfgSnap.exists){GROQ_KEY=cfgSnap.data().groqKey||null;GEMINI_KEY=cfgSnap.data().geminiKey||null;}
+    // retry ถ้า key โหลดไม่ได้รอบแรก (เช่น network ช้า หรือ rules block)
+    if(!GEMINI_KEY){
+      try{const retry=await db.collection('config').doc('app').get();
+        if(retry&&retry.exists){GROQ_KEY=retry.data().groqKey||null;GEMINI_KEY=retry.data().geminiKey||null;}
+      }catch(e){console.warn('config retry failed',e);}
+    }
     // sort client-side + ลบ photoBase64 ออกจาก RAM (ยังใช้ photoUrl แทนได้)
     studentSubsCache=snap.docs.map(d=>{const dat=d.data();delete dat.photoBase64;return{id:d.id,...dat};}).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
     applyTargets(td);
