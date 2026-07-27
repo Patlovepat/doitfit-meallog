@@ -2906,7 +2906,7 @@ function startStudent(){
 async function loadStudentData(){
   try{
     const [snap,td,savedSnap,cfgSnap]=await Promise.all([
-      db.collection('submissions').where('userId','==',user.userId).limit(30).get(),
+      db.collection('submissions').where('userId','==',user.userId).orderBy('createdAt','desc').limit(30).get(),
       db.collection('students').doc(user.userId).get().catch(()=>null),
       db.collection('users').doc(user.userId).collection('savedMenus').limit(12).get().catch(()=>null),
       db.collection('config').doc('app').get().catch(()=>null)
@@ -4020,7 +4020,11 @@ async function loadHistory(){
     list.innerHTML=histCache.map(s=>buildHistCard(s)).join('');
     return;
   }
-  // ใช้ cache ที่มีอยู่แล้ว ไม่ต้อง query ใหม่
+  if(studentSubsCache===null){
+    // cache ยังไม่โหลดเสร็จ — แสดง loading แล้วรอ
+    list.innerHTML='<div style="text-align:center;padding:24px;color:var(--gray);font-size:13px">⏳ กำลังโหลด...</div>';
+    await loadStudentData();
+  }
   const subs=(studentSubsCache||[])
     .slice().sort((a,b)=>{const ta=a.createdAt?.toDate?.()?.getTime?.()||0,tb=b.createdAt?.toDate?.()?.getTime?.()||0;return tb-ta;});
   histCache=subs;
