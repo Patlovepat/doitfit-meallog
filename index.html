@@ -4443,6 +4443,8 @@ async function loadStudentList(){
       </div>
       ${users.map(u=>buildStudentCard(u)).join('')}
     `;
+    // Background prefetch top 5 students หลัง UI render แล้ว
+    setTimeout(()=>{ users.slice(0,5).forEach(u=>prefetchStudent(u.userId)); },800);
   }catch(e){container.innerHTML='<div style="padding:24px;text-align:center;color:#EF4444">โหลดไม่ได้: '+e.message+'</div>';}
 }
 
@@ -4471,7 +4473,7 @@ function buildStudentCard(u){
   const uniqueDays=new Set(u.subs.map(s=>subDate(s))).size;
   const showTestiBadge=streak>=14||uniqueDays>=20;
   const avatarHtml=u.pictureUrl?`<img src="${u.pictureUrl}" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display='none'">`:'👤';
-  return`<div class="stu-card" onclick="openStudentDetail('${u.userId}')">
+  return`<div class="stu-card" onclick="openStudentDetail('${u.userId}')" onmouseenter="prefetchStudent('${u.userId}')">
     <div class="stu-card-top">
       <div class="stu-avatar">${avatarHtml}</div>
       <div style="flex:1">
@@ -4509,6 +4511,40 @@ let currentStudentData=null;
 
 const _sdCache={};
 const _sdCursors={}; // cursor สำหรับ pagination ต่อ student
+
+// Prefetch student data ล่วงหน้า (hover หรือ background)
+async function prefetchStudent(userId){
+  if(_sdCache[userId]||_sdCache['_pf_'+userId])return;
+  _sdCache['_pf_'+userId]=true;
+  try{
+    const [tdSnap,hsSnap,wsSnap,wcSnap]=await Promise.all([
+      db.collection('students').doc(userId).get().catch(()=>null),
+      db.collection('healthLogs').doc(userId).collection('days').orderBy(firebase.firestore.FieldPath.documentId(),'desc').limit(7).get().catch(()=>null),
+      db.collection('students').doc(userId).collection('weeklySummaries').orderBy('weekStart','desc').limit(4).get().catch(()=>null),
+      db.collection('weeklyChecks').doc(userId).collection('entries').orderBy('date','asc').limit(20).get().catch(()=>null),
+    ]);
+    let targets={kcal:1600,c:160,p:120,f:55};
+    if(tdSnap&&tdSnap.exists){
+      const d=tdSnap.data();
+      if(d.targets)targets=d.targets;
+      if(d.coachNotes)targets.coachNotes=d.coachNotes;
+      targets.programStart=d.programStart||'';targets.programWeeks=d.programWeeks||12;
+      targets.pausedDays=d.pausedDays||0;targets.isPaused=d.isPaused||false;
+      targets.discountCode=d.discountCode||'';targets.discountPercent=d.discountPercent||0;
+    }
+    let healthLogs={};if(hsSnap)hsSnap.docs.forEach(d=>{healthLogs[d.id]=d.data();});
+    let weeklySummaries={};if(wsSnap)wsSnap.docs.forEach(d=>{weeklySummaries[d.id]=d.data();});
+    let weeklyChecks=[];if(wcSnap)wcSnap.docs.forEach(d=>{weeklyChecks.push({id:d.id,...d.data()});});
+    _sdCursors[userId]={
+      lastHL:hsSnap&&hsSnap.docs.length?hsSnap.docs[hsSnap.docs.length-1]:null,
+      hasMoreHL:!!(hsSnap&&hsSnap.docs.length>=7),
+      lastWS:wsSnap&&wsSnap.docs.length?wsSnap.docs[wsSnap.docs.length-1]:null,
+      hasMoreWS:!!(wsSnap&&wsSnap.docs.length>=4),
+    };
+    _sdCache[userId]={targets,healthLogs,weeklySummaries,weeklyChecks};
+  }catch(e){}
+  delete _sdCache['_pf_'+userId];
+}
 async function openStudentDetail(userId){
   const overlay=document.getElementById('student-detail');
   overlay.style.display='block';
@@ -4528,14 +4564,8 @@ async function openStudentDetail(userId){
     loadCoachStudentPlan(userId);
     return;
   }
-  document.getElementById('sd-content').innerHTML='<div style="padding:24px;text-align:center;color:var(--gray)">⏳ กำลังโหลด...</div>';
-  // ยิง 4 queries พร้อมกัน (Promise.all) แทนที่จะรอทีละ query
-  const [tdSnap,hsSnap,wsSnap,wcSnap]=await Promise.all([
-    db.collection('students').doc(userId).get().catch(()=>null),
-    db.collection('healthLogs').doc(userId).collection('days').orderBy(firebase.firestore.FieldPath.documentId(),'desc').limit(7).get().catch(()=>null),
-    db.collection('students').doc(userId).collection('weeklySummaries').orderBy('weekStart','desc').limit(4).get().catch(()=>null),
-    db.collection('weeklyChecks').doc(userId).collection('entries').orderBy('date','asc').limit(20).get().catch(()=>null),
-  ]);
+  // === PHASE 1: โหลด students doc เดียว → render ทันที ===
+  const tdSnap=await db.collection('students').doc(userId).get().catch(()=>null);
   let targets={kcal:1600,c:160,p:120,f:55};
   if(tdSnap&&tdSnap.exists){
     const d=tdSnap.data();
@@ -4548,13 +4578,20 @@ async function openStudentDetail(userId){
     targets.discountCode=d.discountCode||'';
     targets.discountPercent=d.discountPercent||0;
   }
+  renderStudentDetail(u,targets,{},{},[]); // render ทันที ยังไม่มี health/weekly data
+  loadCoachStudentPlan(userId);
+  // === PHASE 2: โหลด health/weekly ใน background → update เฉพาะส่วนนั้น ===
+  const [hsSnap,wsSnap,wcSnap]=await Promise.all([
+    db.collection('healthLogs').doc(userId).collection('days').orderBy(firebase.firestore.FieldPath.documentId(),'desc').limit(7).get().catch(()=>null),
+    db.collection('students').doc(userId).collection('weeklySummaries').orderBy('weekStart','desc').limit(4).get().catch(()=>null),
+    db.collection('weeklyChecks').doc(userId).collection('entries').orderBy('date','asc').limit(20).get().catch(()=>null),
+  ]);
   let healthLogs={};
   if(hsSnap)hsSnap.docs.forEach(d=>{healthLogs[d.id]=d.data();});
   let weeklySummaries={};
   if(wsSnap)wsSnap.docs.forEach(d=>{weeklySummaries[d.id]=d.data();});
   let weeklyChecks=[];
   if(wcSnap)wcSnap.docs.forEach(d=>{weeklyChecks.push({id:d.id,...d.data()});});
-  // บันทึก cache + cursor ต่อ student
   _sdCursors[userId]={
     lastHL: hsSnap&&hsSnap.docs.length ? hsSnap.docs[hsSnap.docs.length-1] : null,
     hasMoreHL: !!(hsSnap&&hsSnap.docs.length>=7),
@@ -4562,11 +4599,19 @@ async function openStudentDetail(userId){
     hasMoreWS: !!(wsSnap&&wsSnap.docs.length>=4),
   };
   _sdCache[userId]={targets,healthLogs,weeklySummaries,weeklyChecks};
-  // auto-mark missed days (client-side, non-blocking)
+  // อัปเดตเฉพาะ section ที่ต้องการ health data (ถ้ายังเปิดหน้านี้อยู่)
+  if(currentStudentData&&currentStudentData.userId===userId){
+    const MON=getMonWeekDates(),TH_SHORT=['จ','อ','พ','พฤ','ศ','ส','อา'];
+    const byDate={};u.subs.forEach(s=>{const k=subDate(s);if(!byDate[k])byDate[k]=[];byDate[k].push(s);});
+    const lsEl=document.getElementById('sd-lifestyle-'+userId);
+    if(lsEl)lsEl.innerHTML=buildLifestyleSection(MON,TH_SHORT,healthLogs);
+    const wsEl=document.getElementById('sd-weekly-'+userId);
+    if(wsEl)wsEl.innerHTML=buildWeeklySummaryAccordion(u,byDate,targets,healthLogs,weeklySummaries);
+    const pgEl=document.getElementById('sd-progress-'+userId);
+    if(pgEl)pgEl.innerHTML=buildProgressSection(weeklyChecks,userId);
+  }
   const byDateTmp={};u.subs.forEach(s=>{const k=subDate(s);if(!byDateTmp[k])byDateTmp[k]=[];byDateTmp[k].push(s);});
   autoMarkMissedDays(userId,byDateTmp).catch(()=>{});
-  renderStudentDetail(u,targets,healthLogs,weeklySummaries,weeklyChecks);
-  loadCoachStudentPlan(userId);
 }
 
 function closeStudentDetail(){
@@ -5419,7 +5464,7 @@ function renderStudentDetail(u, targets, healthLogs, weeklySummaries={}, weeklyC
     style="width:100%;padding:11px;background:var(--light);border:1.5px solid var(--border);border-radius:10px;font-size:13px;font-weight:600;font-family:'Prompt',sans-serif;color:var(--primary-dark);cursor:pointer;margin-top:4px">
     📅 ดูย้อนหลังเพิ่มเติม
   </button>`:'';
-  document.getElementById('sd-content').innerHTML=planSectionHtml+progHtml+notesHtml+targHtml+macro7Html+progressHtml+zigzagHtml+lifestyleHtml+`<div id="sd-weekly-${uid}">${weeklyHtml}</div>`+loadMoreBtn;
+  document.getElementById('sd-content').innerHTML=planSectionHtml+progHtml+notesHtml+targHtml+macro7Html+`<div id="sd-progress-${uid}">${progressHtml}</div>`+zigzagHtml+`<div id="sd-lifestyle-${uid}">${lifestyleHtml}</div>`+`<div id="sd-weekly-${uid}">${weeklyHtml}</div>`+loadMoreBtn;
 }
 
 // ===== LIFESTYLE 7 วัน (bar charts) =====
