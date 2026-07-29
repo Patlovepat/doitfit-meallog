@@ -6996,18 +6996,33 @@ async function downloadDashboard(elId, name, type){
   const el=document.getElementById(elId);
   if(!el){showToast('ไม่พบข้อมูล');return;}
   showToast(type==='pdf'?'⏳ กำลังสร้าง PDF...':'⏳ กำลังบันทึกรูป...');
-  await new Promise(r=>setTimeout(r,150));
+
+  // html2canvas จะ clip ตาม overflow ของ parent (position:fixed; overflow-y:auto)
+  // → clone element ออกมาวางนอก scrollable container ก่อน render
+  const W=el.scrollWidth;
+  const wrapper=document.createElement('div');
+  Object.assign(wrapper.style,{
+    position:'absolute',top:'0',left:'-99999px',
+    width:W+'px',background:'#F9FAFB',
+    zIndex:'-1',pointerEvents:'none',overflow:'visible',
+  });
+  const clone=el.cloneNode(true);
+  Object.assign(clone.style,{width:W+'px',height:'auto',overflow:'visible',display:'block'});
+  wrapper.appendChild(clone);
+  document.body.appendChild(wrapper);
+  await new Promise(r=>setTimeout(r,300)); // ให้ DOM settle + lazy images
+
   try{
-    const canvas=await html2canvas(el,{
+    const H=clone.scrollHeight;
+    const canvas=await html2canvas(clone,{
       scale:2,
       useCORS:true,
       allowTaint:true,
       backgroundColor:'#F9FAFB',
-      scrollX:0,
-      scrollY:0,
-      width:el.scrollWidth,
-      height:el.scrollHeight,
-      windowWidth:el.scrollWidth,
+      scrollX:0,scrollY:0,
+      x:0,y:0,
+      width:W,height:H,
+      windowWidth:W,windowHeight:H,
     });
     const fname=(name||'dashboard')+'_'+new Date().toISOString().split('T')[0];
     if(type==='pdf'){
@@ -7024,6 +7039,7 @@ async function downloadDashboard(elId, name, type){
     }
     showToast(type==='pdf'?'✅ บันทึก PDF แล้ว':'✅ บันทึกรูปแล้ว');
   }catch(e){showToast('❌ '+e.message);}
+  finally{document.body.removeChild(wrapper);}
 }
 </script>
 </body>
