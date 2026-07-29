@@ -3848,10 +3848,11 @@ async function loadSavedMenus(){
   if(!user)return[];
   try{
     const snap=await db.collection('users').doc(user.userId).collection('savedMenus')
-      .orderBy('createdAt','desc').limit(12).get();
-    savedMenusCache=snap.docs.map(d=>({id:d.id,...d.data()}));
+      .limit(12).get();
+    savedMenusCache=snap.docs.map(d=>({id:d.id,...d.data()}))
+      .sort((a,b)=>{const at=a.createdAt?.seconds||0,bt=b.createdAt?.seconds||0;return bt-at;});
     return savedMenusCache;
-  }catch(e){console.warn('loadSavedMenus',e);return[];}
+  }catch(e){console.warn('loadSavedMenus',e);savedMenusCache=savedMenusCache||[];return savedMenusCache;}
 }
 function renderSavedChips(mode){
   const el=document.getElementById('saved-chips-'+mode);
