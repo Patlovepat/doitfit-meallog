@@ -6995,35 +6995,60 @@ window.addEventListener('load',init);
 async function downloadDashboard(elId, name, type){
   const el=document.getElementById(elId);
   if(!el){showToast('ไม่พบข้อมูล');return;}
-  showToast(type==='pdf'?'⏳ กำลังสร้าง PDF...':'⏳ กำลังบันทึกรูป...');
 
-  // html2canvas จะ clip ตาม overflow ของ parent (position:fixed; overflow-y:auto)
-  // → clone element ออกมาวางนอก scrollable container ก่อน render
-  const W=el.scrollWidth;
-  const wrapper=document.createElement('div');
-  Object.assign(wrapper.style,{
-    position:'absolute',top:'0',left:'-99999px',
-    width:W+'px',background:'#F9FAFB',
-    zIndex:'-1',pointerEvents:'none',overflow:'visible',
+  // Overlay ปิดหน้าไว้ระหว่าง capture (ซ่อน style manipulation ชั่วคราว)
+  const overlay=document.createElement('div');
+  Object.assign(overlay.style,{
+    position:'fixed',inset:'0',zIndex:'99998',
+    background:'rgba(249,250,251,0.97)',
+    display:'flex',alignItems:'center',justifyContent:'center',
+    flexDirection:'column',gap:'12px',
+    fontFamily:"'Prompt',sans-serif",fontSize:'15px',color:'#374151',
   });
-  const clone=el.cloneNode(true);
-  Object.assign(clone.style,{width:W+'px',height:'auto',overflow:'visible',display:'block'});
-  wrapper.appendChild(clone);
-  document.body.appendChild(wrapper);
-  await new Promise(r=>setTimeout(r,300)); // ให้ DOM settle + lazy images
+  overlay.innerHTML=`<div style="font-size:36px">📊</div><div>${type==='pdf'?'กำลังสร้าง PDF...':'กำลังบันทึกรูป...'}</div>`;
+  document.body.appendChild(overlay);
+
+  // ดึง overflow ออกจาก parent ทั้งหมด (รวม student-detail ที่เป็น fixed+overflow-y:auto)
+  const saved=[];
+  let anc=el.parentElement;
+  while(anc&&anc!==document.documentElement){
+    saved.unshift({
+      el:anc,
+      ov:anc.style.overflow,ovy:anc.style.overflowY,ovx:anc.style.overflowX,
+      h:anc.style.height,mh:anc.style.maxHeight,b:anc.style.bottom,
+    });
+    anc.style.overflow='visible';
+    anc.style.overflowY='visible';
+    anc.style.overflowX='visible';
+    anc.style.height='auto';
+    anc.style.maxHeight='none';
+    // student-detail มี inset:0 → bottom:0 ทำให้สูงไม่ขยาย → ต้องเอาออก
+    if(getComputedStyle(anc).bottom==='0px')anc.style.bottom='auto';
+    anc=anc.parentElement;
+  }
+
+  await new Promise(r=>setTimeout(r,200));
 
   try{
-    const H=clone.scrollHeight;
-    const canvas=await html2canvas(clone,{
+    const W=el.scrollWidth;
+    const H=el.scrollHeight;
+    const rect=el.getBoundingClientRect();
+
+    // scrollX/scrollY ชดเชยตำแหน่ง element ใน viewport
+    // formula: element_pos_in_canvas = rect.left + scrollX → ต้องการ 0 → scrollX = -rect.left
+    const canvas=await html2canvas(el,{
       scale:2,
       useCORS:true,
       allowTaint:true,
       backgroundColor:'#F9FAFB',
-      scrollX:0,scrollY:0,
+      scrollX:-Math.round(rect.left),
+      scrollY:-Math.round(rect.top),
       x:0,y:0,
       width:W,height:H,
-      windowWidth:W,windowHeight:H,
+      windowWidth:Math.max(W,400),
+      windowHeight:H+200,
     });
+
     const fname=(name||'dashboard')+'_'+new Date().toISOString().split('T')[0];
     if(type==='pdf'){
       const {jsPDF}=window.jspdf;
@@ -7035,11 +7060,19 @@ async function downloadDashboard(elId, name, type){
       const a=document.createElement('a');
       a.download=fname+'.png';
       a.href=canvas.toDataURL('image/png');
+      document.body.appendChild(a);
       a.click();
+      setTimeout(()=>{try{document.body.removeChild(a);}catch(_){}},200);
     }
     showToast(type==='pdf'?'✅ บันทึก PDF แล้ว':'✅ บันทึกรูปแล้ว');
   }catch(e){showToast('❌ '+e.message);}
-  finally{document.body.removeChild(wrapper);}
+  finally{
+    saved.forEach(({el,ov,ovy,ovx,h,mh,b})=>{
+      el.style.overflow=ov;el.style.overflowY=ovy;el.style.overflowX=ovx;
+      el.style.height=h;el.style.maxHeight=mh;el.style.bottom=b;
+    });
+    document.body.removeChild(overlay);
+  }
 }
 </script>
 </body>
