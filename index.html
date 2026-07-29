@@ -6940,7 +6940,7 @@ async function editHistSub(id){
 
 function switchEditMode(mode){
   _editSubMode=mode;
-  ['hand','label','ai'].forEach(m=>{
+  ['hand','label','weigh'].forEach(m=>{
     const btn=document.getElementById('esm-mode-'+m);
     if(!btn)return;
     const active=m===mode;
@@ -7096,7 +7096,7 @@ window.addEventListener('load',init);
       <div style="display:flex;gap:6px">
         <button onclick="switchEditMode('hand')" id="esm-mode-hand" style="flex:1;padding:7px 4px;border-radius:8px;border:1.5px solid #E5E7EB;font-size:12px;font-weight:500;font-family:'Prompt',sans-serif;cursor:pointer;background:var(--card);color:var(--gray)">👊 Hand</button>
         <button onclick="switchEditMode('label')" id="esm-mode-label" style="flex:1;padding:7px 4px;border-radius:8px;border:1.5px solid #E5E7EB;font-size:12px;font-weight:500;font-family:'Prompt',sans-serif;cursor:pointer;background:var(--card);color:var(--gray)">🏷️ ฉลาก</button>
-        <button onclick="switchEditMode('ai')" id="esm-mode-ai" style="flex:1;padding:7px 4px;border-radius:8px;border:1.5px solid #E5E7EB;font-size:12px;font-weight:500;font-family:'Prompt',sans-serif;cursor:pointer;background:var(--card);color:var(--gray)">✨ AI</button>
+        <button onclick="switchEditMode('weigh')" id="esm-mode-weigh" style="flex:1;padding:7px 4px;border-radius:8px;border:1.5px solid #E5E7EB;font-size:12px;font-weight:500;font-family:'Prompt',sans-serif;cursor:pointer;background:var(--card);color:var(--gray)">✨ AI</button>
       </div>
       <div id="esm-mode-note" style="font-size:10px;color:var(--gray);margin-top:5px"></div>
     </div>
