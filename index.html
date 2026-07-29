@@ -4189,17 +4189,17 @@ async function loadDashboard(forceRefresh=false){
   }
   content.innerHTML='<div style="padding:32px;text-align:center;color:var(--gray)"><div style="font-size:32px;margin-bottom:8px">⏳</div>กำลังโหลด...</div>';
   try{
-    // ใช้ studentSubsCache + TARGETS ที่โหลดไว้แล้ว ยิงแค่ 3 queries ที่ยังไม่มี
-    const [hs,wc,ws]=await Promise.all([
+    // Task #9: ยิง 4 queries พร้อมกัน (รวม coachNotes ที่เคยวิ่ง sequential หลัง Promise.all)
+    const [hs,wc,ws,td2]=await Promise.all([
       db.collection('healthLogs').doc(user.userId).collection('days').orderBy(firebase.firestore.FieldPath.documentId(),'desc').limit(14).get().catch(()=>null),
       db.collection('weeklyChecks').doc(user.userId).collection('entries').orderBy('date','asc').limit(20).get().catch(()=>null),
       db.collection('students').doc(user.userId).collection('weeklySummaries').orderBy('weekStart','desc').limit(8).get().catch(()=>null),
+      db.collection('students').doc(user.userId).get().catch(()=>null),
     ]);
     const subs=studentSubsCache||[];
     let targets={kcal:TARGETS.kcal,c:TARGETS.c,p:TARGETS.p,f:TARGETS.f};
     let coachNotes='';
-    // reload coachNotes เฉพาะถ้ายังไม่มี (เบา)
-    try{const td2=await db.collection('students').doc(user.userId).get();if(td2.exists){const dd=td2.data();if(dd.coachNotes)coachNotes=dd.coachNotes;}}catch(e){}
+    if(td2&&td2.exists){const dd=td2.data();if(dd.coachNotes)coachNotes=dd.coachNotes;}
     let healthLogs={};
     if(hs)hs.docs.forEach(d=>{healthLogs[d.id]=d.data();});
     let weeklyChecks=[];
@@ -4447,6 +4447,9 @@ async function loadStudentList(){
     const users=Object.values(byUser);
     if(!users.length){container.innerHTML='<div class="empty-state"><div class="es-icon">👤</div><p>ยังไม่มีนักเรียนค่ะ</p></div>';return;}
 
+    // Task #9: คำนวณ MON_WEEK ครั้งเดียว แทนที่จะ getMonWeekDates() ใน buildStudentCard ทุก card
+    const MON_WEEK=getMonWeekDates();
+
     // build summary row stats
     const totalStudents=users.length;
     const today=todayStr();
@@ -4461,7 +4464,7 @@ async function loadStudentList(){
         <div class="stat-box" style="background:#FEF3C7;border:1.5px solid #FDE68A"><div class="stat-val" style="color:#92400E">${pending}</div><div class="stat-lbl">รออนุมัติ</div></div>
         <div class="stat-box" style="background:#FEF2F2;border:1.5px solid #FECACA"><div class="stat-val" style="color:#B91C1C">${notSubmitted}</div><div class="stat-lbl">ไม่ส่ง</div></div>
       </div>
-      ${users.map(u=>buildStudentCard(u)).join('')}
+      ${users.map(u=>buildStudentCard(u,MON_WEEK)).join('')}
     `;
     // Background prefetch top 5 students หลัง UI render แล้ว (cancelable)
     clearTimeout(_prefetchTimer);
@@ -4469,8 +4472,8 @@ async function loadStudentList(){
   }catch(e){container.innerHTML='<div style="padding:24px;text-align:center;color:#EF4444">โหลดไม่ได้: '+e.message+'</div>';}
 }
 
-function buildStudentCard(u){
-  const MON=getMonWeekDates(); // จ-อา ของสัปดาห์นี้
+function buildStudentCard(u,MON){
+  if(!MON)MON=getMonWeekDates(); // fallback ถ้าไม่ส่ง MON มา (Task #9: ปกติส่งจาก loadStudentList)
   const byDate={};
   u.subs.forEach(s=>{const k=subDate(s);if(!byDate[k])byDate[k]=[];byDate[k].push(s);});
   const streak=calcStreak(u.subs);
