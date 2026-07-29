@@ -4101,13 +4101,19 @@ function buildHistCard(s){
   if(s.status==='corrected'&&s.correction){
     corrHtml=`<div class="hist-corr">✏️ โค้ชแก้ไข: C ${s.correction.carb} · P ${s.correction.protein} · F ${s.correction.fat}${s.correction.note?'<br>💬 '+escHtml(s.correction.note):''}</div>`;
   }
-  const delBtn=`<button onclick="deleteHistSub('${s.id}')" style="width:100%;margin-top:8px;padding:6px;background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;color:#B91C1C;font-size:12px;font-family:'Prompt',sans-serif;cursor:pointer">🗑️ ลบรายการนี้</button>`;
+  // ตรวจสอบว่ายังอยู่ใน 24h ไหม (สำหรับแสดงปุ่มแก้ไข)
+  const createdMs=s.createdAt?.toDate?.()?.getTime?.()||((s.createdAt?.seconds||0)*1000);
+  const canEdit=createdMs&&(Date.now()-createdMs)<24*60*60*1000;
+  const editedBadge=s.edited?`<span style="font-size:10px;color:#92400E;background:#FEF3C7;border-radius:4px;padding:1px 6px;margin-left:5px;font-weight:600">✏️ แก้แล้ว</span>`:'';
+  const editBtn=canEdit?`<button onclick="editHistSub('${s.id}')" style="flex:1;padding:6px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;color:#1D4ED8;font-size:12px;font-family:'Prompt',sans-serif;cursor:pointer">✏️ แก้ไข</button>`:'';
+  const delBtn=`<button onclick="deleteHistSub('${s.id}')" style="flex:1;padding:6px;background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;color:#B91C1C;font-size:12px;font-family:'Prompt',sans-serif;cursor:pointer">🗑️ ลบ</button>`;
+  const actionRow=`<div style="display:flex;gap:6px;margin-top:8px">${editBtn}${delBtn}</div>`;
   return`<div class="hist-card">
     <div class="hist-card-head" style="display:flex;align-items:flex-start;justify-content:space-between">
-      <div><div style="font-size:13px;font-weight:600">${dateLabel} · มื้อ${s.meal}</div><div style="font-size:11px;color:var(--gray);margin-top:2px">${modeLabel}${(s.photoBase64||s.photoUrl)?' · 📸':''}</div></div>
+      <div><div style="font-size:13px;font-weight:600">${dateLabel} · มื้อ${s.meal}${editedBadge}</div><div style="font-size:11px;color:var(--gray);margin-top:2px">${modeLabel}${(s.photoBase64||s.photoUrl)?' · 📸':''}</div></div>
       ${statusHtml}
     </div>
-    <div class="hist-card-body">${photoHtml}<div class="est-chips" style="margin-bottom:0">${chips}</div>${corrHtml}${editHistHtml||""}${coachCommentHtml||""}${delBtn}</div>
+    <div class="hist-card-body">${photoHtml}<div class="est-chips" style="margin-bottom:0">${chips}</div>${corrHtml}${editHistHtml||""}${coachCommentHtml||""}${actionRow}</div>
   </div>`;
 }
 
@@ -6584,7 +6590,177 @@ function buildFeedbackFlex(mealCount, totC, totP, totF, totKcal, currentSub){
   return{type:'flex',altText:`📊 Macro วันนี้ ${totKcal}/${TARGETS.kcal} kcal`,contents:bubble};
 }
 
+// ===== EDIT SUBMISSION =====
+let _editSubId=null,_editSubMode=null;
+
+function closeEditSub(){
+  document.getElementById('edit-sub-modal').style.display='none';
+  _editSubId=null;_editSubMode=null;
+}
+
+async function editHistSub(id){
+  const s=(histCache||studentSubsCache||[]).find(x=>x.id===id);
+  if(!s){alert('ไม่พบข้อมูล');return;}
+
+  // Guard 1: 24h time limit
+  const createdMs=s.createdAt?.toDate?.()?.getTime?.()||((s.createdAt?.seconds||0)*1000);
+  if(createdMs&&(Date.now()-createdMs)>24*60*60*1000){
+    alert('⏰ หมดเวลาแก้ไขแล้วค่ะ\nแก้ได้แค่ภายใน 24 ชม. หลังบันทึก');
+    return;
+  }
+
+  // Guard 2: coach already corrected
+  if(s.status==='corrected'){
+    if(!confirm('⚠️ โค้ชเคย correct log นี้แล้ว\nถ้าแก้ไขตอนนี้ โค้ชจะต้อง review ใหม่\n\nแน่ใจไหมว่าจะแก้ไข?'))return;
+  }
+
+  _editSubId=id;_editSubMode=s.mode;
+
+  // Populate fields
+  document.getElementById('esm-meal').value=s.meal||1;
+  document.getElementById('esm-date').value=s.mealDate||'';
+
+  let menuName='',menuDesc='',c=0,p=0,f=0;
+  if(s.mode==='hand'&&s.handData){
+    menuName=s.handData.menuName||'';menuDesc=s.handData.menuDesc||'';
+    c=s.handData.totalCarb??0;p=s.handData.totalProtein??0;f=s.handData.totalFat??0;
+  }else if(s.mode==='label'&&s.labelData){
+    menuName=s.labelData.menuName||s.labelData.food||'';
+    menuDesc=s.labelData.menuDesc||'';
+    c=s.labelData.carb||0;p=s.labelData.protein||0;f=s.labelData.fat||0;
+  }else if(s.mode==='weigh'&&s.weighData){
+    menuName=s.weighData.menuName||s.weighData.food||'';
+    menuDesc=s.weighData.menuDesc||'';
+    c=s.weighData.carb||0;p=s.weighData.protein||0;f=s.weighData.fat||0;
+  }
+
+  document.getElementById('esm-name').value=menuName;
+  document.getElementById('esm-desc').value=menuDesc;
+  document.getElementById('esm-carb').value=Math.round(c*10)/10;
+  document.getElementById('esm-prot').value=Math.round(p*10)/10;
+  document.getElementById('esm-fat').value=Math.round(f*10)/10;
+
+  document.getElementById('edit-sub-modal').style.display='flex';
+}
+
+async function saveHistEdit(){
+  if(!_editSubId)return;
+  const btn=document.getElementById('esm-save-btn');
+  btn.disabled=true;btn.textContent='กำลังบันทึก...';
+
+  const meal=parseInt(document.getElementById('esm-meal').value)||1;
+  const mealDate=document.getElementById('esm-date').value;
+  const menuName=document.getElementById('esm-name').value.trim();
+  const menuDesc=document.getElementById('esm-desc').value.trim();
+  const c=parseFloat(document.getElementById('esm-carb').value)||0;
+  const p=parseFloat(document.getElementById('esm-prot').value)||0;
+  const f=parseFloat(document.getElementById('esm-fat').value)||0;
+
+  try{
+    let upd={meal,mealDate,edited:true,editedAt:firebase.firestore.FieldValue.serverTimestamp()};
+
+    if(_editSubMode==='hand'){
+      upd['handData.menuName']=menuName;
+      upd['handData.menuDesc']=menuDesc;
+      upd['handData.totalCarb']=c;
+      upd['handData.totalProtein']=p;
+      upd['handData.totalFat']=f;
+      upd['handData.totalKcal']=Math.round(c*4+p*4+f*9);
+    }else if(_editSubMode==='label'){
+      upd['labelData.menuName']=menuName;
+      upd['labelData.food']=menuName; // backward compat
+      upd['labelData.menuDesc']=menuDesc;
+      upd['labelData.carb']=c;
+      upd['labelData.protein']=p;
+      upd['labelData.fat']=f;
+    }else if(_editSubMode==='weigh'){
+      upd['weighData.menuName']=menuName;
+      upd['weighData.food']=menuName; // backward compat
+      upd['weighData.menuDesc']=menuDesc;
+      upd['weighData.carb']=c;
+      upd['weighData.protein']=p;
+      upd['weighData.fat']=f;
+    }
+
+    // ถ้าโค้ชเคย correct → reset กลับ pending ให้โค้ช review ใหม่
+    const s=(histCache||studentSubsCache||[]).find(x=>x.id===_editSubId);
+    if(s&&s.status==='corrected'){upd.status='pending';upd.correction=null;}
+
+    await db.collection('submissions').doc(_editSubId).update(upd);
+
+    // Invalidate caches
+    histCache=null;studentSubsCache=null;dashCache=null;
+
+    closeEditSub();
+    await loadHistory();
+    loadTodayProgress();
+  }catch(e){alert('เกิดข้อผิดพลาด: '+e.message);}
+  finally{btn.disabled=false;btn.textContent='💾 บันทึก';}
+}
+
 window.addEventListener('load',init);
 </script>
+
+<!-- ===== EDIT SUBMISSION MODAL ===== -->
+<div id="edit-sub-modal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.5);align-items:flex-end;justify-content:center">
+  <div style="background:var(--card);border-radius:20px 20px 0 0;width:100%;max-width:480px;padding:20px 16px 36px;box-sizing:border-box">
+    <div style="width:40px;height:4px;background:#E5E7EB;border-radius:2px;margin:0 auto 16px"></div>
+    <div style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:16px">✏️ แก้ไข Log</div>
+
+    <!-- มื้อ + วันที่ -->
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <div style="flex:1">
+        <div style="font-size:11px;font-weight:600;color:var(--gray);margin-bottom:4px">มื้อ</div>
+        <select id="esm-meal" style="width:100%;border:1.5px solid #E5E7EB;border-radius:9px;padding:8px 10px;font-size:13px;font-family:'Prompt',sans-serif;color:var(--text);background:var(--card);box-sizing:border-box">
+          <option value="1">มื้อ 1</option>
+          <option value="2">มื้อ 2</option>
+          <option value="3">มื้อ 3</option>
+          <option value="4">มื้อ 4</option>
+        </select>
+      </div>
+      <div style="flex:2">
+        <div style="font-size:11px;font-weight:600;color:var(--gray);margin-bottom:4px">วันที่</div>
+        <input type="date" id="esm-date" style="width:100%;border:1.5px solid #E5E7EB;border-radius:9px;padding:8px 10px;font-size:13px;font-family:'Prompt',sans-serif;color:var(--text);background:var(--card);box-sizing:border-box">
+      </div>
+    </div>
+
+    <!-- ชื่อเมนู -->
+    <div style="margin-bottom:10px">
+      <div style="font-size:11px;font-weight:600;color:var(--gray);margin-bottom:4px">🍽️ ชื่อเมนู</div>
+      <input type="text" id="esm-name" maxlength="60" placeholder="ชื่อเมนู..." style="width:100%;border:1.5px solid #E5E7EB;border-radius:9px;padding:8px 10px;font-size:13px;font-family:'Prompt',sans-serif;color:var(--text);background:var(--card);box-sizing:border-box">
+    </div>
+
+    <!-- อธิบาย -->
+    <div style="margin-bottom:12px">
+      <div style="font-size:11px;font-weight:600;color:var(--gray);margin-bottom:4px">📝 อธิบายเพิ่มเติม</div>
+      <textarea id="esm-desc" maxlength="300" rows="3" placeholder="รายละเอียดเพิ่มเติม..." style="width:100%;border:1.5px solid #E5E7EB;border-radius:9px;padding:8px 10px;font-size:12px;font-family:'Prompt',sans-serif;color:var(--text);background:var(--card);box-sizing:border-box;resize:none"></textarea>
+    </div>
+
+    <!-- C P F -->
+    <div style="background:#F9FAFB;border-radius:10px;padding:12px;margin-bottom:16px">
+      <div style="font-size:11px;font-weight:600;color:var(--gray);margin-bottom:8px">Macros (กรัม)</div>
+      <div style="display:flex;gap:8px">
+        <div style="flex:1;text-align:center">
+          <div style="font-size:10px;color:#F59E0B;font-weight:700;margin-bottom:4px">คาร์บ C</div>
+          <input type="number" id="esm-carb" min="0" max="999" step="0.1" style="width:100%;border:1.5px solid #FCD34D;border-radius:8px;padding:7px 4px;font-size:15px;font-weight:700;color:#92400E;text-align:center;font-family:'Prompt',sans-serif;box-sizing:border-box">
+        </div>
+        <div style="flex:1;text-align:center">
+          <div style="font-size:10px;color:#60A5FA;font-weight:700;margin-bottom:4px">โปรตีน P</div>
+          <input type="number" id="esm-prot" min="0" max="999" step="0.1" style="width:100%;border:1.5px solid #93C5FD;border-radius:8px;padding:7px 4px;font-size:15px;font-weight:700;color:#1D4ED8;text-align:center;font-family:'Prompt',sans-serif;box-sizing:border-box">
+        </div>
+        <div style="flex:1;text-align:center">
+          <div style="font-size:10px;color:#10B981;font-weight:700;margin-bottom:4px">ไขมัน F</div>
+          <input type="number" id="esm-fat" min="0" max="999" step="0.1" style="width:100%;border:1.5px solid #6EE7B7;border-radius:8px;padding:7px 4px;font-size:15px;font-weight:700;color:#065F46;text-align:center;font-family:'Prompt',sans-serif;box-sizing:border-box">
+        </div>
+      </div>
+    </div>
+
+    <!-- ปุ่ม -->
+    <div style="display:flex;gap:8px">
+      <button onclick="closeEditSub()" style="flex:1;padding:11px;border:1.5px solid #E5E7EB;border-radius:10px;background:var(--card);color:var(--gray);font-size:14px;font-family:'Prompt',sans-serif;cursor:pointer">ยกเลิก</button>
+      <button onclick="saveHistEdit()" id="esm-save-btn" style="flex:2;padding:11px;border:none;border-radius:10px;background:var(--primary);color:white;font-size:14px;font-weight:700;font-family:'Prompt',sans-serif;cursor:pointer">💾 บันทึก</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
