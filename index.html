@@ -4045,7 +4045,7 @@ async function showMilestone(){
 // HISTORY
 async function loadHistory(){
   const list=document.getElementById('history-list');
-  if(histCache){
+  if(histCache&&histCache.length>0){
     list.innerHTML=histCache.map(s=>buildHistCard(s)).join('');
     return;
   }
