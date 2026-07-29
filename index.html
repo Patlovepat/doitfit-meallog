@@ -6934,6 +6934,30 @@ async function editHistSub(id){
   if(esmFb)esmFb.value='';
 
   document.getElementById('edit-sub-modal').style.display='flex';
+  switchEditMode(_editSubMode);
+}
+
+function switchEditMode(mode){
+  _editSubMode=mode;
+  ['hand','label','ai'].forEach(m=>{
+    const btn=document.getElementById('esm-mode-'+m);
+    if(!btn)return;
+    const active=m===mode;
+    btn.style.background=active?'var(--primary)':'var(--card)';
+    btn.style.color=active?'#fff':'var(--gray)';
+    btn.style.borderColor=active?'var(--primary)':'#E5E7EB';
+    btn.style.fontWeight=active?'700':'500';
+  });
+  // แสดง esm-desc เฉพาะ hand mode
+  const descRow=document.getElementById('esm-desc-row');
+  if(descRow)descRow.style.display=mode==='hand'?'':'none';
+  // note
+  const note=document.getElementById('esm-mode-note');
+  if(note){
+    if(mode==='label')note.textContent='📋 กรอกค่าตรงจากฉลากโภชนาการ (Carb / Protein / Fat)';
+    else if(mode==='hand')note.textContent='👊 กรอกตามสัดส่วน / ปริมาณที่ประเมินเอง';
+    else note.textContent='✨ กรอกค่ารวม Macro ที่ได้จาก AI';
+  }
 }
 
 async function saveHistEdit(){
@@ -6960,7 +6984,7 @@ async function saveHistEdit(){
       at:new Date().toISOString(),fields:histFields
     }:null;
 
-    let upd={meal,mealDate,edited:true,editedAt:firebase.firestore.FieldValue.serverTimestamp()};
+    let upd={meal,mealDate,mode:_editSubMode,edited:true,editedAt:firebase.firestore.FieldValue.serverTimestamp()};
     if(histEntry)upd.editHistory=firebase.firestore.FieldValue.arrayUnion(histEntry);
 
     if(_editSubMode==='hand'){
@@ -7065,8 +7089,19 @@ window.addEventListener('load',init);
       <input type="text" id="esm-name" maxlength="60" placeholder="ชื่อเมนู..." style="width:100%;border:1.5px solid #E5E7EB;border-radius:9px;padding:8px 10px;font-size:13px;font-family:'Prompt',sans-serif;color:var(--text);background:var(--card);box-sizing:border-box">
     </div>
 
-    <!-- อธิบาย -->
+    <!-- หมวดการบันทึก -->
     <div style="margin-bottom:12px">
+      <div style="font-size:11px;font-weight:600;color:var(--gray);margin-bottom:6px">📂 หมวดการบันทึก</div>
+      <div style="display:flex;gap:6px">
+        <button onclick="switchEditMode('hand')" id="esm-mode-hand" style="flex:1;padding:7px 4px;border-radius:8px;border:1.5px solid #E5E7EB;font-size:12px;font-weight:500;font-family:'Prompt',sans-serif;cursor:pointer;background:var(--card);color:var(--gray)">👊 Hand</button>
+        <button onclick="switchEditMode('label')" id="esm-mode-label" style="flex:1;padding:7px 4px;border-radius:8px;border:1.5px solid #E5E7EB;font-size:12px;font-weight:500;font-family:'Prompt',sans-serif;cursor:pointer;background:var(--card);color:var(--gray)">🏷️ ฉลาก</button>
+        <button onclick="switchEditMode('ai')" id="esm-mode-ai" style="flex:1;padding:7px 4px;border-radius:8px;border:1.5px solid #E5E7EB;font-size:12px;font-weight:500;font-family:'Prompt',sans-serif;cursor:pointer;background:var(--card);color:var(--gray)">✨ AI</button>
+      </div>
+      <div id="esm-mode-note" style="font-size:10px;color:var(--gray);margin-top:5px"></div>
+    </div>
+
+    <!-- อธิบาย (แสดงเฉพาะ hand mode) -->
+    <div id="esm-desc-row" style="margin-bottom:12px">
       <div style="font-size:11px;font-weight:600;color:var(--gray);margin-bottom:4px">📝 อธิบายเพิ่มเติม</div>
       <textarea id="esm-desc" maxlength="300" rows="3" placeholder="รายละเอียดเพิ่มเติม..." style="width:100%;border:1.5px solid #E5E7EB;border-radius:9px;padding:8px 10px;font-size:12px;font-family:'Prompt',sans-serif;color:var(--text);background:var(--card);box-sizing:border-box;resize:none"></textarea>
     </div>
