@@ -2942,10 +2942,10 @@ async function loadStudentData(){
 function applyTargets(doc){
   if(doc&&doc.exists&&doc.data().targets){
     const t=doc.data().targets;
-    if(t.kcal)TARGETS.kcal=t.kcal;
-    if(t.c)TARGETS.c=t.c;
-    if(t.p)TARGETS.p=t.p;
-    if(t.f)TARGETS.f=t.f;
+    if(t.kcal!=null)TARGETS.kcal=t.kcal; // M3: !=null ป้องกัน target=0 ถูก skip
+    if(t.c!=null)TARGETS.c=t.c;
+    if(t.p!=null)TARGETS.p=t.p;
+    if(t.f!=null)TARGETS.f=t.f;
   }
 }
 
@@ -3988,7 +3988,7 @@ async function submitMeal(){
         try{
           const ref=storage.ref(`photos/${user.userId}/${Date.now()}_${i}.jpg`);
           const uploadP=ref.putString(b64,'data_url').then(()=>ref.getDownloadURL());
-          const timeoutP=new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),10000));
+          const timeoutP=new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),20000)); // L1: 10s→20s
           return await Promise.race([uploadP,timeoutP]);
         }catch(e){console.log('photo upload skipped:',e.message);return null;}
       };
@@ -4152,9 +4152,9 @@ async function deleteHistSub(id){
   if(!confirm('ลบรายการนี้?'))return;
   try{
     await db.collection('submissions').doc(id).delete();
-    histCache=null; // invalidate history cache
+    histCache=null;studentSubsCache=null; // H2: invalidate both caches so deleted item disappears
     loadHistory();
-    loadTodayProgress();
+    renderTodayProgress(); // H1: was loadTodayProgress (undefined)
   }catch(e){alert('ลบไม่ได้: '+e.message);}
 }
 
@@ -4191,7 +4191,7 @@ async function loadDashboard(forceRefresh=false){
   try{
     // ใช้ studentSubsCache + TARGETS ที่โหลดไว้แล้ว ยิงแค่ 3 queries ที่ยังไม่มี
     const [hs,wc,ws]=await Promise.all([
-      db.collection('healthLogs').doc(user.userId).collection('days').limit(14).get().catch(()=>null),
+      db.collection('healthLogs').doc(user.userId).collection('days').orderBy(firebase.firestore.FieldPath.documentId(),'desc').limit(14).get().catch(()=>null),
       db.collection('weeklyChecks').doc(user.userId).collection('entries').orderBy('date','asc').limit(20).get().catch(()=>null),
       db.collection('students').doc(user.userId).collection('weeklySummaries').orderBy('weekStart','desc').limit(8).get().catch(()=>null),
     ]);
@@ -4302,6 +4302,9 @@ function renderStudentDashboard(subs, targets, coachNotes, healthLogs, weeklyChe
 
 function resetStudent(){
   if(coachLogMode){exitCoachLog();return;}
+  // M2: reset meal selection กลับเป็นเช้า
+  curMeal='เช้า';
+  document.querySelectorAll('.meal-btn').forEach(b=>b.classList.toggle('active',b.dataset.meal==='เช้า'));
   photoBase64=null;photoBase64List=[];_photoProcessing=false;selectedDate=todayStr();
   document.getElementById('menu-name-input').value='';
   document.getElementById('menu-desc-input').value='';
@@ -5771,7 +5774,8 @@ function buildCorrPanel(s,cs){
 <div id="hc-preview-${s.id}" style="background:#F0FDF4;border-radius:8px;padding:8px 12px;margin:6px 0 2px;font-size:13px;font-weight:700;color:#15803D;text-align:center">C ${preC}g · P ${preP}g · F ${preF}g → ⚡ ${preKcal} kcal</div>
 <div id="hc-summary-${s.id}" style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:6px 12px;margin:2px 0 8px;font-size:11px;color:#64748B;text-align:center">นักเรียนกรอก: <del>C${origTotal.c}g · P${origTotal.p}g · F${origTotal.f}g = ${origTotal.kcal}kcal</del><br>แก้เป็น: <span style="color:#059669">C${preC}g · P${preP}g · F${preF}g = ${preKcal}kcal</span></div>
 <div class="feedback-chips"><span class="fchip fchip-green" onclick="setCoachChip('${s.id}','✅ กรอกถูกแล้ว เก่งมากเลย!')">✅ กรอกถูกแล้ว</span><span class="fchip fchip-green" onclick="setCoachChip('${s.id}','✏️ โค้ชแก้ให้แล้ว เช็คดูได้เลยนะคะ')">✏️ โค้ชแก้ให้แล้ว</span><span class="fchip fchip-yellow" onclick="setCoachChip('${s.id}','🍚 คาร์บเยอะไปนิด ลองลดหน่อยนะคะ')">🍚 คาร์บเยอะไปนิด</span><span class="fchip fchip-yellow" onclick="setCoachChip('${s.id}','💪 โปรตีนน้อยไป ครั้งหน้าเพิ่มได้เลย')">💪 โปรตีนน้อยไป</span><span class="fchip fchip-yellow" onclick="setCoachChip('${s.id}','🥑 ไขมันเกินนิดนึง ระวังด้วยนะคะ')">🥑 ไขมันเกิน</span><span class="fchip fchip-gray" onclick="setCoachChip('${s.id}','🎉 วันนี้ทำได้ดีมาก! Keep going!')">🎉 ทำได้ดีมาก!</span><span class="fchip fchip-gray" onclick="setCoachChip('${s.id}','🥗 อย่าลืมเพิ่มผักด้วยนะคะ')">🥗 อย่าลืมผัก</span><span class="fchip fchip-gray" onclick="setCoachChip('${s.id}','💧 ดื่มน้ำให้ครบด้วยนะคะ')">💧 ดื่มน้ำให้ครบ</span></div>
-<textarea class="corr-note-ta" id="cc-note-${s.id}" rows="2" placeholder="ข้อความถึงนักเรียน (ไม่บังคับ)...">${escHtml(cs.note||'')}</textarea>
+<div style="display:flex;justify-content:flex-end;margin-bottom:4px"><button onclick="genCorrNote('${s.id}')" style="padding:5px 12px;background:#EDE9FE;border:none;border-radius:8px;font-size:12px;font-family:'Prompt',sans-serif;color:#6D28D9;cursor:pointer">✨ Gen ข้อความ</button></div>
+<textarea class="corr-note-ta" id="cc-note-${s.id}" rows="3" placeholder="ข้อความถึงนักเรียน (ไม่บังคับ)...">${escHtml(cs.note||'')}</textarea>
 <div style="display:flex;gap:8px;margin-top:6px"><button class="btn-send-corr" style="flex:1" onclick="sendCorrection('${s.id}','save')">💾 บันทึก</button><button class="btn-send-corr" style="flex:1;background:#2563EB" onclick="sendCorrection('${s.id}','copy')">📋 Copy ข้อความ</button></div>
 </div>`;
   }
@@ -5806,7 +5810,8 @@ function buildCorrPanel(s,cs){
 </div>
 <div id="corr-preview-${s.id}" data-origc="${origC}" data-origp="${origP}" data-origf="${origF}" style="background:#F0FDF4;border-radius:8px;padding:8px 12px;margin:6px 0 4px;font-size:13px;font-weight:700;color:#15803D;text-align:center">C ${carb}g · P ${prot}g · F ${fat}g → ⚡ ${prevKcal} kcal${kcalDiffBadge}</div>
 <div class="feedback-chips"><span class="fchip fchip-green" onclick="setCoachChip('${s.id}','✅ กรอกถูกแล้ว เก่งมากเลย!')">✅ กรอกถูกแล้ว</span><span class="fchip fchip-green" onclick="setCoachChip('${s.id}','✏️ โค้ชแก้ให้แล้ว เช็คดูได้เลยนะคะ')">✏️ โค้ชแก้ให้แล้ว</span><span class="fchip fchip-yellow" onclick="setCoachChip('${s.id}','🍚 คาร์บเยอะไปนิด ลองลดหน่อยนะคะ')">🍚 คาร์บเยอะไปนิด</span><span class="fchip fchip-yellow" onclick="setCoachChip('${s.id}','💪 โปรตีนน้อยไป ครั้งหน้าเพิ่มได้เลย')">💪 โปรตีนน้อยไป</span><span class="fchip fchip-yellow" onclick="setCoachChip('${s.id}','🥑 ไขมันเกินนิดนึง ระวังด้วยนะคะ')">🥑 ไขมันเกิน</span><span class="fchip fchip-gray" onclick="setCoachChip('${s.id}','🎉 วันนี้ทำได้ดีมาก! Keep going!')">🎉 ทำได้ดีมาก!</span><span class="fchip fchip-gray" onclick="setCoachChip('${s.id}','🥗 อย่าลืมเพิ่มผักด้วยนะคะ')">🥗 อย่าลืมผัก</span><span class="fchip fchip-gray" onclick="setCoachChip('${s.id}','💧 ดื่มน้ำให้ครบด้วยนะคะ')">💧 ดื่มน้ำให้ครบ</span></div>
-<textarea class="corr-note-ta" id="cc-note-${s.id}" rows="2" placeholder="ข้อความถึงนักเรียน (ไม่บังคับ)...">${escHtml(cs.note||'')}</textarea>
+<div style="display:flex;justify-content:flex-end;margin-bottom:4px"><button onclick="genCorrNote('${s.id}')" style="padding:5px 12px;background:#EDE9FE;border:none;border-radius:8px;font-size:12px;font-family:'Prompt',sans-serif;color:#6D28D9;cursor:pointer">✨ Gen ข้อความ</button></div>
+<textarea class="corr-note-ta" id="cc-note-${s.id}" rows="3" placeholder="ข้อความถึงนักเรียน (ไม่บังคับ)...">${escHtml(cs.note||'')}</textarea>
 <div style="display:flex;gap:8px;margin-top:6px"><button class="btn-send-corr" style="flex:1" onclick="sendCorrection('${s.id}','save')">💾 บันทึก</button><button class="btn-send-corr" style="flex:1;background:#2563EB" onclick="sendCorrection('${s.id}','copy')">📋 Copy ข้อความ</button></div></div>`;
 }
 
@@ -5945,6 +5950,34 @@ function updateHandCorrPreview(id){
 function setCoachChip(id,text){
   const ta=document.getElementById(`cc-note-${id}`);
   if(ta){ta.value=text;ta.focus();}
+}
+function genCorrNote(id){
+  let oC,oP,oF,nC,nP,nF;
+  // Label/Weigh mode — อ่าน orig จาก data-orig* บน corr-preview
+  const lwEl=document.getElementById(`corr-preview-${id}`);
+  if(lwEl){
+    oC=parseFloat(lwEl.dataset.origc)||0;
+    oP=parseFloat(lwEl.dataset.origp)||0;
+    oF=parseFloat(lwEl.dataset.origf)||0;
+    nC=parseFloat(document.getElementById(`cc-carb-${id}`)?.value)||0;
+    nP=parseFloat(document.getElementById(`cc-protein-${id}`)?.value)||0;
+    nF=parseFloat(document.getElementById(`cc-fat-${id}`)?.value)||0;
+  }else{
+    // Hand mode — อ่าน orig จาก handData (submissions ใหม่ไม่มี s.total)
+    const sub=cState[id]?._sub;
+    // H3: อ่านจาก handData.* ก่อน fallback s.total
+    oC=parseFloat(sub?.handData?.totalCarb??sub?.total?.c??0);
+    oP=parseFloat(sub?.handData?.totalProtein??sub?.total?.p??0);
+    oF=parseFloat(sub?.handData?.totalFat??sub?.total?.f??0);
+    const cur=calcHandCorrMacros(id);
+    nC=cur.C;nP=cur.P;nF=cur.F;
+  }
+  const lines=[];
+  const fmt=(k,o,n)=>{const d=n-o;if(Math.abs(d)<0.5)return;lines.push(`${k}: ${o}g → ${n}g (${d>0?'+':''}${Math.round(d)}g)`);};
+  fmt('🍚 คาร์บ',oC,nC);fmt('💪 โปรตีน',oP,nP);fmt('🥑 ไขมัน',oF,nF);
+  if(!lines.length){showToast('ยังไม่มีค่าที่เปลี่ยนค่ะ');return;}
+  const ta=document.getElementById(`cc-note-${id}`);
+  if(ta){ta.value=`โค้ชปรับค่าให้นะคะ 💪\n${lines.join('\n')}\n\n`;ta.focus();}
 }
 function approveCard(id){if(!cState[id])cState[id]={};cState[id].approveOpen=!cState[id].approveOpen;renderCoach();}
 async function doApproveQuiet(id){
@@ -6948,7 +6981,11 @@ async function saveHistEdit(){
       upd['weighData.carb']=c;
       upd['weighData.protein']=p;
       upd['weighData.fat']=f;
+      upd['weighData.kcal']=Math.round(c*4+p*4+f*9); // อัปเดต kcal ให้ตรงกับค่าที่แก้
     }
+
+    // อัปเดต top-level total ให้ตรงกับค่าที่แก้ (ใช้เป็น fallback + reference)
+    upd.total={c,p,f,kcal:Math.round(c*4+p*4+f*9)};
 
     // ถ้าโค้ชเคย correct → reset กลับ pending ให้โค้ช review ใหม่
     const s=(histCache||studentSubsCache||[]).find(x=>x.id===_editSubId);
@@ -6964,7 +7001,7 @@ async function saveHistEdit(){
         const uid=s?.userId||user?.userId||'unknown';
         const photoRef=storage.ref(`photos/${uid}/${Date.now()}.jpg`);
         const uploadP=photoRef.putString(base64,'data_url').then(()=>photoRef.getDownloadURL());
-        const timeoutP=new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),10000));
+        const timeoutP=new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),20000)); // L1: 10s→20s
         upd.photoUrl=await Promise.race([uploadP,timeoutP]);
         upd.photoBase64=null;
       }catch(photoErr){console.log('edit photo upload skipped:',photoErr.message);}
@@ -6988,7 +7025,7 @@ async function saveHistEdit(){
 
     closeEditSub();
     await loadHistory();
-    loadTodayProgress();
+    renderTodayProgress(); // H1: was loadTodayProgress (undefined)
   }catch(e){alert('เกิดข้อผิดพลาด: '+e.message);}
   finally{btn.disabled=false;btn.textContent='💾 บันทึก';}
 }
