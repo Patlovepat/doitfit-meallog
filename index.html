@@ -2733,8 +2733,7 @@ let planHandProtType='lean';      // protein toggle
 let planVisibleFat=0;             // visible fat tsp
 let planEggWhole=0, planEggWhite=0, planAvoQty=0, planFruitLadles=0;
 let planFruitCounts={};
-let GROQ_KEY=null; // โหลดจาก Firestore config/app.groqKey (ใช้สำหรับ photo analysis)
-let GEMINI_KEY=null; // โหลดจาก Firestore config/app.geminiKey (ใช้สำหรับ AI text analysis)
+let GEMINI_KEY=null; // โหลดจาก Firestore config/app.geminiKey — text + vision (ไม่ commit key!)
 let aiParsedData=null;
 let _photoProcessing=false;
 let selectedDate=todayStr();
@@ -2917,14 +2916,14 @@ async function loadStudentData(){
   _loadingStudentData=true;
   try{
     // ถ้ามี key แล้ว ไม่ต้อง fetch config ซ้ำ — ประหยัด 1 round trip
-    const needCfg=!(GEMINI_KEY&&GROQ_KEY);
+    const needCfg=!GEMINI_KEY;
     const [snap,td,savedSnap,cfgSnap]=await Promise.all([
       db.collection('submissions').where('userId','==',user.userId).orderBy('createdAt','desc').limit(30).get(),
       db.collection('students').doc(user.userId).get().catch(()=>null),
       db.collection('users').doc(user.userId).collection('savedMenus').limit(12).get().catch(()=>null),
       needCfg?db.collection('config').doc('app').get().catch(()=>null):Promise.resolve(null)
     ]);
-    if(cfgSnap&&cfgSnap.exists){GROQ_KEY=cfgSnap.data().groqKey||null;GEMINI_KEY=cfgSnap.data().geminiKey||null;}
+    if(cfgSnap&&cfgSnap.exists){GEMINI_KEY=cfgSnap.data().geminiKey||null;}
     // sort client-side + ลบ photoBase64 ออกจาก RAM (ยังใช้ photoUrl แทนได้)
     studentSubsCache=snap.docs.map(d=>{const dat=d.data();delete dat.photoBase64;return{id:d.id,...dat};}).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
     applyTargets(td);
@@ -5126,22 +5125,33 @@ async function runPlanAI(){
   const photoSrc=(photoImg?.src&&photoImg.src.startsWith('data:'))?photoImg.src:null;
   const query=text||(name?`${name} 1 จาน`:'');
   if(!query&&!photoSrc){showToast('พิมพ์ชื่อเมนูหรือถ่ายรูปก่อนนะคะ');return;}
+  if(!GEMINI_KEY){showToast('ระบบยังโหลดไม่เสร็จ กรุณารอสักครู่แล้วลองใหม่ค่ะ');return;}
   const btn=document.getElementById('btn-plan-ai');
   if(btn){btn.textContent='⏳ AI กำลังคิด...';btn.disabled=true;}
   try{
     const isVision=!!photoSrc;
-    const model=isVision?'meta-llama/llama-4-scout-17b-16e-instruct':'llama-3.3-70b-versatile';
-    const userContent=isVision?[
-      {type:'image_url',image_url:{url:photoSrc}},
-      {type:'text',text:`วิเคราะห์อาหารในรูป${query?` (${query})`:''}แล้วตอบเป็น JSON เท่านั้น: {"name":"ชื่อ","carb":0,"protein":0,"fat":0} (กรัม)`}
-    ]:`วิเคราะห์อาหาร: "${query}" แล้วตอบเป็น JSON เท่านั้น: {"name":"ชื่ออาหาร","carb":0,"protein":0,"fat":0} (กรัมต่อ 1 จาน)`;
-    const res=await fetch('https://api.groq.com/openai/v1/chat/completions',{
+    const prompt=isVision
+      ?`วิเคราะห์อาหารในรูป${query?` (${query})`:''}แล้วตอบเป็น JSON เท่านั้น: {"name":"ชื่อ","carb":0,"protein":0,"fat":0} (กรัม)`
+      :`วิเคราะห์อาหาร: "${query}" แล้วตอบเป็น JSON เท่านั้น: {"name":"ชื่ออาหาร","carb":0,"protein":0,"fat":0} (กรัมต่อ 1 จาน)`;
+    // สร้าง parts สำหรับ Gemini
+    const parts=[];
+    if(isVision){
+      const mimeType=photoSrc.split(';')[0].split(':')[1]||'image/jpeg';
+      const b64data=photoSrc.split(',')[1];
+      parts.push({inline_data:{mime_type:mimeType,data:b64data}});
+    }
+    parts.push({text:prompt});
+    const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${GEMINI_KEY}`,{
       method:'POST',
-      headers:{'Authorization':'Bearer '+GROQ_KEY,'Content-Type':'application/json'},
-      body:JSON.stringify({model,messages:[{role:'user',content:userContent}],max_tokens:200,temperature:0.2})
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        contents:[{parts}],
+        generationConfig:{temperature:0.2,responseMimeType:'application/json'}
+      })
     });
     const data=await res.json();
-    const raw=data.choices?.[0]?.message?.content||'{}';
+    if(data.error)throw new Error(data.error.message||'Gemini error');
+    const raw=data.candidates?.[0]?.content?.parts?.[0]?.text||'{}';
     const match=raw.match(/\{[\s\S]*?\}/);
     const parsed=JSON.parse(match?match[0]:'{}');
     if(!parsed.carb&&!parsed.protein&&!parsed.fat)throw new Error('ไม่ได้ข้อมูล macro');
@@ -6769,12 +6779,14 @@ function buildFeedbackFlex(mealCount, totC, totP, totF, totKcal, currentSub){
 
 // ===== EDIT SUBMISSION =====
 let _editSubId=null,_editSubMode=null;
+let _editSubOrigC=0,_editSubOrigP=0,_editSubOrigF=0,_editSubOrigName='';
 let _editSubCurrentPhoto=null,_editSubNewFile=null,_editPhotoRemoved=false;
 
 function closeEditSub(){
   document.getElementById('edit-sub-modal').style.display='none';
   _editSubId=null;_editSubMode=null;
   _editSubCurrentPhoto=null;_editSubNewFile=null;_editPhotoRemoved=false;
+  _editSubOrigC=0;_editSubOrigP=0;_editSubOrigF=0;_editSubOrigName='';
 }
 
 function onEditPhotoChange(input){
@@ -6803,6 +6815,24 @@ function removeEditPhoto(){
   if(st)st.textContent='🗑️ จะลบรูปเดิม';
   const inp=document.getElementById('esm-photo-input');
   if(inp)inp.value='';
+}
+
+function genEditFeedback(){
+  const newName=document.getElementById('esm-name')?.value.trim()||'';
+  const newC=parseFloat(document.getElementById('esm-carb')?.value)||0;
+  const newP=parseFloat(document.getElementById('esm-prot')?.value)||0;
+  const newF=parseFloat(document.getElementById('esm-fat')?.value)||0;
+  const lines=[];
+  if(newName&&newName!==_editSubOrigName)lines.push(`📝 เมนู: "${_editSubOrigName}" → "${newName}"`);
+  const dC=Math.round((newC-_editSubOrigC)*10)/10;
+  const dP=Math.round((newP-_editSubOrigP)*10)/10;
+  const dF=Math.round((newF-_editSubOrigF)*10)/10;
+  if(dC!==0)lines.push(`🍚 คาร์บ: ${_editSubOrigC}g → ${newC}g (${dC>0?'+':''}${dC}g)`);
+  if(dP!==0)lines.push(`💪 โปรตีน: ${_editSubOrigP}g → ${newP}g (${dP>0?'+':''}${dP}g)`);
+  if(dF!==0)lines.push(`🥑 ไขมัน: ${_editSubOrigF}g → ${newF}g (${dF>0?'+':''}${dF}g)`);
+  if(!lines.length){showToast('ยังไม่มีค่าที่เปลี่ยนค่ะ');return;}
+  const ta=document.getElementById('esm-feedback');
+  if(ta){ta.value=`โค้ชปรับค่ามื้อนี้ให้นะคะ 💪\n${lines.join('\n')}\n\n`;ta.focus();}
 }
 
 async function editHistSub(id){
@@ -6859,6 +6889,14 @@ async function editHistSub(id){
   const esmInp=document.getElementById('esm-photo-input');
   if(esmInp)esmInp.value='';
 
+  // เก็บค่าต้นฉบับสำหรับ gen feedback
+  _editSubOrigC=Math.round(c*10)/10;
+  _editSubOrigP=Math.round(p*10)/10;
+  _editSubOrigF=Math.round(f*10)/10;
+  _editSubOrigName=menuName;
+  const esmFb=document.getElementById('esm-feedback');
+  if(esmFb)esmFb.value='';
+
   document.getElementById('edit-sub-modal').style.display='flex';
 }
 
@@ -6876,7 +6914,18 @@ async function saveHistEdit(){
   const f=parseFloat(document.getElementById('esm-fat').value)||0;
 
   try{
+    // สร้าง editHistory entry จาก diff ต้นฉบับ
+    const histFields=[];
+    const rnd=v=>Math.round(v*10)/10;
+    if(rnd(c)!==_editSubOrigC)histFields.push({k:'คาร์บ',from:_editSubOrigC,to:rnd(c)});
+    if(rnd(p)!==_editSubOrigP)histFields.push({k:'โปรตีน',from:_editSubOrigP,to:rnd(p)});
+    if(rnd(f)!==_editSubOrigF)histFields.push({k:'ไขมัน',from:_editSubOrigF,to:rnd(f)});
+    const histEntry=histFields.length?{
+      at:new Date().toISOString(),fields:histFields
+    }:null;
+
     let upd={meal,mealDate,edited:true,editedAt:firebase.firestore.FieldValue.serverTimestamp()};
+    if(histEntry)upd.editHistory=firebase.firestore.FieldValue.arrayUnion(histEntry);
 
     if(_editSubMode==='hand'){
       upd['handData.menuName']=menuName;
@@ -6921,6 +6970,15 @@ async function saveHistEdit(){
       }catch(photoErr){console.log('edit photo upload skipped:',photoErr.message);}
     }else if(_editPhotoRemoved){
       upd.photoUrl=null;upd.photoBase64=null;
+    }
+
+    // ถ้าโค้ชกรอก feedback → ส่ง LINE แจ้งนักเรียน
+    const feedback=document.getElementById('esm-feedback')?.value.trim();
+    if(feedback){
+      upd.coachComment=feedback;
+      upd.coachCommentSent=false;
+      upd.coachCommentTone='fix';
+      upd.status='corrected';
     }
 
     await db.collection('submissions').doc(_editSubId).update(upd);
@@ -7004,6 +7062,16 @@ window.addEventListener('load',init);
           <input type="number" id="esm-fat" min="0" max="999" step="0.1" style="width:100%;border:1.5px solid #6EE7B7;border-radius:8px;padding:7px 4px;font-size:15px;font-weight:700;color:#065F46;text-align:center;font-family:'Prompt',sans-serif;box-sizing:border-box">
         </div>
       </div>
+    </div>
+
+    <!-- Feedback ให้นักเรียน -->
+    <div style="margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <div style="font-size:11px;font-weight:600;color:var(--gray)">💬 Feedback ให้นักเรียน <span style="font-weight:400">(ถ้ามี)</span></div>
+        <button onclick="genEditFeedback()" style="padding:5px 12px;background:#EDE9FE;border:none;border-radius:8px;font-size:12px;font-family:'Prompt',sans-serif;color:#6D28D9;cursor:pointer">✨ Gen อัตโนมัติ</button>
+      </div>
+      <textarea id="esm-feedback" rows="3" placeholder="เว้นว่างได้ถ้าไม่ต้องการส่ง Feedback..." style="width:100%;border:1.5px solid #E5E7EB;border-radius:9px;padding:8px 10px;font-size:12px;font-family:'Prompt',sans-serif;color:var(--text);background:var(--card);box-sizing:border-box;resize:none"></textarea>
+      <div style="font-size:10px;color:var(--gray);margin-top:4px">📲 ถ้ากรอก Feedback ระบบจะส่ง LINE แจ้งนักเรียนอัตโนมัติ</div>
     </div>
 
     <!-- ปุ่ม -->
