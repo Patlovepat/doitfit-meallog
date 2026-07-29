@@ -4488,6 +4488,7 @@ function getMonWeekDates(){
 let currentStudentData=null;
 
 const _sdCache={};
+const _sdCursors={}; // cursor สำหรับ pagination ต่อ student
 async function openStudentDetail(userId){
   const overlay=document.getElementById('student-detail');
   overlay.style.display='block';
@@ -4511,8 +4512,8 @@ async function openStudentDetail(userId){
   // ยิง 4 queries พร้อมกัน (Promise.all) แทนที่จะรอทีละ query
   const [tdSnap,hsSnap,wsSnap,wcSnap]=await Promise.all([
     db.collection('students').doc(userId).get().catch(()=>null),
-    db.collection('healthLogs').doc(userId).collection('days').limit(14).get().catch(()=>null),
-    db.collection('students').doc(userId).collection('weeklySummaries').orderBy('weekStart','desc').limit(8).get().catch(()=>null),
+    db.collection('healthLogs').doc(userId).collection('days').orderBy(firebase.firestore.FieldPath.documentId(),'desc').limit(7).get().catch(()=>null),
+    db.collection('students').doc(userId).collection('weeklySummaries').orderBy('weekStart','desc').limit(4).get().catch(()=>null),
     db.collection('weeklyChecks').doc(userId).collection('entries').orderBy('date','asc').limit(20).get().catch(()=>null),
   ]);
   let targets={kcal:1600,c:160,p:120,f:55};
@@ -4533,7 +4534,13 @@ async function openStudentDetail(userId){
   if(wsSnap)wsSnap.docs.forEach(d=>{weeklySummaries[d.id]=d.data();});
   let weeklyChecks=[];
   if(wcSnap)wcSnap.docs.forEach(d=>{weeklyChecks.push({id:d.id,...d.data()});});
-  // บันทึก cache ต่อ student
+  // บันทึก cache + cursor ต่อ student
+  _sdCursors[userId]={
+    lastHL: hsSnap&&hsSnap.docs.length ? hsSnap.docs[hsSnap.docs.length-1] : null,
+    hasMoreHL: !!(hsSnap&&hsSnap.docs.length>=7),
+    lastWS: wsSnap&&wsSnap.docs.length ? wsSnap.docs[wsSnap.docs.length-1] : null,
+    hasMoreWS: !!(wsSnap&&wsSnap.docs.length>=4),
+  };
   _sdCache[userId]={targets,healthLogs,weeklySummaries,weeklyChecks};
   // auto-mark missed days (client-side, non-blocking)
   const byDateTmp={};u.subs.forEach(s=>{const k=subDate(s);if(!byDateTmp[k])byDateTmp[k]=[];byDateTmp[k].push(s);});
@@ -4545,6 +4552,53 @@ async function openStudentDetail(userId){
 function closeStudentDetail(){
   document.getElementById('student-detail').style.display='none';
   currentStudentData=null;
+}
+
+async function loadMoreStudentHistory(userId){
+  const cur=_sdCursors[userId];
+  if(!cur)return;
+  const btn=document.getElementById('load-more-hist-'+userId);
+  if(btn){btn.textContent='⏳ กำลังโหลด...';btn.disabled=true;}
+  // ยิง 2 queries พร้อมกัน
+  const [hlSnap,wsSnap]=await Promise.all([
+    (cur.hasMoreHL&&cur.lastHL)
+      ? db.collection('healthLogs').doc(userId).collection('days')
+          .orderBy(firebase.firestore.FieldPath.documentId(),'desc')
+          .startAfter(cur.lastHL).limit(7).get().catch(()=>null)
+      : Promise.resolve(null),
+    (cur.hasMoreWS&&cur.lastWS)
+      ? db.collection('students').doc(userId).collection('weeklySummaries')
+          .orderBy('weekStart','desc')
+          .startAfter(cur.lastWS).limit(4).get().catch(()=>null)
+      : Promise.resolve(null),
+  ]);
+  const cache=_sdCache[userId];
+  if(!cache)return;
+  if(hlSnap&&!hlSnap.empty){
+    hlSnap.docs.forEach(d=>{cache.healthLogs[d.id]=d.data();});
+    cur.lastHL=hlSnap.docs[hlSnap.docs.length-1];
+    if(hlSnap.docs.length<7)cur.hasMoreHL=false;
+  }else{cur.hasMoreHL=false;}
+  if(wsSnap&&!wsSnap.empty){
+    wsSnap.docs.forEach(d=>{cache.weeklySummaries[d.id]=d.data();});
+    cur.lastWS=wsSnap.docs[wsSnap.docs.length-1];
+    if(wsSnap.docs.length<4)cur.hasMoreWS=false;
+  }else{cur.hasMoreWS=false;}
+  // rebuild student object from allSubs
+  const u=Object.values(
+    allSubs.reduce((acc,s)=>{if(!acc[s.userId])acc[s.userId]={userId:s.userId,displayName:s.displayName,pictureUrl:s.pictureUrl,subs:[]};acc[s.userId].subs.push(s);return acc;},{})
+  ).find(u=>u.userId===userId);
+  if(!u)return;
+  const byDate={};
+  u.subs.forEach(s=>{const k=subDate(s);if(!byDate[k])byDate[k]=[];byDate[k].push(s);});
+  // re-render weekly section เฉพาะส่วนนั้น (ไม่ render ทั้งหน้า)
+  const wsEl=document.getElementById('sd-weekly-'+userId);
+  if(wsEl)wsEl.innerHTML=buildWeeklySummaryAccordion(u,byDate,cache.targets,cache.healthLogs,cache.weeklySummaries);
+  // อัปเดตปุ่ม
+  if(btn){
+    if(cur.hasMoreHL||cur.hasMoreWS){btn.textContent='📅 ดูย้อนหลังเพิ่มเติม';btn.disabled=false;}
+    else{btn.remove();}
+  }
 }
 async function loadCoachStudentPlan(uid){
   const el=document.getElementById('coach-plan-'+uid);
@@ -5339,7 +5393,13 @@ function renderStudentDetail(u, targets, healthLogs, weeklySummaries={}, weeklyC
     <div class="sd-section-title">📋 แผนมื้ออาหาร</div>
     <div id="coach-plan-${uid}"><div style="color:var(--gray);font-size:12px;text-align:center;padding:8px">⏳ กำลังโหลด...</div></div>
   </div>`;
-  document.getElementById('sd-content').innerHTML=planSectionHtml+progHtml+notesHtml+targHtml+macro7Html+progressHtml+zigzagHtml+lifestyleHtml+weeklyHtml;
+  const cur=_sdCursors[uid]||{};
+  const showLoadMore=cur.hasMoreHL||cur.hasMoreWS;
+  const loadMoreBtn=showLoadMore?`<button id="load-more-hist-${uid}" onclick="loadMoreStudentHistory('${uid}')"
+    style="width:100%;padding:11px;background:var(--light);border:1.5px solid var(--border);border-radius:10px;font-size:13px;font-weight:600;font-family:'Prompt',sans-serif;color:var(--primary-dark);cursor:pointer;margin-top:4px">
+    📅 ดูย้อนหลังเพิ่มเติม
+  </button>`:'';
+  document.getElementById('sd-content').innerHTML=planSectionHtml+progHtml+notesHtml+targHtml+macro7Html+progressHtml+zigzagHtml+lifestyleHtml+`<div id="sd-weekly-${uid}">${weeklyHtml}</div>`+loadMoreBtn;
 }
 
 // ===== LIFESTYLE 7 วัน (bar charts) =====
