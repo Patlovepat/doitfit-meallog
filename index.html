@@ -6724,10 +6724,40 @@ function buildFeedbackFlex(mealCount, totC, totP, totF, totKcal, currentSub){
 
 // ===== EDIT SUBMISSION =====
 let _editSubId=null,_editSubMode=null;
+let _editSubCurrentPhoto=null,_editSubNewFile=null,_editPhotoRemoved=false;
 
 function closeEditSub(){
   document.getElementById('edit-sub-modal').style.display='none';
   _editSubId=null;_editSubMode=null;
+  _editSubCurrentPhoto=null;_editSubNewFile=null;_editPhotoRemoved=false;
+}
+
+function onEditPhotoChange(input){
+  const file=input.files[0];
+  if(!file)return;
+  _editSubNewFile=file;_editPhotoRemoved=false;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const img=document.getElementById('esm-photo-preview');
+    if(img){img.src=e.target.result;img.style.display='block';}
+    const rb=document.getElementById('esm-photo-remove');
+    if(rb)rb.style.display='inline';
+    const st=document.getElementById('esm-photo-status');
+    if(st)st.textContent='✅ เลือกรูปใหม่แล้ว';
+  };
+  reader.readAsDataURL(file);
+}
+
+function removeEditPhoto(){
+  _editSubNewFile=null;_editPhotoRemoved=true;_editSubCurrentPhoto=null;
+  const img=document.getElementById('esm-photo-preview');
+  if(img){img.src='';img.style.display='none';}
+  const rb=document.getElementById('esm-photo-remove');
+  if(rb)rb.style.display='none';
+  const st=document.getElementById('esm-photo-status');
+  if(st)st.textContent='🗑️ จะลบรูปเดิม';
+  const inp=document.getElementById('esm-photo-input');
+  if(inp)inp.value='';
 }
 
 async function editHistSub(id){
@@ -6771,6 +6801,18 @@ async function editHistSub(id){
   document.getElementById('esm-carb').value=Math.round(c*10)/10;
   document.getElementById('esm-prot').value=Math.round(p*10)/10;
   document.getElementById('esm-fat').value=Math.round(f*10)/10;
+
+  // Photo state
+  _editSubCurrentPhoto=s.photoUrl||s.photoBase64||null;
+  _editSubNewFile=null;_editPhotoRemoved=false;
+  const esmImg=document.getElementById('esm-photo-preview');
+  if(esmImg){esmImg.src=_editSubCurrentPhoto||'';esmImg.style.display=_editSubCurrentPhoto?'block':'none';}
+  const esmRb=document.getElementById('esm-photo-remove');
+  if(esmRb)esmRb.style.display=_editSubCurrentPhoto?'inline':'none';
+  const esmSt=document.getElementById('esm-photo-status');
+  if(esmSt)esmSt.textContent=_editSubCurrentPhoto?'📷 มีรูปอยู่แล้ว':'';
+  const esmInp=document.getElementById('esm-photo-input');
+  if(esmInp)esmInp.value='';
 
   document.getElementById('edit-sub-modal').style.display='flex';
 }
@@ -6817,6 +6859,24 @@ async function saveHistEdit(){
     // ถ้าโค้ชเคย correct → reset กลับ pending ให้โค้ช review ใหม่
     const s=(histCache||studentSubsCache||[]).find(x=>x.id===_editSubId);
     if(s&&s.status==='corrected'){upd.status='pending';upd.correction=null;}
+
+    // Photo: อัปโหลดรูปใหม่ หรือลบรูปเดิม
+    if(_editSubNewFile){
+      try{
+        const base64=await new Promise((res,rej)=>{
+          const r=new FileReader();r.onload=e=>res(e.target.result);r.onerror=rej;
+          r.readAsDataURL(_editSubNewFile);
+        });
+        const uid=s?.userId||user?.userId||'unknown';
+        const photoRef=storage.ref(`photos/${uid}/${Date.now()}.jpg`);
+        const uploadP=photoRef.putString(base64,'data_url').then(()=>photoRef.getDownloadURL());
+        const timeoutP=new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),10000));
+        upd.photoUrl=await Promise.race([uploadP,timeoutP]);
+        upd.photoBase64=null;
+      }catch(photoErr){console.log('edit photo upload skipped:',photoErr.message);}
+    }else if(_editPhotoRemoved){
+      upd.photoUrl=null;upd.photoBase64=null;
+    }
 
     await db.collection('submissions').doc(_editSubId).update(upd);
 
@@ -6866,6 +6926,20 @@ window.addEventListener('load',init);
     <div style="margin-bottom:12px">
       <div style="font-size:11px;font-weight:600;color:var(--gray);margin-bottom:4px">📝 อธิบายเพิ่มเติม</div>
       <textarea id="esm-desc" maxlength="300" rows="3" placeholder="รายละเอียดเพิ่มเติม..." style="width:100%;border:1.5px solid #E5E7EB;border-radius:9px;padding:8px 10px;font-size:12px;font-family:'Prompt',sans-serif;color:var(--text);background:var(--card);box-sizing:border-box;resize:none"></textarea>
+    </div>
+
+    <!-- รูปภาพ -->
+    <div style="margin-bottom:12px">
+      <div style="font-size:11px;font-weight:600;color:var(--gray);margin-bottom:6px">📷 รูปภาพ</div>
+      <img id="esm-photo-preview" style="width:100%;max-height:180px;object-fit:cover;border-radius:10px;display:none;margin-bottom:8px">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <label style="display:inline-flex;align-items:center;gap:5px;padding:7px 14px;background:#F3F4F6;border-radius:9px;cursor:pointer;font-size:13px;font-family:'Prompt',sans-serif;color:var(--text)">
+          📎 เลือกรูป
+          <input type="file" id="esm-photo-input" accept="image/*" style="display:none" onchange="onEditPhotoChange(this)">
+        </label>
+        <button id="esm-photo-remove" onclick="removeEditPhoto()" style="display:none;padding:7px 14px;background:#FEE2E2;border:none;border-radius:9px;font-size:13px;font-family:'Prompt',sans-serif;color:#DC2626;cursor:pointer">🗑️ ลบรูป</button>
+        <span id="esm-photo-status" style="font-size:11px;color:var(--gray)"></span>
+      </div>
     </div>
 
     <!-- C P F -->
