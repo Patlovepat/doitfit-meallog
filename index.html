@@ -4487,6 +4487,7 @@ function getMonWeekDates(){
 // ===== STUDENT DETAIL =====
 let currentStudentData=null;
 
+const _sdCache={};
 async function openStudentDetail(userId){
   const overlay=document.getElementById('student-detail');
   overlay.style.display='block';
@@ -4499,41 +4500,41 @@ async function openStudentDetail(userId){
   document.getElementById('sd-name').textContent=u.displayName||'นักเรียน';
   const streak=calcStreak(u.subs);
   document.getElementById('sd-sub').textContent=streak>0?`🔥 ${streak} วันติดต่อกัน`:'';
+  // ถ้ามี cache → render ทันที ไม่รอ Firestore
+  if(_sdCache[userId]){
+    const c=_sdCache[userId];
+    renderStudentDetail(u,c.targets,c.healthLogs,c.weeklySummaries,c.weeklyChecks);
+    loadCoachStudentPlan(userId);
+    return;
+  }
   document.getElementById('sd-content').innerHTML='<div style="padding:24px;text-align:center;color:var(--gray)">⏳ กำลังโหลด...</div>';
-  // load targets
+  // ยิง 4 queries พร้อมกัน (Promise.all) แทนที่จะรอทีละ query
+  const [tdSnap,hsSnap,wsSnap,wcSnap]=await Promise.all([
+    db.collection('students').doc(userId).get().catch(()=>null),
+    db.collection('healthLogs').doc(userId).collection('days').limit(14).get().catch(()=>null),
+    db.collection('students').doc(userId).collection('weeklySummaries').orderBy('weekStart','desc').limit(8).get().catch(()=>null),
+    db.collection('weeklyChecks').doc(userId).collection('entries').orderBy('date','asc').limit(20).get().catch(()=>null),
+  ]);
   let targets={kcal:1600,c:160,p:120,f:55};
-  try{
-    const td=await db.collection('students').doc(userId).get();
-    if(td.exists){
-      const d=td.data();
-      if(d.targets)targets=d.targets;
-      if(d.coachNotes)targets.coachNotes=d.coachNotes;
-      targets.programStart=d.programStart||'';
-      targets.programWeeks=d.programWeeks||12;
-      targets.pausedDays=d.pausedDays||0;
-      targets.isPaused=d.isPaused||false;
-      targets.discountCode=d.discountCode||'';
-      targets.discountPercent=d.discountPercent||0;
-    }
-  }catch(e){}
-  // load health logs
+  if(tdSnap&&tdSnap.exists){
+    const d=tdSnap.data();
+    if(d.targets)targets=d.targets;
+    if(d.coachNotes)targets.coachNotes=d.coachNotes;
+    targets.programStart=d.programStart||'';
+    targets.programWeeks=d.programWeeks||12;
+    targets.pausedDays=d.pausedDays||0;
+    targets.isPaused=d.isPaused||false;
+    targets.discountCode=d.discountCode||'';
+    targets.discountPercent=d.discountPercent||0;
+  }
   let healthLogs={};
-  try{
-    const hs=await db.collection('healthLogs').doc(userId).collection('days').limit(14).get();
-    hs.docs.forEach(d=>{healthLogs[d.id]=d.data();});
-  }catch(e){}
-  // load weekly summaries
+  if(hsSnap)hsSnap.docs.forEach(d=>{healthLogs[d.id]=d.data();});
   let weeklySummaries={};
-  try{
-    const ws=await db.collection('students').doc(userId).collection('weeklySummaries').orderBy('weekStart','desc').limit(8).get();
-    ws.docs.forEach(d=>{weeklySummaries[d.id]=d.data();});
-  }catch(e){}
-  // load weekly checks (body measurements)
+  if(wsSnap)wsSnap.docs.forEach(d=>{weeklySummaries[d.id]=d.data();});
   let weeklyChecks=[];
-  try{
-    const wc=await db.collection('weeklyChecks').doc(userId).collection('entries').orderBy('date','asc').limit(20).get();
-    wc.docs.forEach(d=>{weeklyChecks.push({id:d.id,...d.data()});});
-  }catch(e){}
+  if(wcSnap)wcSnap.docs.forEach(d=>{weeklyChecks.push({id:d.id,...d.data()});});
+  // บันทึก cache ต่อ student
+  _sdCache[userId]={targets,healthLogs,weeklySummaries,weeklyChecks};
   // auto-mark missed days (client-side, non-blocking)
   const byDateTmp={};u.subs.forEach(s=>{const k=subDate(s);if(!byDateTmp[k])byDateTmp[k]=[];byDateTmp[k].push(s);});
   autoMarkMissedDays(userId,byDateTmp).catch(()=>{});
@@ -6249,6 +6250,7 @@ async function saveCoachNotes(userId){
   if(!ta)return;
   try{
     await db.collection('students').doc(userId).set({coachNotes:ta.value.trim()},{merge:true});
+    delete _sdCache[userId]; // invalidate cache
     const btn=ta.nextElementSibling;
     if(btn){const orig=btn.textContent;btn.textContent='✅ บันทึกแล้ว';setTimeout(()=>{btn.textContent=orig;},1500);}
   }catch(e){alert('บันทึกไม่ได้: '+e.message);}
@@ -6272,6 +6274,7 @@ async function saveTargets(userId){
   const f=parseInt(document.getElementById(`ti-f-${userId}`).value)||0;
   try{
     await db.collection('students').doc(userId).set({targets:{kcal,c,p,f}},{merge:true});
+    delete _sdCache[userId]; // invalidate cache
     // update display
     document.getElementById(`tv-kcal-${userId}`).textContent=kcal;
     document.getElementById(`tv-c-${userId}`).textContent=c+'g';
