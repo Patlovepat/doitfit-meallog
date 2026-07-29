@@ -841,9 +841,19 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
 <div id="student-detail">
   <div class="sd-header">
     <button class="sd-back" onclick="closeStudentDetail()">←</button>
-    <div>
+    <div style="flex:1">
       <div class="sd-name" id="sd-name">นักเรียน</div>
       <div style="font-size:11px;color:var(--gray)" id="sd-sub"></div>
+    </div>
+    <div style="display:flex;gap:5px">
+      <button onclick="downloadDashboard('sd-content',document.getElementById('sd-name').textContent,'img')"
+        style="font-size:11px;padding:5px 9px;background:var(--light);border:1.5px solid var(--border);border-radius:8px;color:var(--primary-dark);font-weight:600;font-family:'Prompt',sans-serif;cursor:pointer;white-space:nowrap">
+        📷 รูป
+      </button>
+      <button onclick="downloadDashboard('sd-content',document.getElementById('sd-name').textContent,'pdf')"
+        style="font-size:11px;padding:5px 9px;background:var(--light);border:1.5px solid var(--border);border-radius:8px;color:var(--primary-dark);font-weight:600;font-family:'Prompt',sans-serif;cursor:pointer;white-space:nowrap">
+        📄 PDF
+      </button>
     </div>
   </div>
   <div id="sd-content"></div>
@@ -4245,6 +4255,16 @@ function renderStudentDashboard(subs, targets, coachNotes, healthLogs, weeklyChe
   const weeklyHtml=buildStudentWeeklySummary(subs,byDate,healthLogs,weeklySummaries);
 
   document.getElementById('dashboard-content').innerHTML=`
+    <div style="display:flex;gap:8px;padding:12px 12px 0">
+      <button onclick="downloadDashboard('dashboard-content','my_dashboard','img')"
+        style="flex:1;padding:10px;background:var(--light);border:1.5px solid var(--border);border-radius:10px;font-size:12px;font-weight:600;font-family:'Prompt',sans-serif;color:var(--primary-dark);cursor:pointer">
+        📷 บันทึกรูป
+      </button>
+      <button onclick="downloadDashboard('dashboard-content','my_dashboard','pdf')"
+        style="flex:1;padding:10px;background:var(--light);border:1.5px solid var(--border);border-radius:10px;font-size:12px;font-weight:600;font-family:'Prompt',sans-serif;color:var(--primary-dark);cursor:pointer">
+        📄 ดาวน์โหลด PDF
+      </button>
+    </div>
     <div style="background:white;margin:12px 12px 0;border-radius:14px;padding:14px;border:1px solid #E5E7EB">
       <div style="font-size:12px;font-weight:600;color:var(--gray);margin-bottom:4px">สัปดาห์นี้</div>
       <div class="week-dots">${dotsHtml}</div>
@@ -6829,5 +6849,43 @@ window.addEventListener('load',init);
     </div>
   </div>
 </div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+// ===== DOWNLOAD DASHBOARD =====
+async function downloadDashboard(elId, name, type){
+  const el=document.getElementById(elId);
+  if(!el){showToast('ไม่พบข้อมูล');return;}
+  showToast(type==='pdf'?'⏳ กำลังสร้าง PDF...':'⏳ กำลังบันทึกรูป...');
+  await new Promise(r=>setTimeout(r,150));
+  try{
+    const canvas=await html2canvas(el,{
+      scale:2,
+      useCORS:true,
+      allowTaint:true,
+      backgroundColor:'#F9FAFB',
+      scrollX:0,
+      scrollY:0,
+      width:el.scrollWidth,
+      height:el.scrollHeight,
+      windowWidth:el.scrollWidth,
+    });
+    const fname=(name||'dashboard')+'_'+new Date().toISOString().split('T')[0];
+    if(type==='pdf'){
+      const {jsPDF}=window.jspdf;
+      const imgW=canvas.width/2,imgH=canvas.height/2;
+      const pdf=new jsPDF({orientation:'portrait',unit:'px',format:[imgW,imgH]});
+      pdf.addImage(canvas.toDataURL('image/png'),'PNG',0,0,imgW,imgH);
+      pdf.save(fname+'.pdf');
+    }else{
+      const a=document.createElement('a');
+      a.download=fname+'.png';
+      a.href=canvas.toDataURL('image/png');
+      a.click();
+    }
+    showToast(type==='pdf'?'✅ บันทึก PDF แล้ว':'✅ บันทึกรูปแล้ว');
+  }catch(e){showToast('❌ '+e.message);}
+}
+</script>
 </body>
 </html>
