@@ -739,21 +739,15 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
 
     <!-- PHOTO -->
     <div class="section-card" style="margin-top:12px">
-      <div class="section-title">📸 ถ่ายรูปอาหาร</div>
-      <div class="photo-area" id="photo-area">
-        <label for="photo-input" style="display:block;width:100%;cursor:pointer">
-          <div id="photo-placeholder">
-            <div style="font-size:36px">📷</div>
-            <div class="ph-hint">แตะเพื่อถ่าย/เลือกรูป</div>
-            <div class="hand-hint">👊 วางมือไว้ข้างจานด้วยนะคะ</div>
-          </div>
-          <img id="photo-preview" src="" style="display:none;max-width:100%;max-height:200px;border-radius:8px">
-        </label>
-        <input type="file" id="photo-input" accept="image/*"
-          style="position:absolute;width:1px;height:1px;opacity:0;left:0;top:0"
-          onchange="onPhoto(this)" oninput="onPhoto(this)">
-      </div>
-      <div style="font-size:11px;color:var(--gray);margin-top:6px;text-align:center">รูปจะถูกบีบอัดก่อนส่ง — ประหยัดพื้นที่</div>
+      <div class="section-title">📸 รูปอาหาร <span style="font-size:11px;color:var(--gray);font-weight:400">(สูงสุด 3 รูป)</span></div>
+      <div id="photo-thumbs" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px"></div>
+      <label id="photo-add-btn" for="photo-input" style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;background:#F3F4F6;border-radius:10px;cursor:pointer;font-size:13px;font-family:'Prompt',sans-serif;color:var(--text)">
+        <span style="font-size:20px">📷</span><span>แตะเพื่อถ่าย/เลือกรูป</span>
+      </label>
+      <input type="file" id="photo-input" accept="image/*"
+        style="position:absolute;width:1px;height:1px;opacity:0;left:0;top:0"
+        onchange="onPhoto(this)" oninput="onPhoto(this)">
+      <div style="font-size:11px;color:var(--gray);margin-top:6px">👊 วางมือไว้ข้างจาน · รูปจะถูกบีบอัดก่อนส่ง</div>
     </div>
   </div><!-- /log-panels -->
 
@@ -2720,7 +2714,7 @@ const _REMOVED=[
 
 // STATE
 let user=null, isCoach=false, curMeal='เช้า', curMode='hand', studentTab='log', testMode=false, coachLogMode=false;
-let photoBase64=null, coachTab='pending', allSubs=[], cState={};
+let photoBase64=null, photoBase64List=[], coachTab='pending', allSubs=[], cState={};
 let coachFilter='all';
 let studentTodaySubs=[];
 let studentSubsCache=null; // cache submissions ไม่ต้อง query ซ้ำ
@@ -3800,19 +3794,38 @@ function getWeighData(){
   return{food:'AI: '+preview,grams:0,carb:t.c,protein:t.p,fat:t.f,kcal:t.kcal,aiItems:aiParsedData.items,aiText:fullText};
 }
 
-// PHOTO
+// PHOTO (multi-photo: สูงสุด 3 รูป)
 function onPhoto(input){
   const file=input.files&&input.files[0];
   if(!file||_photoProcessing)return;
+  if(photoBase64List.length>=3){showToast('แนบได้สูงสุด 3 รูปค่ะ');input.value='';return;}
   _photoProcessing=true;
   compressPhoto(file).then(b64=>{
-    photoBase64=b64;
-    document.getElementById('photo-placeholder').style.display='none';
-    const prev=document.getElementById('photo-preview');
-    prev.src=b64;prev.style.display='block';
-    document.getElementById('photo-area').classList.add('has-photo');
+    photoBase64List.push(b64);
+    photoBase64=photoBase64List[0]; // backward compat
+    renderPhotoThumbs();
     _photoProcessing=false;
   }).catch(()=>{_photoProcessing=false;});
+  input.value=''; // allow re-select same file
+}
+
+function removePhoto(idx){
+  photoBase64List.splice(idx,1);
+  photoBase64=photoBase64List[0]||null;
+  renderPhotoThumbs();
+}
+
+function renderPhotoThumbs(){
+  const thumbsEl=document.getElementById('photo-thumbs');
+  if(thumbsEl){
+    thumbsEl.innerHTML=photoBase64List.map((b64,i)=>`
+      <div style="position:relative;width:80px;height:80px;flex-shrink:0">
+        <img src="${b64}" style="width:80px;height:80px;object-fit:cover;border-radius:8px">
+        <button onclick="removePhoto(${i})" style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;background:#EF4444;border:none;color:white;font-size:11px;cursor:pointer;line-height:20px;padding:0;font-weight:700">✕</button>
+      </div>`).join('');
+  }
+  const addBtn=document.getElementById('photo-add-btn');
+  if(addBtn)addBtn.style.display=photoBase64List.length>=3?'none':'inline-flex';
 }
 async function compressPhoto(file){
   return new Promise(resolve=>{
@@ -3969,26 +3982,31 @@ async function submitMeal(){
       weighData=getWeighData();
       if(!weighData){alert('กรุณาให้ AI คำนวณก่อนค่ะ');resetBtn();return;}
     }
-    // อัปโหลดรูปไป Firebase Storage (timeout 8s — ถ้าเกินเวลาหรือ fail ก็ใช้ base64 ใน Firestore แทน)
-    let photoUrl=null;
-    if(photoBase64){
-      try{
-        const ref=storage.ref(`photos/${user.userId}/${Date.now()}.jpg`);
-        const uploadPromise=ref.putString(photoBase64,'data_url').then(()=>ref.getDownloadURL());
-        const timeoutPromise=new Promise((_,rej)=>setTimeout(()=>rej(new Error('upload timeout')),8000));
-        photoUrl=await Promise.race([uploadPromise,timeoutPromise]);
-      }catch(uploadErr){console.log('photo upload skipped:',uploadErr.message);}
+    // อัปโหลดรูปไป Firebase Storage (สูงสุด 3 รูป, timeout 10s ต่อรูป)
+    let photoUrl=null, photoUrls=[];
+    if(photoBase64List.length>0){
+      const uploadOne=async(b64,i)=>{
+        try{
+          const ref=storage.ref(`photos/${user.userId}/${Date.now()}_${i}.jpg`);
+          const uploadP=ref.putString(b64,'data_url').then(()=>ref.getDownloadURL());
+          const timeoutP=new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),10000));
+          return await Promise.race([uploadP,timeoutP]);
+        }catch(e){console.log('photo upload skipped:',e.message);return null;}
+      };
+      const urls=await Promise.all(photoBase64List.map((b64,i)=>uploadOne(b64,i)));
+      photoUrls=urls.filter(Boolean);
+      photoUrl=photoUrls[0]||null; // backward compat
     }
     await db.collection('submissions').add({
       userId:user.userId,displayName:user.displayName,pictureUrl:user.pictureUrl||null,
       meal:curMeal,mode:curMode,mealDate:selectedDate,
-      handData,labelData,weighData,photoUrl:photoUrl||null,
+      handData,labelData,weighData,photoUrl:photoUrl||null,photoUrls:photoUrls.length>0?photoUrls:null,
       status:'pending',correction:null,
       isTest:testMode||false,
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
     // update cache locally (ไม่ต้อง re-query)
-    const newSubLocal={mode:curMode,mealDate:selectedDate,handData,labelData,weighData,photoUrl,status:'pending'};
+    const newSubLocal={mode:curMode,mealDate:selectedDate,handData,labelData,weighData,photoUrl,photoUrls:photoUrls.length>0?photoUrls:null,status:'pending'};
     studentTodaySubs.push(newSubLocal);
     if(studentSubsCache)studentSubsCache.unshift(newSubLocal);
     renderDailyProgress();
@@ -4030,7 +4048,7 @@ function showSuccess(mode,handData,labelData,weighData){
     const wKcal=Math.round((weighData.carb||0)*4+(weighData.protein||0)*4+(weighData.fat||0)*9);
     chips+=`<span class="chip">${weighData.food}</span><span class="chip">คาร์บ ${(weighData.carb||0).toFixed(1)}g</span><span class="chip">โปรตีน ${(weighData.protein||0).toFixed(1)}g</span><span class="chip">ไขมัน ${(weighData.fat||0).toFixed(1)}g</span><span class="chip">⚡ ${wKcal} kcal</span>`;
   }
-  if(photoBase64)chips+=`<span class="chip">📸 มีรูป</span>`;
+  if(photoBase64List.length>0)chips+=`<span class="chip">📸 ${photoBase64List.length>1?photoBase64List.length+' รูป':'มีรูป'}</span>`;
   document.getElementById('success-chips').innerHTML=chips;
   showMilestone();
 }
@@ -4124,7 +4142,7 @@ function buildHistCard(s){
   const actionRow=`<div style="display:flex;gap:6px;margin-top:8px">${editBtn}${delBtn}</div>`;
   return`<div class="hist-card">
     <div class="hist-card-head" style="display:flex;align-items:flex-start;justify-content:space-between">
-      <div><div style="font-size:13px;font-weight:600">${dateLabel} · มื้อ${s.meal}${editedBadge}</div><div style="font-size:11px;color:var(--gray);margin-top:2px">${modeLabel}${(s.photoBase64||s.photoUrl)?' · 📸':''}</div></div>
+      <div><div style="font-size:13px;font-weight:600">${dateLabel} · มื้อ${s.meal}${editedBadge}</div><div style="font-size:11px;color:var(--gray);margin-top:2px">${modeLabel}${(s.photoBase64||s.photoUrl||s.photoUrls?.length)?' · 📸'+(s.photoUrls?.length>1?' '+s.photoUrls.length:''):''}</div></div>
       ${statusHtml}
     </div>
     <div class="hist-card-body">${photoHtml}<div class="est-chips" style="margin-bottom:0">${chips}</div>${corrHtml}${editHistHtml||""}${coachCommentHtml||""}${actionRow}</div>
@@ -4285,7 +4303,7 @@ function renderStudentDashboard(subs, targets, coachNotes, healthLogs, weeklyChe
 
 function resetStudent(){
   if(coachLogMode){exitCoachLog();return;}
-  photoBase64=null;_photoProcessing=false;selectedDate=todayStr();
+  photoBase64=null;photoBase64List=[];_photoProcessing=false;selectedDate=todayStr();
   document.getElementById('menu-name-input').value='';
   document.getElementById('menu-desc-input').value='';
   // reset carb slots
@@ -4311,9 +4329,7 @@ function resetStudent(){
   document.querySelectorAll('.ptype-btn').forEach(b=>b.classList.toggle('active',b.dataset.pt==='lean'));
   document.querySelectorAll('.cook-btn').forEach(b=>b.classList.toggle('active',b.dataset.ck==='none'));
   updateHandSummary();
-  document.getElementById('photo-placeholder').style.display='block';
-  document.getElementById('photo-preview').style.display='none';
-  document.getElementById('photo-area').classList.remove('has-photo');
+  renderPhotoThumbs();
   document.getElementById('btn-submit').disabled=false;
   document.getElementById('btn-submit').textContent='ส่งให้โค้ชตรวจ ✓';
   ['lb-carb','lb-prot','lb-fat'].forEach(id=>document.getElementById(id).value='');
@@ -5609,7 +5625,11 @@ function buildCard(s){
   const timeStr=s.createdAt?(s.createdAt.toDate?formatTime(s.createdAt.toDate()):formatTime(new Date(s.createdAt))):'';
   const dateLabel=s.mealDate?formatDateTH(s.mealDate)+' · ':'';
   const corrNote=s.correction?`<div class="corr-note">✏️ ปรับค่า → C ${s.correction.carb} · P ${s.correction.protein} · F ${s.correction.fat}${s.correction.note?'<br>💬 '+escHtml(s.correction.note):''}</div>`:'';
-  const photoHtml=(s.photoBase64||s.photoUrl)?`<img class="card-photo" src="${s.photoBase64||s.photoUrl}" loading="lazy">`:'';
+  const _photos=(s.photoUrls||[]).filter(Boolean);
+  if(!_photos.length&&(s.photoUrl||s.photoBase64))_photos.push(s.photoUrl||s.photoBase64);
+  const photoHtml=_photos.length===0?'':_photos.length===1
+    ?`<img class="card-photo" src="${_photos[0]}" loading="lazy">`
+    :`<div style="display:flex;gap:6px;overflow-x:auto;padding:8px 12px 4px;-webkit-overflow-scrolling:touch">${_photos.map(u=>`<img src="${u}" loading="lazy" style="height:110px;width:110px;object-fit:cover;border-radius:8px;flex-shrink:0">`).join('')}</div>`;
   const avatarHtml=s.pictureUrl?`<img src="${s.pictureUrl}" onerror="this.src=''" alt="">`:`<div style="width:38px;height:38px;border-radius:50%;background:var(--light);display:flex;align-items:center;justify-content:center;font-size:18px">👤</div>`;
   let actions='';
   const showApprove=cs.approveOpen||false;
@@ -5627,7 +5647,7 @@ function buildCard(s){
     <textarea id="approve-comment-${s.id}" rows="3"
       style="width:100%;border:1.5px solid #BBF7D0;border-radius:8px;padding:8px;font-size:12px;font-family:'Prompt',sans-serif;background:white;resize:none;box-sizing:border-box"
       placeholder="ข้อความสำหรับนักเรียน...">${TONE_DEFAULTS[cs._tone||'good']}</textarea>
-    ${(s.photoBase64||s.photoUrl)?`<label style="display:flex;align-items:center;gap:6px;font-size:11px;color:#374151;margin-top:6px">
+    ${(s.photoBase64||s.photoUrl||s.photoUrls?.length)?`<label style="display:flex;align-items:center;gap:6px;font-size:11px;color:#374151;margin-top:6px">
       <input type="checkbox" id="approve-photo-${s.id}" checked> แนบรูปอาหารไปด้วย</label>`:''}
     <div style="display:flex;gap:6px;margin-top:8px">
       <button onclick="doApprove('${s.id}')" style="flex:1;padding:8px;background:#059669;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;font-family:'Prompt',sans-serif;cursor:pointer">ส่ง Card + อนุมัติ ✓</button>
