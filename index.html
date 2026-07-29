@@ -2907,21 +2907,20 @@ function startStudent(){
   buildDateStrip();
   loadStudentData(); // โหลด submissions + targets + savedMenus ในรอบเดียว
 }
+let _loadingStudentData=false;
 async function loadStudentData(){
+  if(_loadingStudentData)return; // ป้องกัน double-fetch
+  _loadingStudentData=true;
   try{
+    // ถ้ามี key แล้ว ไม่ต้อง fetch config ซ้ำ — ประหยัด 1 round trip
+    const needCfg=!(GEMINI_KEY&&GROQ_KEY);
     const [snap,td,savedSnap,cfgSnap]=await Promise.all([
       db.collection('submissions').where('userId','==',user.userId).orderBy('createdAt','desc').limit(30).get(),
       db.collection('students').doc(user.userId).get().catch(()=>null),
       db.collection('users').doc(user.userId).collection('savedMenus').limit(12).get().catch(()=>null),
-      db.collection('config').doc('app').get().catch(()=>null)
+      needCfg?db.collection('config').doc('app').get().catch(()=>null):Promise.resolve(null)
     ]);
     if(cfgSnap&&cfgSnap.exists){GROQ_KEY=cfgSnap.data().groqKey||null;GEMINI_KEY=cfgSnap.data().geminiKey||null;}
-    // retry ถ้า key โหลดไม่ได้รอบแรก (เช่น network ช้า หรือ rules block)
-    if(!GEMINI_KEY){
-      try{const retry=await db.collection('config').doc('app').get();
-        if(retry&&retry.exists){GROQ_KEY=retry.data().groqKey||null;GEMINI_KEY=retry.data().geminiKey||null;}
-      }catch(e){console.warn('config retry failed',e);}
-    }
     // sort client-side + ลบ photoBase64 ออกจาก RAM (ยังใช้ photoUrl แทนได้)
     studentSubsCache=snap.docs.map(d=>{const dat=d.data();delete dat.photoBase64;return{id:d.id,...dat};}).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
     applyTargets(td);
@@ -2934,6 +2933,7 @@ async function loadStudentData(){
     checkNearEnd();
     checkCoachComments();
   }catch(e){console.log('loadStudentData err',e);}
+  finally{_loadingStudentData=false;}
 }
 
 function applyTargets(doc){
@@ -4050,9 +4050,13 @@ async function loadHistory(){
     return;
   }
   if(studentSubsCache===null){
-    // cache ยังไม่โหลดเสร็จ — แสดง loading แล้วรอ
     list.innerHTML='<div style="text-align:center;padding:24px;color:var(--gray);font-size:13px">⏳ กำลังโหลด...</div>';
-    await loadStudentData();
+    if(_loadingStudentData){
+      // รอ loadStudentData ที่กำลังรันอยู่ให้เสร็จก่อน (poll ทุก 200ms)
+      await new Promise(res=>{const t=setInterval(()=>{if(!_loadingStudentData){clearInterval(t);res();}},200);});
+    }else{
+      await loadStudentData();
+    }
   }
   const subs=(studentSubsCache||[])
     .slice().sort((a,b)=>{const ta=a.createdAt?.toDate?.()?.getTime?.()||0,tb=b.createdAt?.toDate?.()?.getTime?.()||0;return tb-ta;});
