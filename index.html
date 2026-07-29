@@ -4055,7 +4055,7 @@ function showSuccess(mode,handData,labelData,weighData){
 
 async function showMilestone(){
   try{
-    const snap=await db.collection('submissions').where('userId','==',user.userId).limit(30).get();
+    const snap=await db.collection('submissions').where('userId','==',user.userId).orderBy('createdAt','desc').limit(30).get();
     const subs=snap.docs.map(d=>{const dat=d.data();delete dat.photoBase64;return{id:d.id,...dat};});
     const streak=calcStreak(subs);
     const pill=document.getElementById('streak-pill');
@@ -4398,6 +4398,8 @@ function selCoachTab(tab){
   document.querySelectorAll('.coach-tab').forEach(t=>t.classList.remove('active'));
   tab.classList.add('active');
   coachTab=tab.dataset.tab;
+  // cancel prefetch ถ้าออกจาก students tab ก่อน 800ms
+  if(coachTab!=='students')clearTimeout(_prefetchTimer);
   if(coachTab==='mylog'){enterCoachLog();return;}
   renderCoach();
   if(coachTab==='students')loadStudentList();
@@ -4459,8 +4461,9 @@ async function loadStudentList(){
       </div>
       ${users.map(u=>buildStudentCard(u)).join('')}
     `;
-    // Background prefetch top 5 students หลัง UI render แล้ว
-    setTimeout(()=>{ users.slice(0,5).forEach(u=>prefetchStudent(u.userId)); },800);
+    // Background prefetch top 5 students หลัง UI render แล้ว (cancelable)
+    clearTimeout(_prefetchTimer);
+    _prefetchTimer=setTimeout(()=>{ users.slice(0,5).forEach(u=>prefetchStudent(u.userId)); },800);
   }catch(e){container.innerHTML='<div style="padding:24px;text-align:center;color:#EF4444">โหลดไม่ได้: '+e.message+'</div>';}
 }
 
@@ -4527,6 +4530,20 @@ let currentStudentData=null;
 
 const _sdCache={};
 const _sdCursors={}; // cursor สำหรับ pagination ต่อ student
+const _SD_CACHE_MAX=20; // LRU cap — ป้องกัน memory leak เมื่อโค้ชดูนักเรียนหลายคน
+const _sdCacheOrder=[]; // LRU order tracking
+let _prefetchTimer=null; // timeout id สำหรับ background prefetch
+
+function _sdCachePut(userId,data){
+  if(!_sdCacheOrder.includes(userId))_sdCacheOrder.push(userId);
+  else{_sdCacheOrder.splice(_sdCacheOrder.indexOf(userId),1);_sdCacheOrder.push(userId);}
+  _sdCache[userId]=data;
+  // evict oldest ถ้าเกิน cap
+  while(_sdCacheOrder.length>_SD_CACHE_MAX){
+    const old=_sdCacheOrder.shift();
+    delete _sdCache[old];delete _sdCursors[old];
+  }
+}
 
 // Prefetch student data ล่วงหน้า (hover หรือ background)
 async function prefetchStudent(userId){
@@ -4557,7 +4574,7 @@ async function prefetchStudent(userId){
       lastWS:wsSnap&&wsSnap.docs.length?wsSnap.docs[wsSnap.docs.length-1]:null,
       hasMoreWS:!!(wsSnap&&wsSnap.docs.length>=4),
     };
-    _sdCache[userId]={targets,healthLogs,weeklySummaries,weeklyChecks};
+    _sdCachePut(userId,{targets,healthLogs,weeklySummaries,weeklyChecks});
   }catch(e){}
   delete _sdCache['_pf_'+userId];
 }
@@ -4614,7 +4631,7 @@ async function openStudentDetail(userId){
     lastWS: wsSnap&&wsSnap.docs.length ? wsSnap.docs[wsSnap.docs.length-1] : null,
     hasMoreWS: !!(wsSnap&&wsSnap.docs.length>=4),
   };
-  _sdCache[userId]={targets,healthLogs,weeklySummaries,weeklyChecks};
+  _sdCachePut(userId,{targets,healthLogs,weeklySummaries,weeklyChecks});
   // อัปเดตเฉพาะ section ที่ต้องการ health data (ถ้ายังเปิดหน้านี้อยู่)
   if(currentStudentData&&currentStudentData.userId===userId){
     const MON=getMonWeekDates(),TH_SHORT=['จ','อ','พ','พฤ','ศ','ส','อา'];
@@ -6436,18 +6453,26 @@ async function saveTargets(userId){
 async function autoMarkMissedDays(userId, byDate){
   const MON=getMonWeekDates();
   const today=todayStr();
-  for(const d of MON){
-    if(d>=today)continue; // ข้ามวันนี้และอนาคต
-    if(byDate[d]&&byDate[d].length)continue; // มีส่งแล้ว
-    // check if already marked
-    try{
-      const ref=db.collection('students').doc(userId).collection('missedDays').doc(d);
-      const snap=await ref.get();
-      if(!snap.exists){
-        await ref.set({date:d,autoMarked:true,coachNote:'',createdAt:firebase.firestore.FieldValue.serverTimestamp()});
+  // กรองเฉพาะวันที่ต้อง check (ก่อนวันนี้ + ไม่มีการส่ง)
+  const missingDays=MON.filter(d=>d<today&&!(byDate[d]&&byDate[d].length));
+  if(!missingDays.length)return;
+  try{
+    // ดึง docs ทั้งหมดพร้อมกัน (แทน sequential await ใน loop)
+    const snaps=await Promise.all(
+      missingDays.map(d=>db.collection('students').doc(userId).collection('missedDays').doc(d).get().catch(()=>null))
+    );
+    // batch write เฉพาะวันที่ยังไม่ได้ mark
+    const batch=db.batch();
+    let writes=0;
+    snaps.forEach((snap,i)=>{
+      if(snap&&!snap.exists){
+        const ref=db.collection('students').doc(userId).collection('missedDays').doc(missingDays[i]);
+        batch.set(ref,{date:missingDays[i],autoMarked:true,coachNote:'',createdAt:firebase.firestore.FieldValue.serverTimestamp()});
+        writes++;
       }
-    }catch(e){console.log('missed mark err',e);}
-  }
+    });
+    if(writes>0)await batch.commit();
+  }catch(e){console.log('missed mark err',e);}
 }
 
 // ===== TESTIMONIAL SYSTEM =====
