@@ -5696,8 +5696,12 @@ function buildCard(s){
 }
 
 function buildCorrPanel(s,cs){
+  const activeMode=cs.corrMode||s.mode;
+  const _orig=getSubOrigMacros(s);
+  const _mBtn=(m,e,l)=>{const a=m===activeMode;return`<button onclick="setCoachCorrMode('${s.id}','${m}')" style="flex:1;padding:6px 4px;border-radius:8px;border:1.5px solid ${a?'var(--primary)':'#E5E7EB'};font-size:11px;font-weight:${a?'700':'500'};background:${a?'var(--primary)':'white'};color:${a?'#fff':'var(--gray)'};cursor:pointer;font-family:'Prompt',sans-serif">${e} ${l}</button>`;};
+  const _modeSwitchRow=`<div style="margin-bottom:12px"><div style="font-size:11px;font-weight:600;color:var(--gray);margin-bottom:6px">📂 โหมดการบันทึก</div><div style="display:flex;gap:6px">${_mBtn('hand','👊','Hand')}${_mBtn('label','🏷️','ฉลาก')}${_mBtn('weigh','✨','AI')}</div></div>`;
   // === HAND PORTION MODE ===
-  if(s.mode==='hand'){
+  if(activeMode==='hand'){
     if(!cState[s.id])cState[s.id]={};
     cState[s.id]._sub=s; // store ref so updateHandCorrPreview can access it
     const hd=s.handData||{};
@@ -5730,7 +5734,7 @@ function buildCorrPanel(s,cs){
     const ptBtn=(t,lbl,sub)=>`<button class="ptype-btn${t===protType?' active':''}" data-pt="${t}" onclick="setHCorrProtT('${s.id}','${t}')">${lbl}<span class="ptype-sub">${sub}</span></button>`;
     const ckBtn=(m,lbl,sub)=>`<button class="cook-btn${m===cookMethod?' active':''}" data-ck="${m}" onclick="setHCorrCookM('${s.id}','${m}')">${lbl}<span class="dens-kcal">${sub}</span></button>`;
     return`<div class="correction-panel">
-<h4>✏️ แก้ค่า — Hand Portion</h4>
+${_modeSwitchRow}<h4>✏️ แก้ค่า — Hand Portion</h4>
 <div style="margin-bottom:10px">
   <div class="hmb-subtitle" style="margin-bottom:5px">🌾 คาร์บ — ความหนาแน่น</div>
   <div class="dens-grid" style="margin-bottom:8px">${['veggie','light','normal','dense','heavy'].map(dBtn).join('')}</div>
@@ -5784,16 +5788,8 @@ function buildCorrPanel(s,cs){
 </div>`;
   }
   // === LABEL / WEIGH MODE — gram steppers with strikethrough original ===
-  let carb,prot,fat,origC,origP,origF;
-  if(s.mode==='label'&&s.labelData){
-    origC=Math.round(s.labelData.carb||0);
-    origP=Math.round(s.labelData.protein||0);
-    origF=Math.round(s.labelData.fat||0);
-  }else{
-    origC=Math.round(s.weighData?.carb||0);
-    origP=Math.round(s.weighData?.protein||0);
-    origF=Math.round(s.weighData?.fat||0);
-  }
+  let carb,prot,fat;
+  const origC=_orig.c,origP=_orig.p,origF=_orig.f;
   if(!cState[s.id])cState[s.id]={};
   cState[s.id]._sub=s;
   carb=cs.carb!==undefined?cs.carb:origC;
@@ -5805,7 +5801,7 @@ function buildCorrPanel(s,cs){
   const kcalDiffStr=kcalDiff===0?'':(kcalDiff>0?`+${kcalDiff}`:`${kcalDiff}`);
   const kcalDiffBadge=kcalDiff===0?'':`<span style="font-size:11px;padding:2px 7px;border-radius:10px;margin-left:6px;background:${kcalDiff>0?'#FEE2E2':'#DCFCE7'};color:${kcalDiff>0?'#DC2626':'#059669'};font-weight:700">${kcalDiffStr} kcal</span>`;
   const mBadge=(dv,mult)=>{const kc=Math.round(dv*mult);if(Math.abs(kc)<1)return'';const sg=kc>0?'+':'';return`<span style="font-size:10px;padding:1px 5px;border-radius:8px;background:${kc>0?'#FEE2E2':'#DCFCE7'};color:${kc>0?'#DC2626':'#059669'};font-weight:700">${sg}${kc} kcal</span>`;};
-  return`<div class="correction-panel"><h4>✏️ แก้ไขค่าที่ถูกต้อง</h4>
+  return`<div class="correction-panel">${_modeSwitchRow}<h4>✏️ แก้ไขค่าที่ถูกต้อง</h4>
 <div style="text-align:center;font-size:12px;color:#9CA3AF;margin-bottom:8px">นักเรียนกรอก: <del>C ${origC}g · P ${origP}g · F ${origF}g → ⚡ ${origKcal} kcal</del></div>
 <div class="corr-steppers">
 <div class="corr-s-item"><label>🟡 คาร์บ (g) <span id="badge-carb-${s.id}">${mBadge(carb-origC,4)}</span></label><div class="corr-s-row"><button onclick="adjCorr('${s.id}','carb',-1)">−</button><input type="number" class="corr-input" id="cc-carb-${s.id}" value="${carb}" min="0" step="1" onchange="syncCorr('${s.id}','carb')"><button onclick="adjCorr('${s.id}','carb',1)">+</button></div></div>
@@ -5819,6 +5815,7 @@ function buildCorrPanel(s,cs){
 <div style="display:flex;gap:8px;margin-top:6px"><button class="btn-send-corr" style="flex:1" onclick="sendCorrection('${s.id}','save')">💾 บันทึก</button><button class="btn-send-corr" style="flex:1;background:#2563EB" onclick="sendCorrection('${s.id}','copy')">📋 Copy ข้อความ</button></div></div>`;
 }
 
+function setCoachCorrMode(id,mode){if(!cState[id])cState[id]={};cState[id].corrMode=mode;delete cState[id].carb;delete cState[id].protein;delete cState[id].fat;renderCoach();}
 function toggleCorr(id){if(!cState[id])cState[id]={};cState[id].open=!cState[id].open;renderCoach();}
 function updateCorrPreview(id){
   const c=parseFloat(document.getElementById(`cc-carb-${id}`)?.value)||0;
@@ -6027,7 +6024,8 @@ async function doApprove(id){
 async function sendCorrection(id,action='save'){
   const existingSub=cState[id]?._sub||{};
   let carb,prot,fat;
-  if(existingSub.mode==='hand'){
+  const _activeMode=cState[id]?.corrMode||existingSub.mode;
+  if(_activeMode==='hand'){
     const{C,P,F}=calcHandCorrMacros(id);
     carb=C;prot=P;fat=F;
   }else{
@@ -6066,12 +6064,14 @@ async function sendCorrection(id,action='save'){
         ...(Math.abs(origM.f-fat)>0.5?[{k:'Fat',from:origM.f,to:fat}]:[])
       ]}
     ].filter(h=>h.fields.length);
+    const _modeChanged=cState[id]?.corrMode&&cState[id].corrMode!==existingSub.mode;
     await db.collection('submissions').doc(id).update({
       status:'approved',correction:{carb,protein:prot,fat,note},
       coachComment:note||'โค้ชปรับค่า macro ให้แล้วนะคะ',
       coachCommentTone:'fix',coachCommentSent:true,coachCommentWithPhoto:false,
       origMacros:{c:origM.c,p:origM.p,f:origM.f},
-      editHistory
+      editHistory,
+      ...(_modeChanged?{mode:cState[id].corrMode}:{})
     });
     cState[id]={};
     renderCoach();
