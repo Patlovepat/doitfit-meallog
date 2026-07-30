@@ -7,7 +7,7 @@
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storae-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script>
 window.onerror=function(msg,src,line,col,err){
@@ -7248,5 +7248,35 @@ async function downloadDashboard(elId, name, type){
   }
 }
 </script>
+<script>
+// B+ Tab warning
+let _pendingTab=null;
+function hasUnsavedData(mode){
+  if(mode==='hand'){return protQty!==1.0||carbSlots.length>1||(carbSlots[0]&&carbSlots[0].qty!==1.5)||eggWhole>0||eggWhite>0||visibleFat>0||avoQty>0||Object.values(fruitCounts).some(v=>v>0);}
+  if(mode==='label'){return !!(parseFloat(document.getElementById('lb-carb')?.value)||parseFloat(document.getElementById('lb-prot')?.value)||parseFloat(document.getElementById('lb-fat')?.value));}
+  if(mode==='weigh'){const ta=document.getElementById('ai-food-input');return !!(ta?.value?.trim())||!!aiParsedData;}
+  return false;
+}
+function _doSelMode(tab){
+  document.querySelectorAll('.mode-tab').forEach(t=>t.classList.remove('active'));
+  tab.classList.add('active');curMode=tab.dataset.mode;
+  document.getElementById('panel-hand').style.display=curMode==='hand'?'block':'none';
+  document.getElementById('panel-label').style.display=curMode==='label'?'block':'none';
+  document.getElementById('panel-weigh').style.display=curMode==='weigh'?'block':'none';
+}
+function selMode(tab){
+  if(curMode===tab.dataset.mode)return;
+  if(hasUnsavedData(curMode)){_pendingTab=tab;showTabWarn(curMode);return;}
+  _doSelMode(tab);
+}
+function showTabWarn(m){
+  const n={hand:'👊 Hand portion',label:'🏷️ ฉลาก',weigh:'✨ AI'};
+  document.getElementById('tab-warn-mode').textContent=n[m]||m;
+  document.getElementById('modal-tab-warn').style.display='flex';
+}
+function tabWarnSubmit(){document.getElementById('modal-tab-warn').style.display='none';document.getElementById('btn-submit').click();_pendingTab=null;}
+function tabWarnSwitch(){document.getElementById('modal-tab-warn').style.display='none';if(_pendingTab){_doSelMode(_pendingTab);_pendingTab=null;}}
+</script>
+<div id="modal-tab-warn" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;align-items:center;justify-content:center;"><div style="background:#fff;border-radius:16px;padding:24px 20px;max-width:320px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,.2);text-align:center;"><div style="font-size:2rem;margin-bottom:8px;">⚠️</div><div style="font-weight:700;font-size:1.05rem;color:#1F2937;margin-bottom:6px;"><span id="tab-warn-mode"></span></div><div style="color:#6B7280;font-size:.9rem;margin-bottom:20px;">ยังไม่ได้ส่ง กดส่งก่อนเปลี่ยน mode ไหม?</div><div style="display:flex;gap:10px;"><button onclick="tabWarnSubmit()" style="flex:1;padding:12px;background:#10B981;color:#fff;border:none;border-radius:10px;font-size:.95rem;font-weight:600;cursor:pointer;">ส่งตอนนี้ ✓</button><button onclick="tabWarnSwitch()" style="flex:1;padding:12px;background:#F3F4F6;color:#374151;border:none;border-radius:10px;font-size:.95rem;cursor:pointer;">เปลี่ยนเลย</button></div></div></div>
 </body>
 </html>
