@@ -7,7 +7,7 @@
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storae-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script>
 window.onerror=function(msg,src,line,col,err){
@@ -5366,7 +5366,7 @@ function buildProgramSection(uid, prog){
     ${progBarHtml}
     <div style="margin-bottom:8px">
       <div style="font-size:10px;color:var(--gray);margin-bottom:2px">วันเริ่มเทรน</div>
-      <input type="date" id="prog-start-${uid}" class="prog-input" value="${prog.programStart||''}" oninput="updateProgEndPreview('${uid}')">
+      <input type="date" id="prog-start-${uid}" class="prog-input" value="${prog.programStart||''}" oninput="updateProgEndPreview('${uid}');debounceSaveProg('${uid}')">
     </div>
     <div style="margin-bottom:8px">
       <div style="font-size:10px;color:var(--gray);margin-bottom:2px">ระยะเวลา</div>
@@ -5398,6 +5398,8 @@ function updateProgEndPreview(uid){
   const endStr=formatDateLong(`${end.getFullYear()}-${pad(end.getMonth()+1)}-${pad(end.getDate())}`);
   previewEl.innerHTML=`📅 วันจบคอร์ส: <strong>${endStr}</strong>`;
 }
+const _progDebounce={};
+function debounceSaveProg(uid){clearTimeout(_progDebounce[uid]);_progDebounce[uid]=setTimeout(()=>saveProgramSettings(uid),800);}
 async function saveProgramSettings(uid){
   const startEl=document.getElementById(`prog-start-${uid}`);
   const weeksEl=document.getElementById(`prog-weeks-${uid}`);
@@ -5406,6 +5408,7 @@ async function saveProgramSettings(uid){
   try{
     await db.collection('students').doc(uid).set(payload,{merge:true});
     showToast('บันทึกข้อมูลคอร์สแล้วค่ะ ✅');
+    delete _sdCache[uid];
     if(currentStudentData&&currentStudentData.userId===uid)openStudentDetail(uid);
   }catch(e){showToast('บันทึกไม่ได้: '+e.message);}
 }
