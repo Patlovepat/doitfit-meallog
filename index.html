@@ -6610,8 +6610,11 @@ async function sendFeedbackCard(currentSub){
     const flex=buildFeedbackFlex(subs.length,totC,totP,totF,totKcal,currentSub);
     if(typeof liff!=='undefined'&&liff.isInClient()){
       await liff.sendMessages([flex]);
+    }else{
+      console.warn('sendFeedbackCard: liff not in client, isInClient=',typeof liff!=='undefined'?liff.isInClient():'liff undef');
+      showToast('⚠️ ไม่ได้เปิดใน LINE หรือ context ไม่รองรับ sendMessages');
     }
-  }catch(e){console.log('feedback card err',e);}
+  }catch(e){console.error('feedback card err',e);showToast('⚠️ Card err: '+e.message);}
 }
 
 function calcSmartMsg(totC,totP,totF,totKcal){
