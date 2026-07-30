@@ -1,0 +1,1022 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>คู่มือนักเรียน · DO IT FIT Meal Log</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      /* ── ตรงกับแอป ── */
+      --primary:        #F5A623;
+      --primary-dark:   #D4891A;
+      --primary-light:  #FEF3DC;
+      --primary-border: #F5D58A;
+      /* macro bar colors (ตรงกับแอปพอดี) */
+      --carb-color:     #F5A623;
+      --prot-color:     #3B82F6;
+      --fat-color:      #A855F7;
+      /* supporting */
+      --green:          #22C55E;
+      --green-dark:     #16a34a;
+      --green-light:    #dcfce7;
+      --green-mid:      #86efac;
+      --blue:           #3B82F6;
+      --blue-light:     #EFF6FF;
+      --blue-mid:       #BFDBFE;
+      --purple:         #A855F7;
+      --purple-light:   #F5F3FF;
+      --purple-mid:     #DDD6FE;
+      --red-light:      #fef2f2;
+      --red-mid:        #fca5a5;
+      /* base */
+      --bg:      #f9fafb;
+      --surface: #ffffff;
+      --border:  #E5E7EB;
+      --text:    #2D2D2D;
+      --text-2:  #6B7280;
+      --text-3:  #9CA3AF;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Prompt', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.65;
+      font-size: 15px;
+    }
+
+    /* ── Header ── */
+    .header {
+      background: linear-gradient(135deg, #D4891A 0%, #F5A623 60%, #FBBF24 100%);
+      color: white;
+      text-align: center;
+      padding: 3rem 1.5rem 2.5rem;
+      position: relative;
+      overflow: hidden;
+    }
+    .header::before {
+      content: '';
+      position: absolute; top: -40px; right: -40px;
+      width: 180px; height: 180px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 50%;
+    }
+    .header::after {
+      content: '';
+      position: absolute; bottom: -30px; left: -30px;
+      width: 120px; height: 120px;
+      background: rgba(255,255,255,0.07);
+      border-radius: 50%;
+    }
+    .header-badge {
+      display: inline-block;
+      background: rgba(255,255,255,0.25);
+      color: white;
+      font-size: 11px;
+      font-weight: 500;
+      padding: 4px 14px;
+      border-radius: 999px;
+      margin-bottom: 0.85rem;
+      letter-spacing: 0.06em;
+      position: relative;
+    }
+    .header h1 {
+      font-size: 1.9rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+      position: relative;
+    }
+    .header p {
+      font-size: 14px;
+      opacity: 0.88;
+      font-weight: 300;
+      position: relative;
+    }
+
+    /* ── TOC ── */
+    .toc {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0.875rem 1.25rem;
+      overflow-x: auto;
+      white-space: nowrap;
+      -webkit-overflow-scrolling: touch;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .toc a {
+      display: inline-block;
+      padding: 5px 13px;
+      margin-right: 5px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      color: var(--text-2);
+      text-decoration: none;
+      font-size: 12.5px;
+      font-weight: 500;
+      transition: all 0.15s;
+    }
+    .toc a:hover, .toc a:focus {
+      background: var(--primary-light);
+      border-color: var(--primary-border);
+      color: var(--primary-dark);
+    }
+
+    /* ── Section ── */
+    .section {
+      padding: 2.75rem 1.5rem;
+      max-width: 700px;
+      margin: 0 auto;
+    }
+    .section + .section { border-top: 1px solid var(--border); }
+
+    .section-label {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 1.25rem;
+    }
+    .sec-num {
+      width: 34px; height: 34px;
+      background: var(--primary);
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .sec-title { font-size: 1.2rem; font-weight: 600; }
+
+    .section > p { color: var(--text-2); margin-bottom: 1rem; line-height: 1.8; }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1.25rem;
+      margin-bottom: 1rem;
+    }
+    .card-title {
+      font-size: 14.5px;
+      font-weight: 600;
+      margin-bottom: 0.6rem;
+    }
+    .card-body { font-size: 14px; color: var(--text-2); line-height: 1.75; }
+
+    /* ── Tips ── */
+    .tip {
+      background: #FFFBEB;
+      border: 1px solid #FDE68A;
+      border-radius: 12px;
+      padding: 1rem 1.25rem;
+      margin: 1rem 0;
+      font-size: 14px;
+      color: #92400E;
+      display: flex;
+      gap: 0.75rem;
+      align-items: flex-start;
+      line-height: 1.7;
+    }
+    .tip-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+
+    .info-blue {
+      background: var(--blue-light);
+      border: 1px solid var(--blue-mid);
+      border-radius: 12px;
+      padding: 1rem 1.25rem;
+      margin: 1rem 0;
+      font-size: 14px;
+      color: #1E3A8A;
+      display: flex;
+      gap: 0.75rem;
+      align-items: flex-start;
+      line-height: 1.7;
+    }
+
+    /* ── Highlight inline ── */
+    .hi {
+      background: var(--primary-light);
+      color: var(--primary-dark);
+      font-weight: 600;
+      padding: 1px 7px;
+      border-radius: 5px;
+      font-size: 0.92em;
+    }
+
+    /* ── Compare ── */
+    .compare {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.875rem;
+      margin: 1.1rem 0;
+    }
+    .compare-box { border-radius: 12px; padding: 1.1rem; text-align: center; }
+    .compare-box.bad  { background: var(--red-light);  border: 1px solid var(--red-mid); }
+    .compare-box.good { background: var(--green-light); border: 1px solid var(--green-mid); }
+    .cmp-icon  { font-size: 28px; margin-bottom: 0.5rem; }
+    .cmp-title { font-size: 13px; font-weight: 600; margin-bottom: 0.3rem; }
+    .compare-box.bad  .cmp-title { color: #dc2626; }
+    .compare-box.good .cmp-title { color: var(--green-dark); }
+    .cmp-sub { font-size: 12.5px; color: var(--text-2); line-height: 1.55; }
+
+    /* ── Loop diagram ── */
+    .loop-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.5rem 1.25rem;
+      margin-bottom: 1.25rem;
+    }
+    .loop-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--primary-dark);
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      margin-bottom: 1.1rem;
+    }
+    .loop-hbar {
+      width: 3px; height: 16px;
+      background: var(--primary);
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+    .loop-node {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 14px;
+      margin-bottom: 4px;
+    }
+    .loop-node-title { font-size: 14px; font-weight: 500; color: var(--text); margin-bottom: 2px; }
+    .loop-node-sub   { font-size: 12.5px; color: var(--text-2); line-height: 1.55; }
+    .loop-arrow      { text-align: center; color: var(--text-3); font-size: 18px; padding: 3px 0; }
+    .loop-back {
+      background: var(--primary-light);
+      border: 1px solid var(--primary-border);
+      border-radius: 8px;
+      padding: 9px 14px;
+      font-size: 13px;
+      color: var(--primary-dark);
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    /* ── Timeline ── */
+    .timeline { margin: 1.5rem 0; }
+    .tl-item { display: flex; gap: 1rem; }
+    .tl-dot  { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
+    .tl-circle {
+      width: 38px; height: 38px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; flex-shrink: 0;
+      border: 2px solid var(--border);
+    }
+    .tl-line { width: 2px; background: var(--border); flex: 1; min-height: 20px; margin: 4px 0; }
+    .tl-content { padding-top: 6px; padding-bottom: 1.25rem; }
+    .tl-time { font-size: 11px; color: var(--text-3); font-weight: 500; letter-spacing: 0.04em; margin-bottom: 2px; }
+    .tl-text { font-size: 14.5px; font-weight: 600; color: var(--text); margin-bottom: 3px; }
+    .tl-sub  { font-size: 13px; color: var(--text-2); line-height: 1.6; }
+
+    /* ── Mode cards ── */
+    .mode-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
+      gap: 1rem;
+      margin: 1rem 0 1.25rem;
+    }
+    .mode-card { border-radius: 16px; padding: 1.25rem; }
+    .mode-card.orange { background: var(--primary-light); border: 2px solid var(--primary-border); }
+    .mode-card.blue   { background: var(--blue-light);    border: 2px solid var(--blue-mid); }
+    .mode-card.purple { background: var(--purple-light);  border: 2px solid var(--purple-mid); }
+    .mode-emoji { font-size: 30px; margin-bottom: 0.75rem; display: block; }
+    .mode-name  { font-size: 16px; font-weight: 700; margin-bottom: 0.3rem; }
+    .mode-card.orange .mode-name { color: var(--primary-dark); }
+    .mode-card.blue   .mode-name { color: var(--blue); }
+    .mode-card.purple .mode-name { color: var(--purple); }
+    .mode-desc { font-size: 13px; color: var(--text-2); line-height: 1.6; margin-bottom: 0.75rem; }
+    .mode-when {
+      font-size: 12px; font-weight: 500;
+      background: rgba(255,255,255,0.75);
+      border-radius: 8px; padding: 7px 10px;
+      color: var(--text); line-height: 1.55;
+    }
+
+    /* ── Steps ── */
+    .steps { margin: 0.25rem 0; }
+    .step-row { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 9px; }
+    .step-num {
+      flex-shrink: 0;
+      width: 22px; height: 22px;
+      background: var(--primary);
+      color: white; border-radius: 50%;
+      font-size: 11px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      margin-top: 1px;
+    }
+    .step-text { font-size: 14px; color: var(--text-2); line-height: 1.6; }
+    .step-text strong { color: var(--text); }
+
+    /* ── Macro summary mockup (สีตรงแอปพอดี) ── */
+    .mock-bg {
+      background: #F8F7F4;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px;
+      margin-top: 6px;
+    }
+    .mock-label { font-size: 11.5px; color: var(--text-3); margin-bottom: 10px; font-weight: 500; }
+
+    /* macro summary bar (แบบใน app: ขวางเดียว แสดง kcal + C P F) */
+    .macro-summary-row {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 8px 12px;
+      margin-bottom: 10px;
+    }
+    .ms-item { font-size: 12px; font-weight: 700; color: #374151; }
+    .ms-item span { font-size: 11px; font-weight: 400; color: var(--text-3); margin-left: 2px; }
+    .ms-kcal { font-size: 14px; font-weight: 800; color: var(--primary-dark); margin-left: auto; }
+
+    .bar-label-row {
+      display: flex; justify-content: space-between;
+      font-size: 12px; margin-bottom: 4px; color: var(--text-2);
+    }
+    .bar-track { height: 8px; background: #F3F4F6; border-radius: 4px; overflow: hidden; margin-bottom: 10px; }
+    .bar-fill  { height: 100%; border-radius: 4px; transition: .4s; }
+
+    /* ── Macro 7-day rows (เหมือนแอป) ── */
+    .m7r { display:flex; align-items:center; gap:6px; margin-bottom:3px; font-size:12px; }
+    .m7t { flex:1; height:6px; background:#F3F4F6; border-radius:3px; overflow:hidden; }
+    .m7f { height:100%; border-radius:3px; }
+    .m7v { font-size:11px; color:var(--text-3); width:30px; text-align:right; flex-shrink:0; }
+
+    /* ── kcal 7-day bar chart (เหมือนแอป Zigzag) ── */
+    .kc-chart { display:flex; gap:4px; }
+    .kc-col { flex:1; display:flex; flex-direction:column; align-items:center; }
+    .kc-num { font-size:9px; color:var(--text-3); margin-bottom:2px; min-height:13px; }
+    .kc-wrap { width:100%; height:60px; display:flex; align-items:flex-end; justify-content:center; position:relative; }
+    .kc-line { position:absolute; left:0; right:0; height:1.5px; background:#FED7AA; border-radius:1px; pointer-events:none; }
+    .kc-bar { width:100%; border-radius:4px 4px 0 0; }
+    .kc-lbl { font-size:9px; color:var(--text-3); margin-top:3px; }
+
+    /* ── FAQ ── */
+    .faq-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      margin-bottom: 0.75rem;
+      overflow: hidden;
+    }
+    .faq-q {
+      padding: 1rem 1.25rem;
+      font-size: 14px; font-weight: 500; color: var(--text);
+      display: flex; gap: 0.75rem; align-items: flex-start;
+    }
+    .faq-badge {
+      flex-shrink: 0;
+      width: 22px; height: 22px;
+      background: var(--primary); color: white;
+      border-radius: 50%; font-size: 11px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      margin-top: 1px;
+    }
+    .faq-a {
+      border-top: 1px solid var(--border);
+      padding: 0.875rem 1.25rem 1rem;
+      font-size: 14px; color: var(--text-2); line-height: 1.75;
+    }
+
+    /* ── Footer ── */
+    .footer {
+      text-align: center;
+      padding: 2.5rem 1.5rem 3rem;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .footer-logo { font-size: 2rem; margin-bottom: 0.75rem; }
+    .footer-name { font-size: 1rem; font-weight: 700; color: var(--primary-dark); margin-bottom: 0.3rem; }
+    .footer-sub  { font-size: 13px; color: var(--text-3); line-height: 1.7; }
+
+    /* ── Responsive ── */
+    @media (max-width: 500px) {
+      .mode-grid { grid-template-columns: 1fr; }
+      .compare   { grid-template-columns: 1fr; }
+      .header h1 { font-size: 1.55rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══ HEADER ══ -->
+<header class="header">
+  <div class="header-badge">คู่มือนักเรียน</div>
+  <h1>DO IT FIT Meal Log</h1>
+  <p>บันทึกมื้ออาหาร · ติดตามโภชนาการ · ทำงานร่วมกับโค้ช</p>
+</header>
+
+<!-- ══ TOC ══ -->
+<nav class="toc" aria-label="สารบัญ">
+  <a href="#why">1. ทำไมต้อง Log?</a>
+  <a href="#routine">2. กิจวัตรประจำวัน</a>
+  <a href="#howto">3. วิธี Log</a>
+  <a href="#after">4. หลัง Log แล้ว?</a>
+  <a href="#dashboard">5. ดูผลลัพธ์</a>
+  <a href="#plan">6. วางแผน</a>
+  <a href="#faq">7. FAQ</a>
+</nav>
+
+
+<!-- ══ 1. ทำไมต้อง Log? ══ -->
+<section class="section" id="why">
+  <div class="section-label">
+    <div class="sec-num">1</div>
+    <div class="sec-title">ทำไมต้อง Log?</div>
+  </div>
+
+  <p>การบันทึกอาหารทุกมื้อช่วยให้เห็น <strong>ว่ากินอะไรไปจริงๆ</strong> ไม่ใช่แค่เดา ข้อมูลนี้ทำให้โค้ชช่วยได้ตรงจุด และตัวเองก็รู้ว่าต้องปรับอะไรในมื้อถัดไป</p>
+
+  <div class="compare">
+    <div class="compare-box bad">
+      <div class="cmp-icon">😕</div>
+      <div class="cmp-title">ไม่ Track</div>
+      <div class="cmp-sub">เดาว่ากินพอ · ไม่รู้ว่าขาดโปรตีน · โค้ชช่วยได้น้อยเพราะไม่มีข้อมูล</div>
+    </div>
+    <div class="compare-box good">
+      <div class="cmp-icon">💪</div>
+      <div class="cmp-title">Track ทุกมื้อ</div>
+      <div class="cmp-sub">รู้ทันทีว่าเหลืออีกเท่าไหร่ · โค้ชเห็นปัญหาและแนะนำได้ตรง</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">📊 สิ่งที่แอปติดตามให้</div>
+    <div class="card-body">
+      <div style="background:#FFF8EC;border-left:3px solid var(--primary);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:13px;color:#92400E">
+        <strong>Macro คืออะไร?</strong><br>
+        C · P · F ย่อมาจาก <em>Macronutrient</em> — สารอาหารหลัก 3 ตัวที่ร่างกายต้องการในปริมาณมากทุกวัน ทุกอาหารที่กินเข้าไปมีส่วนผสมของ 3 ตัวนี้ในสัดส่วนต่างกัน แอปจะรวมให้อัตโนมัติ
+      </div>
+      <span style="color:var(--carb-color);font-weight:700">🟠 Carb (C)</span> = คาร์โบไฮเดรต — พลังงานหลัก ใช้ก่อนเสมอ<br>
+      <span style="color:var(--prot-color);font-weight:700">🔵 Protein (P)</span> = โปรตีน — ซ่อมแซมและสร้างกล้ามเนื้อ<br>
+      <span style="color:var(--fat-color);font-weight:700">🟣 Fat (F)</span> = ไขมัน — ฮอร์โมนและพลังงานสำรอง<br>
+      <span style="color:var(--primary-dark);font-weight:700">⚡ kcal</span> = พลังงานรวม คำนวณจาก C×4 + P×4 + F×9
+    </div>
+  </div>
+
+  <div class="tip">
+    <span class="tip-icon">💡</span>
+    <span>โค้ชตั้ง <strong>เป้าหมาย C/P/F</strong> ไว้ให้แล้วตามแผนของแต่ละคน ไม่ต้องคำนวณเอง แค่บันทึกครบ ระบบเปรียบเทียบให้อัตโนมัติ</span>
+  </div>
+</section>
+
+
+<!-- ══ 2. กิจวัตรประจำวัน ══ -->
+<section class="section" id="routine">
+  <div class="section-label">
+    <div class="sec-num">2</div>
+    <div class="sec-title">วันนึงทำอะไรบ้าง?</div>
+  </div>
+
+  <div class="card" style="margin-bottom:1.25rem">
+    <div class="card-title">📱 แอปมี 5 แท็บด้านล่าง</div>
+    <div style="display:grid;gap:8px;margin-top:0.5rem">
+      <div style="display:flex;align-items:center;gap:12px;padding:8px 10px;background:#FEF3DC;border-radius:10px">
+        <span style="font-size:22px">🍽️</span>
+        <div><div style="font-weight:600;font-size:14px">Food log</div><div style="font-size:12px;color:var(--text-2)">บันทึกมื้ออาหาร — ใช้บ่อยที่สุด</div></div>
+        <span style="margin-left:auto;font-size:11px;background:var(--primary);color:white;padding:2px 8px;border-radius:99px;font-weight:600">ใช้ทุกวัน</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;padding:8px 10px;background:#EFF6FF;border-radius:10px">
+        <span style="font-size:22px">💪</span>
+        <div><div style="font-weight:600;font-size:14px">Health log</div><div style="font-size:12px;color:var(--text-2)">บันทึกนอน · ก้าว · น้ำหนัก · อารมณ์</div></div>
+        <span style="margin-left:auto;font-size:11px;background:#3B82F6;color:white;padding:2px 8px;border-radius:99px;font-weight:600">ก่อนนอน</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;padding:8px 10px;background:#F3F4F6;border-radius:10px">
+        <span style="font-size:22px">📅</span>
+        <div><div style="font-weight:600;font-size:14px">ประวัติ</div><div style="font-size:12px;color:var(--text-2)">ดูมื้อที่บันทึกไปแล้ว · แก้ย้อนหลังได้ 7 วัน</div></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;padding:8px 10px;background:#F5F3FF;border-radius:10px">
+        <span style="font-size:22px">📊</span>
+        <div><div style="font-weight:600;font-size:14px">Dashboard</div><div style="font-size:12px;color:var(--text-2)">ดูกราฟ macro 7 วัน · น้ำหนัก · แนวโน้ม</div></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;padding:8px 10px;background:#F0FDF4;border-radius:10px">
+        <span style="font-size:22px">📋</span>
+        <div><div style="font-weight:600;font-size:14px">วางแผน</div><div style="font-size:12px;color:var(--text-2)">วางแผนมื้ออาหารล่วงหน้า · ส่งให้โค้ชดู</div></div>
+      </div>
+    </div>
+  </div>
+
+  <p>ทุกวันมีวงจรง่ายๆ ที่ทำซ้ำกัน คือ <strong>Log → เห็นสรุปทันที → ปรับมื้อถัดไป</strong> แล้วก็วนซ้ำทุกมื้อ</p>
+
+  <div class="loop-wrap">
+    <div class="loop-header">
+      <div class="loop-hbar"></div>
+      วงจรหลัก · ทำซ้ำทุกมื้อ
+    </div>
+
+    <div class="loop-node">
+      <div class="loop-node-title">🍽️ &nbsp;Log มื้ออาหาร</div>
+      <div class="loop-node-sub">เลือกโหมดที่เหมาะ → บันทึกใน 1–2 นาที</div>
+    </div>
+    <div class="loop-arrow">↓</div>
+    <div class="loop-node">
+      <div class="loop-node-title">📊 &nbsp;เห็นสรุป macro ทันที</div>
+      <div class="loop-node-sub">กินไปแล้วเท่าไหร่ · เหลืออีกเท่าไหร่ในวันนี้</div>
+    </div>
+    <div class="loop-arrow">↓</div>
+    <div class="loop-node">
+      <div class="loop-node-title">🎯 &nbsp;ปรับมื้อถัดไป</div>
+      <div class="loop-node-sub">โปรตีนขาด? เพิ่มมื้อเย็น · คาร์บเยอะ? ลดข้าวนิดนึง</div>
+    </div>
+    <div class="loop-back">
+      <span style="font-size:16px">↩</span>
+      วนซ้ำ 3 รอบต่อวัน &nbsp;·&nbsp; เช้า → กลางวัน → เย็น
+    </div>
+  </div>
+
+  <p>ในทางปฏิบัติ วันหนึ่งดูแบบนี้:</p>
+
+  <div class="timeline">
+    <div class="tl-item">
+      <div class="tl-dot">
+        <div class="tl-circle" style="background:#FEF3DC">🌅</div>
+        <div class="tl-line"></div>
+      </div>
+      <div class="tl-content">
+        <div class="tl-time">เช้า</div>
+        <div class="tl-text">Log มื้อเช้า</div>
+        <div class="tl-sub">บันทึกหลังกิน · เห็นทันทีว่าวันนี้เริ่มต้นยังไง<br>
+          <span style="color:var(--primary-dark);font-weight:500">⚖️ ชั่งน้ำหนัก + วัดสัดส่วน (อาทิตย์ละครั้ง)</span> — ทำ<strong>ก่อนกินหรือดื่มอะไร</strong> ค่าจะแม่นที่สุด</div>
+      </div>
+    </div>
+
+    <div class="tl-item">
+      <div class="tl-dot">
+        <div class="tl-circle" style="background:#FFF7ED">☀️</div>
+        <div class="tl-line"></div>
+      </div>
+      <div class="tl-content">
+        <div class="tl-time">กลางวัน</div>
+        <div class="tl-text">Log มื้อกลาง + เช็ค LINE</div>
+        <div class="tl-sub">ดูว่าโค้ชส่ง feedback มาไหม · ถามได้ถ้ามีข้อสงสัย</div>
+      </div>
+    </div>
+
+    <div class="tl-item">
+      <div class="tl-dot">
+        <div class="tl-circle" style="background:#dbeafe">🌆</div>
+        <div class="tl-line"></div>
+      </div>
+      <div class="tl-content">
+        <div class="tl-time">เย็น</div>
+        <div class="tl-text">Log มื้อเย็น</div>
+        <div class="tl-sub">ดูว่าวันนี้ได้ตามแผนไหม · ปิดวันแบบรู้ตัวเลข</div>
+      </div>
+    </div>
+
+    <div class="tl-item">
+      <div class="tl-dot">
+        <div class="tl-circle" style="background:#ede9fe">🌙</div>
+      </div>
+      <div class="tl-content">
+        <div class="tl-time">ก่อนนอน</div>
+        <div class="tl-text">Health Log</div>
+        <div class="tl-sub">บันทึกชั่วโมงนอน · ก้าวเดิน · อารมณ์วันนี้ · ใช้เวลาไม่ถึงนาที</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="info-blue">
+    <span style="font-size:18px;flex-shrink:0;margin-top:1px">💬</span>
+    <span><strong>ระหว่างวัน — ถามโค้ชได้ตลอด:</strong> หิวผิดเวลา · ไม่อิ่ม · ไม่รู้จะกินอะไร · อยากปรับแผน<br>ส่งข้อความมาใน LINE ได้เลย ไม่ต้องรอ</span>
+  </div>
+</section>
+
+
+<!-- ══ 3. วิธี Log ══ -->
+<section class="section" id="howto">
+  <div class="section-label">
+    <div class="sec-num">3</div>
+    <div class="sec-title">วิธี Log ทำยังไง?</div>
+  </div>
+
+  <p>แอปมี <strong>3 โหมด</strong> เลือกตามสถานการณ์ ไม่ต้องใช้ทุกโหมดทุกมื้อ</p>
+
+  <div class="mode-grid">
+    <div class="mode-card orange">
+      <span class="mode-emoji">👊</span>
+      <div class="mode-name">Hand Mode</div>
+      <div class="mode-desc">เลือกอาหารเป็นสัดส่วนมือ — เร็วที่สุด ใช้บ่อยที่สุด</div>
+      <div class="mode-when">✅ ใช้เมื่อ: กินอาหารบ้าน · กะด้วยสายตา · อยากบันทึกเร็ว</div>
+    </div>
+    <div class="mode-card blue">
+      <span class="mode-emoji">✍️</span>
+      <div class="mode-name">กรอก Mode</div>
+      <div class="mode-desc">กรอกปริมาณเป็นกรัมหรือหน่วยโดยตรง — ไม่มี AI ตัวเลขที่ใส่ = ตัวเลขที่บันทึก</div>
+      <div class="mode-when">✅ ใช้เมื่อ: มีฉลากโภชนาการ · ชั่งน้ำหนักอาหารแล้ว · รู้กรัมแน่ๆ</div>
+    </div>
+    <div class="mode-card purple">
+      <span class="mode-emoji">✨</span>
+      <div class="mode-name">AI Mode</div>
+      <div class="mode-desc">พิมพ์บอกว่ากินอะไรบ้าง — AI แปลงเป็น macro ให้ · แก้ปริมาณได้ก่อนบันทึก · ไม่มีถ่ายรูป</div>
+      <div class="mode-when">✅ ใช้เมื่อ: กินนอกบ้าน · ทำอาหารเอง · ไม่รู้กรัมแน่ๆ</div>
+    </div>
+  </div>
+
+  <div class="tip">
+    <span class="tip-icon">💡</span>
+    <span><strong>90% ของมื้อ</strong> ใช้ Hand Mode ได้เลย เร็วที่สุด · ใช้ AI Mode เมื่อกินนอกบ้านและอยากพิมพ์บอก AI · ใช้กรอก Mode เมื่อรู้กรัมแน่ๆ และไม่ต้องการให้ AI เดา</span>
+  </div>
+
+  <!-- ── Hand Portion Guide ── -->
+  <div class="card" style="margin-top:1.5rem;border-color:#FDE68A">
+    <div class="card-title">📏 Hand Portion คืออะไร? — อ่านก่อนใช้ Hand Mode</div>
+    <div class="card-body" style="margin-bottom:1rem">Hand Mode ใช้ <strong>"มือ"</strong> ของตัวเองเป็นตัววัด ไม่ต้องชั่งกรัม มือแต่ละคนสัดส่วนกับร่างกายตัวเองพอดีอยู่แล้ว</div>
+
+    <img src="portion-03.jpg" alt="1 ฝ่ามือ = โปรตีน 1 Portion · 1 กุ้มมือ = คาร์บ 1 Portion · 1 หัวนิ้วโป้ง = ไขมัน 1 Portion" style="width:100%;max-width:560px;display:block;margin:0 auto 1rem;border-radius:14px">
+
+    <div style="font-weight:600;font-size:13px;margin-bottom:8px;color:var(--text-2)">🌾 คาร์บ — 1 มือ = กำมือ (cup shape)</div>
+    <div style="display:grid;gap:6px;margin-bottom:1rem">
+      <div style="display:flex;align-items:center;gap:10px;padding:7px 10px;background:#F0FDF4;border-radius:8px;font-size:13px">
+        <span>🟢</span><div style="flex:1"><strong>ผัก</strong> — ผักใบ, บล็อกโคลี, แตงกวา, เห็ด, เส้นบุก</div><span style="color:var(--text-3);font-size:12px">C≈2g/มือ</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;padding:7px 10px;background:#EFF6FF;border-radius:8px;font-size:13px">
+        <span>🔵</span><div style="flex:1"><strong>เบา</strong> — วุ้นเส้น, โจก, ข้าวต้ม</div><span style="color:var(--text-3);font-size:12px">C≈7g/มือ</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;padding:7px 10px;background:#FEFCE8;border-radius:8px;font-size:13px">
+        <span>🟡</span><div style="flex:1"><strong>ปกติ</strong> — <u>ข้าวสวย, ข้าวกล้อง</u>, มันต้ม, เส้นเล็ก, ขนมปัง 1 แผ่น</div><span style="color:var(--text-3);font-size:12px">C≈15g/มือ</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;padding:7px 10px;background:#FFF7ED;border-radius:8px;font-size:13px">
+        <span>🟠</span><div style="flex:1"><strong>แน่น</strong> — พาสต้า, ธัญพืช, ข้าวโอ๊ต (แห้ง)</div><span style="color:var(--text-3);font-size:12px">C≈20g/มือ</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;padding:7px 10px;background:#FEF2F2;border-radius:8px;font-size:13px">
+        <span>🔴</span><div style="flex:1"><strong>ตัวตึง</strong> — ข้าวเหนียว, เส้นใหญ่, บะหมี่กึ่งสำเร็จรูป ⚠️</div><span style="color:var(--text-3);font-size:12px">C≈34g/มือ</span>
+      </div>
+    </div>
+
+    <div style="font-weight:600;font-size:13px;margin-bottom:8px;color:var(--text-2)">🍗 โปรตีน — 1 ฝ่ามือ = หนา 1 cm (เนื้อสุก)</div>
+    <div style="display:grid;gap:6px;margin-bottom:1rem">
+      <div style="padding:10px 12px;background:#F0FDF4;border-radius:8px;font-size:13px">
+        <div style="font-weight:700;margin-bottom:3px">✅ Lean — โปรตีนสูง ไขมันต่ำ <span style="font-weight:400;color:var(--text-2)">(~145 kcal/ฝ่ามือ)</span></div>
+        <div style="color:var(--text-2)">อกไก่ · สันในไก่ · หมูสันใน · ปลาขาว · กุ้ง · ปู · ทูน่ากระป๋อง</div>
+        <div style="color:#16a34a;font-size:12px;margin-top:4px">👉 เนื้อไม่มีหนัง ไม่มีมัน สีขาว/ชมพู — เลือกตัวนี้เป็นหลัก</div>
+      </div>
+      <div style="padding:10px 12px;background:#FFF7ED;border-radius:8px;font-size:13px">
+        <div style="font-weight:700;margin-bottom:3px">🔶 Semi-lean — โปรตีนปานกลาง ไขมันสูงกว่า <span style="font-weight:400;color:var(--text-2)">(~185 kcal/ฝ่ามือ)</span></div>
+        <div style="color:var(--text-2)">ไก่ติดหนัง · แซลมอน · เนื้อวัวสันนอก · เต้าหู้แข็ง</div>
+        <div style="color:#92400E;font-size:12px;margin-top:4px">👉 เนื้อมีหนัง หรือปลาที่มีไขมันสูง — เลือกตัวนี้เมื่อกินปลาแซลมอนหรือไก่ทอด</div>
+      </div>
+    </div>
+
+    <img src="portion-02.jpg" alt="Lean vs Semi-lean: กุ้ง อกไก่ ปลาขาว (Lean) vs ไก่มีหนัง แซลมอน เต้าหู้ (Semi-lean)" style="width:100%;max-width:560px;display:block;margin:0 auto 1rem;border-radius:14px">
+
+    <div style="font-weight:600;font-size:13px;margin-bottom:8px;color:var(--text-2)">🧈 ไขมัน — มาจากวิธีปรุง</div>
+    <div style="display:grid;gap:6px">
+      <div style="display:flex;align-items:center;gap:10px;padding:7px 10px;background:#F0FDF4;border-radius:8px;font-size:13px">
+        <span>🟢</span><div style="flex:1"><strong>ต้ม / ย่าง / นึ่ง / อบ</strong></div><span style="color:#16a34a;font-size:12px;font-weight:600">+0g ไขมัน</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;padding:7px 10px;background:#FFF7ED;border-radius:8px;font-size:13px">
+        <span>🟡</span><div style="flex:1"><strong>ผัดร้าน</strong> (ผัดกะเพรา, ผัดผัก,炒)</div><span style="color:#D97706;font-size:12px;font-weight:600">+10g ไขมัน</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;padding:7px 10px;background:#FEF2F2;border-radius:8px;font-size:13px">
+        <span>🔴</span><div style="flex:1"><strong>ทอด / กะทิ / แกงเข้มข้น</strong></div><span style="color:#DC2626;font-size:12px;font-weight:600">+20g ไขมัน</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:1.5rem">
+    <div class="card-title">👊 ขั้นตอน Hand Mode (ใช้บ่อยที่สุด)</div>
+    <div class="steps">
+      <div class="step-row"><div class="step-num">1</div><div class="step-text">หมวด <strong>🌾 คาร์บ</strong> — เลือกความหนาแน่น (เช่น ข้าวสวย / ก๋วยเตี๋ยว) · ใส่จำนวนฝ่ามือ · เลือก <strong>ผลไม้</strong>เพิ่มได้ในหมวดนี้</div></div>
+      <div class="step-row"><div class="step-num">2</div><div class="step-text">หมวด <strong>🍗 โปรตีน</strong> — เลือกประเภท (Lean / Semi-lean) · ไก่ · ปลา · เนื้อ · ไข่ · ใส่จำนวนฝ่ามือ</div></div>
+      <div class="step-row"><div class="step-num">3</div><div class="step-text">หมวด <strong>🧈 ไขมัน</strong> — เลือกวิธีปรุง (ต้ม/ย่าง · ผัดร้าน · ทอด/กะทิ) หรือกรอกน้ำมัน/อะโวคาโดได้</div></div>
+      <div class="step-row"><div class="step-num">4</div><div class="step-text">กรอก <strong>🍽️ ชื่อเมนูที่กิน</strong> เช่น "ข้าวกะเพราไก่" — ช่วยให้โค้ชเห็นบริบทและแนะนำได้ตรงกว่า</div></div>
+      <div class="step-row"><div class="step-num">5</div><div class="step-text">กด <strong>บันทึก</strong> — เสร็จแล้ว! ใช้เวลาไม่ถึง 2 นาที</div></div>
+    </div>
+    <div class="tip" style="margin-top:0.75rem;margin-bottom:0">
+      <span class="tip-icon">📏</span>
+      <span>ไม่รู้จะ estimate ยังไง? กด <strong>"📏 ไกด์วัดมือ"</strong> ในแอปเพื่อดูตัวอย่างขนาด เช่น ฝ่ามือ = โปรตีน 1 serving · หัวแม่โป้ง = ไขมัน 1 serving</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">✨ ขั้นตอน AI Mode</div>
+    <div class="steps">
+      <div class="step-row"><div class="step-num">1</div><div class="step-text"><strong>พิมพ์</strong>ว่ากินอะไรบ้าง เช่น "ข้าวสวย 1 ทัพพี ไก่ย่าง 1 ชิ้น ผัดผัก"</div></div>
+      <div class="step-row"><div class="step-num">2</div><div class="step-text">AI แปลงเป็นรายการอาหารพร้อมประมาณปริมาณให้</div></div>
+      <div class="step-row"><div class="step-num">3</div><div class="step-text"><strong>ตรวจสอบ</strong> — แก้ปริมาณที่ AI ประมาณผิดได้ทันที</div></div>
+      <div class="step-row"><div class="step-num">4</div><div class="step-text">กด <strong>ยืนยัน + บันทึก</strong></div></div>
+    </div>
+    <div class="info-blue" style="margin-top:0.75rem;margin-bottom:0">
+      <span style="font-size:16px;flex-shrink:0">⚠️</span>
+      <span>AI อาจประมาณปริมาณผิดได้ — <strong>ตรวจสอบและแก้</strong> ก่อนกด "บันทึก" เสมอ</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">✍️ ขั้นตอน กรอก Mode</div>
+    <div class="steps">
+      <div class="step-row"><div class="step-num">1</div><div class="step-text">กรอก <strong>คาร์บ · โปรตีน · ไขมัน</strong> เป็นกรัม (ก.) ตามที่รู้หรืออ่านจากฉลาก</div></div>
+      <div class="step-row"><div class="step-num">2</div><div class="step-text">ใส่ <strong>จำนวนที่กิน</strong> — เช่น กิน 2 ห่อ ใส่ 2 · กินครึ่งถุงใส่ 0.5 · ระบบคูณ macro ให้อัตโนมัติ</div></div>
+      <div class="step-row"><div class="step-num">3</div><div class="step-text">กรอก <strong>ชื่อเมนู</strong> เพื่อให้โค้ชรู้ว่ากินอะไร</div></div>
+      <div class="step-row"><div class="step-num">4</div><div class="step-text">กด <strong>บันทึก</strong> — ตัวเลขที่กรอกจะถูกบันทึกตรงๆ ไม่มี AI ปรับ</div></div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ══ 4. หลัง Log แล้ว? ══ -->
+<section class="section" id="after">
+  <div class="section-label">
+    <div class="sec-num">4</div>
+    <div class="sec-title">หลัง Log แล้วเกิดอะไรขึ้น?</div>
+  </div>
+
+  <p>ทันทีหลัง Log ระบบจะแสดง <strong>สรุปโภชนาการ</strong> ของมื้อนั้น และอัปเดต <strong>ยอดรวมประจำวัน</strong> โดยอัตโนมัติ</p>
+
+  <div class="card">
+    <div class="card-title">📊 ตัวอย่าง: หน้าสรุปหลัง Log มื้อเช้า</div>
+
+    <!-- สรุปมื้อ: macro summary bar เหมือนในแอป -->
+    <div class="mock-bg">
+      <div class="mock-label">🌅 มื้อเช้า · บันทึกแล้ว</div>
+
+      <div class="macro-summary-row">
+        <div class="ms-item">C <span>45g</span></div>
+        <div class="ms-item">P <span>32g</span></div>
+        <div class="ms-item">F <span>12g</span></div>
+        <div class="ms-kcal">412 kcal</div>
+      </div>
+
+      <!-- daily progress bars (สีตรงแอป) -->
+      <div style="font-size:11px;color:var(--text-3);margin-bottom:8px;font-weight:500">ยอดรวมวันนี้ · เป้า 1,800 kcal <span style="font-weight:400;color:#9CA3AF">(ตัวอย่าง — เป้าของแต่ละคนต่างกัน โค้ชตั้งให้)</span></div>
+
+      <div class="bar-label-row">
+        <span style="color:var(--text-2)">🟠 Carb</span>
+        <span style="font-weight:600">45 / 160 g</span>
+      </div>
+      <div class="bar-track"><div class="bar-fill" style="width:28%;background:var(--carb-color)"></div></div>
+
+      <div class="bar-label-row">
+        <span style="color:var(--text-2)">🔵 Protein</span>
+        <span style="font-weight:600">32 / 120 g</span>
+      </div>
+      <div class="bar-track"><div class="bar-fill" style="width:27%;background:var(--prot-color)"></div></div>
+
+      <div class="bar-label-row">
+        <span style="color:var(--text-2)">🟣 Fat</span>
+        <span style="font-weight:600">12 / 60 g</span>
+      </div>
+      <div class="bar-track" style="margin-bottom:0"><div class="bar-fill" style="width:20%;background:var(--fat-color)"></div></div>
+    </div>
+
+    <div class="card-body" style="margin-top:10px;">
+      เห็น % ที่กินไปแล้ว → รู้ทันทีว่ามื้อถัดไปต้องเพิ่มหรือลดอะไร
+    </div>
+  </div>
+
+  <div class="tip">
+    <span class="tip-icon">📱</span>
+    <span>ข้อมูลที่บันทึกทุกมื้อ <strong>โค้ชเห็นได้ทันที</strong> ไม่ต้องส่งแยกต่างหากหรือแจ้งโค้ชอีกรอบ</span>
+  </div>
+
+  <div class="card" style="border-color:var(--primary-border);background:var(--primary-light)">
+    <div class="card-title" style="color:var(--primary-dark)">🔔 โค้ชจะแจ้งกลับทาง LINE</div>
+    <div class="card-body" style="color:#92400E">
+      เมื่อโค้ชดูข้อมูลแล้ว จะส่ง <strong>คำแนะนำและ feedback</strong> มาทาง LINE เช่น ปรับมื้อถัดไปยังไง · เพิ่มโปรตีนตรงไหน · ให้เพิ่มผักอีกได้ ฯลฯ
+    </div>
+  </div>
+</section>
+
+
+<!-- ══ 5. ดูผลลัพธ์ ══ -->
+<section class="section" id="dashboard">
+  <div class="section-label">
+    <div class="sec-num">5</div>
+    <div class="sec-title">ดูผลลัพธ์ตัวเองได้ที่ไหน?</div>
+  </div>
+
+  <p>เปิดแท็บ <span class="hi">Dashboard</span> — มี 2 ส่วนหลัก ดูย้อนหลัง 7 วัน (จันทร์–อาทิตย์)</p>
+
+  <!-- ── Card 1: Macro 7 วัน list ── -->
+  <div class="card">
+    <div class="card-title">📊 Macro 7 วันล่าสุด</div>
+    <div class="card-body" style="margin-bottom:10px">แต่ละวันแสดง kcal รวม + บาร์ Carb / Protein / Fat เทียบกับเป้า</div>
+
+    <div class="mock-bg">
+      <div style="display:flex;gap:12px;font-size:11px;color:var(--text-3);margin-bottom:8px">
+        <span>🟠 Carb</span><span>🔵 Protein</span><span>🟣 Fat</span>
+      </div>
+
+      <!-- วัน อ — ในเป้า -->
+      <div style="padding:7px 0;border-bottom:1px solid #F3F4F6">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
+          <span style="font-size:11px;font-weight:600;color:var(--text)">อ 22</span>
+          <span style="font-size:12px;font-weight:700;color:var(--green)">1,720 kcal</span>
+        </div>
+        <div class="m7r"><span>🟠</span><div class="m7t"><div class="m7f" style="width:65%;background:var(--carb-color)"></div></div><span class="m7v">145g</span></div>
+        <div class="m7r"><span>🔵</span><div class="m7t"><div class="m7f" style="width:88%;background:var(--prot-color)"></div></div><span class="m7v">106g</span></div>
+        <div class="m7r"><span>🟣</span><div class="m7t"><div class="m7f" style="width:55%;background:var(--fat-color)"></div></div><span class="m7v">33g</span></div>
+      </div>
+
+      <!-- วัน จ — ขาด kcal -->
+      <div style="padding:7px 0">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
+          <span style="font-size:11px;font-weight:600;color:var(--text)">จ 21</span>
+          <span style="font-size:12px;font-weight:700;color:var(--blue)">1,320 kcal</span>
+        </div>
+        <div class="m7r"><span>🟠</span><div class="m7t"><div class="m7f" style="width:40%;background:var(--carb-color)"></div></div><span class="m7v">90g</span></div>
+        <div class="m7r"><span>🔵</span><div class="m7t"><div class="m7f" style="width:72%;background:var(--prot-color)"></div></div><span class="m7v">86g</span></div>
+        <div class="m7r"><span>🟣</span><div class="m7t"><div class="m7f" style="width:45%;background:var(--fat-color)"></div></div><span class="m7v">27g</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Card 2: Zigzag kcal bar chart ── -->
+  <div class="card">
+    <div class="card-title">⚡ กราฟ kcal 7 วัน vs เป้า</div>
+    <div class="card-body" style="margin-bottom:10px">บาร์เปลี่ยนสีตามผล · เส้นสีส้ม = เป้า kcal ของคุณ</div>
+
+    <div class="mock-bg">
+      <div style="font-size:11px;color:var(--text-3);margin-bottom:8px;font-weight:600">Net 7 วัน (จ–อา) vs เป้า</div>
+      <div class="kc-chart">
+        <div class="kc-col">
+          <div class="kc-num" style="color:var(--blue)">1.3k</div>
+          <div class="kc-wrap"><div class="kc-line" style="bottom:46px"></div><div class="kc-bar" style="height:37px;background:var(--blue)"></div></div>
+          <div class="kc-lbl">จ</div>
+        </div>
+        <div class="kc-col">
+          <div class="kc-num">1.7k</div>
+          <div class="kc-wrap"><div class="kc-line" style="bottom:46px"></div><div class="kc-bar" style="height:49px;background:var(--green)"></div></div>
+          <div class="kc-lbl">อ</div>
+        </div>
+        <div class="kc-col">
+          <div class="kc-num">1.8k</div>
+          <div class="kc-wrap"><div class="kc-line" style="bottom:46px"></div><div class="kc-bar" style="height:51px;background:var(--green)"></div></div>
+          <div class="kc-lbl">พ</div>
+        </div>
+        <div class="kc-col">
+          <div class="kc-num" style="color:#EF4444">2.1k</div>
+          <div class="kc-wrap"><div class="kc-line" style="bottom:46px"></div><div class="kc-bar" style="height:60px;background:#EF4444"></div></div>
+          <div class="kc-lbl">พฤ</div>
+        </div>
+        <div class="kc-col">
+          <div class="kc-num">1.6k</div>
+          <div class="kc-wrap"><div class="kc-line" style="bottom:46px"></div><div class="kc-bar" style="height:46px;background:var(--green)"></div></div>
+          <div class="kc-lbl">ศ</div>
+        </div>
+        <div class="kc-col">
+          <div class="kc-num">—</div>
+          <div class="kc-wrap"><div class="kc-line" style="bottom:46px"></div><div class="kc-bar" style="height:3px;background:#E5E7EB"></div></div>
+          <div class="kc-lbl">ส</div>
+        </div>
+        <div class="kc-col">
+          <div class="kc-num" style="color:var(--primary-dark);font-weight:700">1.5k</div>
+          <div class="kc-wrap"><div class="kc-line" style="bottom:46px"></div><div class="kc-bar" style="height:43px;background:var(--green);outline:2px solid var(--primary-dark);outline-offset:-1px"></div></div>
+          <div class="kc-lbl" style="color:var(--primary-dark);font-weight:700">วันนี้</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:7px;font-size:10px;color:var(--text-3);flex-wrap:wrap">
+        <span>🟢 ในเป้า</span>
+        <span style="color:#EF4444">🔴 เกิน</span>
+        <span style="color:var(--blue)">🔵 ขาด</span>
+        <span>· เส้นส้ม = เป้า kcal</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ══ 6. วางแผนล่วงหน้า ══ -->
+<section class="section" id="plan">
+  <div class="section-label">
+    <div class="sec-num">6</div>
+    <div class="sec-title">วางแผนล่วงหน้า</div>
+  </div>
+
+  <p>แท็บ <span class="hi">แผน</span> ใช้สำหรับ <strong>กำหนดมื้ออาหารก่อนกินจริง</strong> เหมาะสำหรับวันที่รู้แล้วว่าจะกินอะไร หรืออยากเช็คกับโค้ชก่อน</p>
+
+  <div class="card">
+    <div class="card-title">📋 วิธีใช้แท็บแผน</div>
+    <div class="steps">
+      <div class="step-row"><div class="step-num">1</div><div class="step-text">เลือก <strong>วันที่</strong> ที่ต้องการวางแผน</div></div>
+      <div class="step-row"><div class="step-num">2</div><div class="step-text">กรอก <strong>มื้ออาหาร</strong> แต่ละมื้อ ด้วยโหมดเดียวกับ Log</div></div>
+      <div class="step-row"><div class="step-num">3</div><div class="step-text">กด <strong>💾 บันทึกแผนอาหาร</strong> เพื่อบันทึก</div></div>
+      <div class="step-row"><div class="step-num">4</div><div class="step-text">กด <strong>📤 ส่งแผนไป LINE</strong> เพื่อขอคำแนะนำก่อนกินจริง</div></div>
+    </div>
+  </div>
+
+  <div class="tip">
+    <span class="tip-icon">💡</span>
+    <span>โค้ชจะ <strong>ตรวจแผน</strong> และแจ้งกลับว่าโอเคหรือต้องปรับตรงไหน ก่อนที่จะกินจริง</span>
+  </div>
+
+  <div class="card" style="border-color:var(--blue-mid);background:var(--blue-light)">
+    <div class="card-title" style="color:var(--blue)">🔖 Saved Menus — เมนูโปรด</div>
+    <div class="card-body" style="color:#1E3A8A;margin-bottom:12px">
+      บันทึกมื้ออาหารที่กินบ่อยไว้เป็น "เมนูโปรด" แล้วกดเลือกได้เลยครั้งต่อไป ไม่ต้องกรอกซ้ำทุกครั้ง
+    </div>
+
+    <!-- mockup: หน้า Log จริง แสดง saved menus chips + ปุ่ม save -->
+    <div style="background:white;border-radius:14px;padding:14px;border:1px solid var(--blue-mid)">
+      <div style="font-size:11px;font-weight:600;color:var(--text-2);margin-bottom:8px">⭐ เมนูโปรด — แตะเพื่อใช้</div>
+      <div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:14px">
+        <span style="background:#FEF3DC;border:1px solid #FCD34D;border-radius:99px;padding:5px 13px;font-size:13px;font-weight:500">ข้าวกล้อง + อกไก่ ×</span>
+        <span style="background:#FEF3DC;border:1px solid #FCD34D;border-radius:99px;padding:5px 13px;font-size:13px;font-weight:500">กุ้งผัดผัก ×</span>
+        <span style="background:#FEF3DC;border:1px solid #FCD34D;border-radius:99px;padding:5px 13px;font-size:13px;font-weight:500">โจกไก่ ×</span>
+      </div>
+      <div style="border-top:1px solid #E5E7EB;padding-top:12px">
+        <div style="font-size:12px;color:var(--text-2);margin-bottom:8px">หลัง Log มื้อนี้แล้ว กดปุ่มนี้เพื่อบันทึกเป็นเมนูโปรด:</div>
+        <button style="background:white;border:1.5px solid var(--primary);border-radius:99px;padding:7px 18px;font-size:13px;font-weight:600;color:var(--primary-dark);display:flex;align-items:center;gap:6px;cursor:default">
+          ⭐ บันทึกเป็นเมนูโปรด
+        </button>
+      </div>
+    </div>
+
+    <div style="margin-top:10px;font-size:12px;color:#1E3A8A">
+      💡 <strong>วิธีใช้:</strong> แตะ chip ที่ด้านบน → macro ใส่ให้อัตโนมัติ → กดบันทึกได้เลย ไม่ต้องกรอกซ้ำ
+    </div>
+  </div>
+</section>
+
+
+<!-- ══ 7. FAQ ══ -->
+<section class="section" id="faq">
+  <div class="section-label">
+    <div class="sec-num">7</div>
+    <div class="sec-title">คำถามที่พบบ่อย</div>
+  </div>
+
+  <div class="faq-item">
+    <div class="faq-q"><div class="faq-badge">Q</div>ลืม Log มื้อเมื่อกี้ แก้ยังไง?</div>
+    <div class="faq-a">แอปรองรับครับ — แถบวันที่ด้านบนหน้า Log จะแสดง <strong>7 วันย้อนหลัง</strong> ให้แตะเลือก แล้ว Log ได้เลย · ไม่ต้องรีบกรอกทันทีหลังกิน</div>
+  </div>
+
+  <div class="faq-item">
+    <div class="faq-q"><div class="faq-badge">Q</div>ตัวเลข C / P / F หน่วยคืออะไร?</div>
+    <div class="faq-a">C = Carbohydrate (คาร์บ) · P = Protein (โปรตีน) · F = Fat (ไขมัน) · หน่วยทั้งหมดคือ <strong>กรัม (g)</strong> · kcal คือพลังงานรวม</div>
+  </div>
+
+  <div class="faq-item">
+    <div class="faq-q"><div class="faq-badge">Q</div>AI Mode วิเคราะห์ผิด ทำยังไง?</div>
+    <div class="faq-a">แก้ <strong>ปริมาณ</strong> ของแต่ละรายการได้ทันทีในหน้าผล AI ก่อนกด "บันทึก" · ถ้าไม่แน่ใจให้ประมาณให้ใกล้เคียงที่สุด</div>
+  </div>
+
+  <div class="faq-item">
+    <div class="faq-q"><div class="faq-badge">Q</div>โค้ชเห็นข้อมูลที่ Log ไหม?</div>
+    <div class="faq-a">เห็นทุกอย่างที่บันทึก — มื้ออาหาร · สรุปประจำวัน · Health Log · แผนอาหาร · ไม่ต้องส่งแยกหรือแจ้งโค้ชเพิ่ม</div>
+  </div>
+
+  <div class="faq-item">
+    <div class="faq-q"><div class="faq-badge">Q</div>ต้อง Log ครบทุกมื้อไหม?</div>
+    <div class="faq-a">ไม่บังคับ แต่ยิ่ง Log ครบยิ่งดี เพราะโค้ชจะเห็นภาพรวมและแนะนำได้ตรงกว่า · ถ้าลืมมื้อไหนก็ไม่เป็นไร Log ต่อได้เลย</div>
+  </div>
+
+  <div class="faq-item">
+    <div class="faq-q"><div class="faq-badge">Q</div>Health Log บันทึกอะไรบ้าง?</div>
+    <div class="faq-a">ชั่วโมงนอน · จำนวนก้าว · อารมณ์/ความรู้สึก<br>
+      <strong>น้ำหนักและสัดส่วน</strong> — ชั่ง<strong>ตอนเช้าก่อนกินหรือดื่มอะไร</strong> ค่าจะแม่นที่สุด เพราะไม่มีน้ำหนักอาหารหรือความบวมมาบวก · แนะนำอาทิตย์ละครั้ง</div>
+  </div>
+
+  <div class="faq-item">
+    <div class="faq-q"><div class="faq-badge">Q</div>แอปต้องเปิดผ่าน LINE ใช่ไหม?</div>
+    <div class="faq-a">ใช่ — เปิดผ่านลิงก์ใน LINE ที่โค้ชส่งให้ · ระบบจะจำตัวตนอัตโนมัติ ไม่ต้อง login ใหม่ทุกครั้ง</div>
+  </div>
+</section>
+
+
+<!-- ══ FOOTER ══ -->
+<footer class="footer">
+  <div class="footer-logo">💪</div>
+  <div class="footer-name">DO IT FIT</div>
+  <div class="footer-sub">
+    บันทึกครบ · โค้ชช่วยได้ตรง · ผลลัพธ์ดีขึ้น<br>
+    <span style="margin-top:0.4rem;display:block">มีปัญหาการใช้งาน ติดต่อโค้ชทาง LINE ได้เลย</span>
+  </div>
+</footer>
+
+</body>
+</html>
