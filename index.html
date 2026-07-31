@@ -9,7 +9,6 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/eruda"></script><script>eruda.init();</script>
 <script>
 window.onerror=function(msg,src,line,col,err){
   var el=document.getElementById('loading');
@@ -6229,13 +6228,12 @@ function buildZigzagSection(MON, TH_SHORT, byDate, targets, userId){
 
     <div style="background:${bgColor};border:1.5px solid ${borderColor};border-radius:12px;padding:13px">
       ${zzTargetHtml}
-      <div style="font-size:11px;font-weight:600;color:#92400E;margin-bottom:5px">💬 Verdict ส่งให้นักเรียน</div>
       <textarea id="zz-verdict-${userId}" rows="4"
         style="width:100%;border:1px solid ${borderColor};border-radius:8px;padding:8px;font-size:12px;font-family:'Prompt',sans-serif;resize:none;background:white;line-height:1.7;color:var(--text)"
       >${escHtml(verdictText)}</textarea>
       <button onclick="sendZigzagVerdict('${userId}')"
         style="width:100%;margin-top:8px;padding:9px;background:var(--primary);color:white;border:none;border-radius:9px;font-size:13px;font-weight:700;font-family:'Prompt',sans-serif;cursor:pointer">
-        ส่ง Verdict → นักเรียน ✓
+        ส่งคำแนะนำให้นักเรียน
       </button>
     </div>
   </div>`;
