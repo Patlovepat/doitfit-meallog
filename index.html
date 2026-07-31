@@ -9,6 +9,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/eruda"></script><script>eruda.init();</script>
 <script>
 window.onerror=function(msg,src,line,col,err){
   var el=document.getElementById('loading');
@@ -4624,8 +4625,11 @@ async function openStudentDetail(userId){
       // background refresh health logs (เผื่อนักเรียน submit ใหม่หลัง cache)
       (async()=>{try{
         const MON=getMonWeekDates(),TH_SHORT=['จ','อ','พ','พฤ','ศ','ส','อา'];
-        const hl=await db.collection('healthLogs').doc(userId).collection('days').orderBy(firebase.firestore.FieldPath.documentId(),'desc').limit(7).get().catch(e=>{console.error('[HL bg]',e?.code,e?.message);return null;});
-        if(hl&&!hl.empty){hl.docs.forEach(d=>{c.healthLogs[d.id]=d.data();});const el=document.getElementById('sd-lifestyle-'+userId);if(el)el.innerHTML=buildLifestyleSection(MON,TH_SHORT,c.healthLogs);}
+        let _hlBgErr=null;
+        const hl=await db.collection('healthLogs').doc(userId).collection('days').orderBy(firebase.firestore.FieldPath.documentId(),'desc').limit(7).get().catch(e=>{console.error('[HL bg]',e?.code,e?.message);_hlBgErr=e?.code||'error';return null;});
+        const el=document.getElementById('sd-lifestyle-'+userId);
+        if(_hlBgErr){if(el)el.innerHTML=`<div style="padding:16px;text-align:center;color:#EF4444;font-size:13px">⚠️ health log โหลดไม่ได้<br><code style="font-size:11px;background:#FEE2E2;padding:2px 6px;border-radius:4px">${_hlBgErr}</code><br><small style="color:#6B7280">กด 🐞 ด้านล่างเพื่อดู console</small></div>`;}
+        else if(hl&&!hl.empty){hl.docs.forEach(d=>{c.healthLogs[d.id]=d.data();});if(el)el.innerHTML=buildLifestyleSection(MON,TH_SHORT,c.healthLogs);}
       }catch(e){}})();
       return;
   }
@@ -4646,8 +4650,9 @@ async function openStudentDetail(userId){
   renderStudentDetail(u,targets,{},{},[]); // render ทันที ยังไม่มี health/weekly data
   loadCoachStudentPlan(userId);
   // === PHASE 2: โหลด health/weekly ใน background → update เฉพาะส่วนนั้น ===
+  let _hlE=null;
   const [hsSnap,wsSnap,wcSnap]=await Promise.all([
-    db.collection('healthLogs').doc(userId).collection('days').orderBy(firebase.firestore.FieldPath.documentId(),'desc').limit(7).get().catch(e=>{console.error('[HL coach]',e?.code,e?.message,userId);return null;}),
+    db.collection('healthLogs').doc(userId).collection('days').orderBy(firebase.firestore.FieldPath.documentId(),'desc').limit(7).get().catch(e=>{console.error('[HL coach]',e?.code,e?.message,userId);_hlE=e?.code||'error';return null;}),
     db.collection('students').doc(userId).collection('weeklySummaries').orderBy('weekStart','desc').limit(4).get().catch(()=>null),
     db.collection('weeklyChecks').doc(userId).collection('entries').orderBy('date','asc').limit(20).get().catch(()=>null),
   ]);
@@ -4669,7 +4674,8 @@ async function openStudentDetail(userId){
     const MON=getMonWeekDates(),TH_SHORT=['จ','อ','พ','พฤ','ศ','ส','อา'];
     const byDate={};u.subs.forEach(s=>{const k=subDate(s);if(!byDate[k])byDate[k]=[];byDate[k].push(s);});
     const lsEl=document.getElementById('sd-lifestyle-'+userId);
-    if(lsEl)lsEl.innerHTML=buildLifestyleSection(MON,TH_SHORT,healthLogs);
+    if(_hlE){if(lsEl)lsEl.innerHTML=`<div style="padding:16px;text-align:center;color:#EF4444;font-size:13px">⚠️ health log โหลดไม่ได้<br><code style="font-size:11px;background:#FEE2E2;padding:2px 6px;border-radius:4px">${_hlE}</code><br><small style="color:#6B7280">กด 🐞 ด้านล่างเพื่อดู console</small></div>`;}
+    else if(lsEl)lsEl.innerHTML=buildLifestyleSection(MON,TH_SHORT,healthLogs);
     const wsEl=document.getElementById('sd-weekly-'+userId);
     if(wsEl)wsEl.innerHTML=buildWeeklySummaryAccordion(u,byDate,targets,healthLogs,weeklySummaries);
     const pgEl=document.getElementById('sd-progress-'+userId);
