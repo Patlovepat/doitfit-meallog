@@ -2796,8 +2796,9 @@ const STREAK_MILESTONES=[3,7,14,21,30];
 function calcStreak(subs){
   const dates=new Set(subs.map(s=>subDate(s)));
   let streak=0,d=new Date();
+  const _lp=n=>String(n).padStart(2,'0');
   while(true){
-    const k=d.toISOString().split('T')[0];
+    const k=`${d.getFullYear()}-${_lp(d.getMonth()+1)}-${_lp(d.getDate())}`;
     if(dates.has(k)){streak++;d.setDate(d.getDate()-1);}
     else break;
   }
@@ -2809,9 +2810,10 @@ function getWeekDots(subs){
   subs.forEach(s=>{const k=subDate(s);if(!byDate[k])byDate[k]=[];byDate[k].push(s);});
   const today=todayStr();
   const dots=[];
+  const _lp2=n=>String(n).padStart(2,'0');
   for(let i=6;i>=0;i--){
     const d=new Date();d.setDate(d.getDate()-i);
-    const k=d.toISOString().split('T')[0];
+    const k=`${d.getFullYear()}-${_lp2(d.getMonth()+1)}-${_lp2(d.getDate())}`;
     const daySubs=byDate[k]||[];
     let kcal=0;daySubs.forEach(s=>{kcal+=getSubMacros(s).kcal;});
     dots.push({date:k,isToday:k===today,hasSub:daySubs.length>0,kcal,day:TH_DAYS[d.getDay()]});
@@ -3226,7 +3228,7 @@ async function saveWeeklyCheck(){
   if(!weight||isNaN(weight)){alert('กรุณากรอกน้ำหนักอย่างน้อยหนึ่งช่องค่ะ');return;}
   const getV=id=>{const v=parseFloat(document.getElementById(id).value);return isNaN(v)?null:v;};
   const entry={
-    date:todayStr(), weight_kg:weight,
+    date:selectedDate, weight_kg:weight,
     bodyFat_pct:getV('wc-bf'), muscle_mass_kg:getV('wc-mm'),
     waist_cm:getV('wc-waist'), hip_cm:getV('wc-hip'), chest_cm:getV('wc-chest'),
     arm_left_cm:getV('wc-arm-l'), arm_right_cm:getV('wc-arm-r'),
@@ -3236,7 +3238,7 @@ async function saveWeeklyCheck(){
   // remove null fields
   Object.keys(entry).forEach(k=>{if(entry[k]===null)delete entry[k];});
   try{
-    await db.collection('weeklyChecks').doc(user.userId).collection('entries').doc(todayStr()).set(entry,{merge:true});
+    await db.collection('weeklyChecks').doc(user.userId).collection('entries').doc(selectedDate).set(entry,{merge:true});
     const msg=document.getElementById('wc-saved-msg');
     if(msg){msg.style.display='block';setTimeout(()=>{msg.style.display='none';},2500);}
     loadMyProgress(); // refresh chart
@@ -4015,7 +4017,7 @@ async function submitMeal(){
       photoUrls=urls.filter(Boolean);
       photoUrl=photoUrls[0]||null; // backward compat
     }
-    await db.collection('submissions').add({
+    const docRef=await db.collection('submissions').add({
       userId:user.userId,displayName:user.displayName,pictureUrl:user.pictureUrl||null,
       meal:curMeal,mode:curMode,mealDate:selectedDate,
       handData,labelData,weighData,photoUrl:photoUrl||null,photoUrls:photoUrls.length>0?photoUrls:null,
@@ -4024,7 +4026,7 @@ async function submitMeal(){
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
     // update cache locally (ไม่ต้อง re-query)
-    const newSubLocal={mode:curMode,mealDate:selectedDate,handData,labelData,weighData,photoUrl,photoUrls:photoUrls.length>0?photoUrls:null,status:'pending'};
+    const newSubLocal={id:docRef.id,userId:user.userId,mode:curMode,mealDate:selectedDate,handData,labelData,weighData,photoUrl,photoUrls:photoUrls.length>0?photoUrls:null,status:'pending'};
     studentTodaySubs.push(newSubLocal);
     if(studentSubsCache)studentSubsCache.unshift(newSubLocal);
     renderDailyProgress();
@@ -4073,8 +4075,8 @@ function showSuccess(mode,handData,labelData,weighData){
 
 async function showMilestone(){
   try{
-    const snap=await db.collection('submissions').where('userId','==',user.userId).orderBy('createdAt','desc').limit(30).get();
-    const subs=snap.docs.map(d=>{const dat=d.data();delete dat.photoBase64;return{id:d.id,...dat};});
+    // ใช้ cache แทน Firestore query (studentSubsCache อัปเดตแล้วก่อน showMilestone() ถูกเรียก)
+    const subs=studentSubsCache||[];
     const streak=calcStreak(subs);
     const pill=document.getElementById('streak-pill');
     if(streak>0){pill.innerHTML=`🔥 ${streak} วันติด`;pill.style.display='flex';}
@@ -6149,9 +6151,10 @@ function calcZigzag(actual, target){
 }
 
 function buildZigzagSection(MON, TH_SHORT, byDate, targets, userId){
-  // yesterday's macros
+  // yesterday's macros (local date, not UTC)
   const yesterday=new Date();yesterday.setDate(yesterday.getDate()-1);
-  const yStr=yesterday.toISOString().split('T')[0];
+  const _lpy=n=>String(n).padStart(2,'0');
+  const yStr=`${yesterday.getFullYear()}-${_lpy(yesterday.getMonth()+1)}-${_lpy(yesterday.getDate())}`;
   const ySubs=byDate[yStr]||[];
   let yActual={kcal:0,c:0,p:0,f:0};
   ySubs.forEach(s=>{const m=getSubMacros(s);yActual.kcal+=m.kcal;yActual.c+=m.c;yActual.p+=m.p;yActual.f+=m.f;});
@@ -6226,8 +6229,10 @@ function buildZigzagSection(MON, TH_SHORT, byDate, targets, userId){
 }
 
 function buildStudentZigzagSection(MON, TH_SHORT, byDate, targets){
+  // local date for yesterday (not UTC)
   const yesterday=new Date();yesterday.setDate(yesterday.getDate()-1);
-  const yStr=yesterday.toISOString().split('T')[0];
+  const _lpyz=n=>String(n).padStart(2,'0');
+  const yStr=`${yesterday.getFullYear()}-${_lpyz(yesterday.getMonth()+1)}-${_lpyz(yesterday.getDate())}`;
   const ySubs=byDate[yStr]||[];
   let yActual={kcal:0,c:0,p:0,f:0};
   ySubs.forEach(s=>{const m=getSubMacros(s);yActual.kcal+=m.kcal;yActual.c+=m.c;yActual.p+=m.p;yActual.f+=m.f;});
