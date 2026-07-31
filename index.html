@@ -3406,7 +3406,7 @@ function buildDateStrip(){
   for(let i=6;i>=0;i--){
     const d=new Date(today);
     d.setDate(today.getDate()-i);
-    const str=d.toISOString().split('T')[0];
+    const _lp=n=>String(n).padStart(2,'0');const str=`${d.getFullYear()}-${_lp(d.getMonth()+1)}-${_lp(d.getDate())}`;
     const isToday=i===0;
     const isActive=str===selectedDate;
     html+=`<button class="date-chip${isActive?' active':''}" onclick="selDate('${str}',this)">${isToday?'วันนี้':formatDateShort(str)}</button>`;
@@ -4605,7 +4605,7 @@ async function openStudentDetail(userId){
       // background refresh health logs (เผื่อนักเรียน submit ใหม่หลัง cache)
       (async()=>{try{
         const MON=getMonWeekDates(),TH_SHORT=['จ','อ','พ','พฤ','ว','ส','อา'];
-        const hl=await db.collection('healthLogs').doc(userId).collection('days').orderBy(firebase.firestore.FieldPath.documentId(),'desc').limit(7).get().catch(()=>null);
+        const hl=await db.collection('healthLogs').doc(userId).collection('days').orderBy(firebase.firestore.FieldPath.documentId(),'desc').limit(7).get().catch(e=>{console.error('[HL bg]',e?.code,e?.message);return null;});
         if(hl&&!hl.empty){hl.docs.forEach(d=>{c.healthLogs[d.id]=d.data();});const el=document.getElementById('sd-lifestyle-'+userId);if(el)el.innerHTML=buildLifestyleSection(MON,TH_SHORT,c.healthLogs);}
       }catch(e){}})();
       return;
@@ -4628,7 +4628,7 @@ async function openStudentDetail(userId){
   loadCoachStudentPlan(userId);
   // === PHASE 2: โหลด health/weekly ใน background → update เฉพาะส่วนนั้น ===
   const [hsSnap,wsSnap,wcSnap]=await Promise.all([
-    db.collection('healthLogs').doc(userId).collection('days').orderBy(firebase.firestore.FieldPath.documentId(),'desc').limit(7).get().catch(()=>null),
+    db.collection('healthLogs').doc(userId).collection('days').orderBy(firebase.firestore.FieldPath.documentId(),'desc').limit(7).get().catch(e=>{console.error('[HL coach]',e?.code,e?.message,userId);return null;}),
     db.collection('students').doc(userId).collection('weeklySummaries').orderBy('weekStart','desc').limit(4).get().catch(()=>null),
     db.collection('weeklyChecks').doc(userId).collection('entries').orderBy('date','asc').limit(20).get().catch(()=>null),
   ]);
