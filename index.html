@@ -8,7 +8,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-ompat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script>
 window.onerror=function(msg,src,line,col,err){
   var el=document.getElementById('loading');
@@ -4602,7 +4602,13 @@ async function openStudentDetail(userId){
     const c=_sdCache[userId];
     renderStudentDetail(u,c.targets,c.healthLogs,c.weeklySummaries,c.weeklyChecks);
     loadCoachStudentPlan(userId);
-    return;
+      // background refresh health logs (เผื่อนักเรียน submit ใหม่หลัง cache)
+      (async()=>{try{
+        const MON=getMonWeekDates(),TH_SHORT=['จ','อ','พ','พฤ','ว','ส','อา'];
+        const hl=await db.collection('healthLogs').doc(userId).collection('days').orderBy(firebase.firestore.FieldPath.documentId(),'desc').limit(7).get().catch(()=>null);
+        if(hl&&!hl.empty){hl.docs.forEach(d=>{c.healthLogs[d.id]=d.data();});const el=document.getElementById('sd-lifestyle-'+userId);if(el)el.innerHTML=buildLifestyleSection(MON,TH_SHORT,c.healthLogs);}
+      }catch(e){}})();
+      return;
   }
   // === PHASE 1: โหลด students doc เดียว → render ทันที ===
   const tdSnap=await db.collection('students').doc(userId).get().catch(()=>null);
