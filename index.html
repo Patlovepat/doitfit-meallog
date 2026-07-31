@@ -2985,7 +2985,7 @@ function selStudentTab(tab, el){
   document.getElementById('panel-plan').style.display=tab==='plan'?'block':'none';
   if(tab==='plan'){
     if(!savedMenusCache)loadSavedMenus().then(()=>renderPlanPanel());
-    renderPlanPanel();loadPlanFromFirestore();
+    loadPlanFromFirestore(); // loadPlanFromFirestore ทำ mealPlan=[];renderPlanPanel() เองทันที ไม่ต้อง render ซ้ำ
   }
   document.getElementById('submit-wrap').style.display=tab==='log'?'block':'none';
   if(tab==='history')loadHistory();
@@ -3703,8 +3703,8 @@ async function callGeminiAI(){
 {"items":[{"name":"ชื่ออาหาร","amount":"จำนวน+หน่วย","c":0.0,"p":0.0,"f":0.0,"kcal":0}],"total":{"c":0.0,"p":0.0,"f":0.0,"kcal":0}}
 กฎ: c=คาร์บ p=โปรตีน f=ไขมัน หน่วยกรัม ทศนิยม1ตำแหน่ง kcal=c*4+p*4+f*9 (ปัดเป็นจำนวนเต็ม ใส่ตัวเลขเท่านั้น) | amount ต้องมีตัวเลขเสมอ เช่น "100 กรัม" "1 ทัพพี" "2 ลูก" — ห้ามใช้คำอธิบายอย่างเดียว`;
   try{
-    const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${GEMINI_KEY}`,{
-      method:'POST',headers:{'Content-Type':'application/json'},
+    const res=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent',{
+      method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':GEMINI_KEY},
       body:JSON.stringify({
         contents:[{parts:[{text:sysMsg+'\n\n'+userPrompt}]}],
         generationConfig:{temperature:0.1,responseMimeType:'application/json'}
@@ -5174,9 +5174,9 @@ async function runPlanAI(){
       parts.push({inline_data:{mime_type:mimeType,data:b64data}});
     }
     parts.push({text:prompt});
-    const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${GEMINI_KEY}`,{
+    const res=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent',{
       method:'POST',
-      headers:{'Content-Type':'application/json'},
+      headers:{'Content-Type':'application/json','x-goog-api-key':GEMINI_KEY},
       body:JSON.stringify({
         contents:[{parts}],
         generationConfig:{temperature:0.2,responseMimeType:'application/json'}
@@ -5844,8 +5844,9 @@ ${_modeSwitchRow}<h4>✏️ แก้ค่า — Hand Portion</h4>
 <div style="display:flex;gap:8px;margin-top:6px"><button class="btn-send-corr" style="flex:1" onclick="sendCorrection('${s.id}','save')">💾 บันทึก</button><button class="btn-send-corr" style="flex:1;background:#2563EB" onclick="sendCorrection('${s.id}','copy')">📋 Copy ข้อความ</button></div></div>`;
 }
 
-function setCoachCorrMode(id,mode){if(!cState[id])cState[id]={};cState[id].corrMode=mode;delete cState[id].carb;delete cState[id].protein;delete cState[id].fat;renderCoach();}
-function toggleCorr(id){if(!cState[id])cState[id]={};cState[id].open=!cState[id].open;renderCoach();}
+function _updateCard(id){const s=allSubs.find(x=>x.id===id);const el=document.getElementById('card-'+id);if(s&&el){el.outerHTML=buildCard(s);}else{renderCoach();}}
+function setCoachCorrMode(id,mode){if(!cState[id])cState[id]={};cState[id].corrMode=mode;delete cState[id].carb;delete cState[id].protein;delete cState[id].fat;_updateCard(id);}
+function toggleCorr(id){if(!cState[id])cState[id]={};cState[id].open=!cState[id].open;_updateCard(id);}
 function updateCorrPreview(id){
   const c=parseFloat(document.getElementById(`cc-carb-${id}`)?.value)||0;
   const p=parseFloat(document.getElementById(`cc-protein-${id}`)?.value)||0;
@@ -6628,12 +6629,8 @@ function buildTestimonialFlex(lostKg, lostPct, weeks){
 async function sendFeedbackCard(currentSub){
   currentSub=currentSub||{};
   try{
-    // ดึง submissions วันนี้ทั้งหมด
-    const snap=await db.collection('submissions')
-      .where('userId','==',user.userId)
-      .where('mealDate','==',selectedDate)
-      .get();
-    const subs=snap.docs.map(d=>d.data());
+    // ใช้ cache แทน Firestore query (studentSubsCache อัปเดตแล้วก่อนฟังก์ชันนี้ถูกเรียก)
+    const subs=(studentSubsCache||[]).filter(s=>subDate(s)===selectedDate);
     let totC=0,totP=0,totF=0,totKcal=0;
     subs.forEach(s=>{const m=getSubMacros(s);totC+=m.c;totP+=m.p;totF+=m.f;totKcal+=m.kcal;});
     totC=Math.round(totC);totP=Math.round(totP);totF=Math.round(totF);totKcal=Math.round(totKcal);
@@ -6908,8 +6905,12 @@ function genEditFeedback(){
 }
 
 async function editHistSub(id){
-  const s=(histCache||studentSubsCache||[]).find(x=>x.id===id);
-  if(!s){alert('ไม่พบข้อมูล');return;}
+  let s=(histCache||studentSubsCache||[]).find(x=>x.id===id);
+  if(!s){
+    // cache ว่าง (เพิ่งแก้ไขก่อนหน้า) — fetch โดยตรงจาก Firestore
+    try{const doc=await db.collection('submissions').doc(id).get();if(doc.exists)s={id:doc.id,...doc.data()};}catch(e){}
+    if(!s){alert('ไม่พบข้อมูล');return;}
+  }
 
   // Guard 1: 24h time limit
   const createdMs=s.createdAt?.toDate?.()?.getTime?.()||((s.createdAt?.seconds||0)*1000);
