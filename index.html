@@ -4213,7 +4213,7 @@ async function loadDashboard(forceRefresh=false){
   try{
     // Task #9: ยิง 4 queries พร้อมกัน (รวม coachNotes ที่เคยวิ่ง sequential หลัง Promise.all)
     const [hs,wc,ws,td2]=await Promise.all([
-      db.collection('healthLogs').doc(user.userId).collection('days').orderBy(firebase.firestore.FieldPath.documentId(),'desc').limit(14).get().catch(()=>null),
+      db.collection('healthLogs').doc(user.userId).collection('days').where(firebase.firestore.FieldPath.documentId(),'>=',_hld(60)).get().catch(()=>null),
       db.collection('weeklyChecks').doc(user.userId).collection('entries').orderBy('date','asc').limit(20).get().catch(()=>null),
       db.collection('students').doc(user.userId).collection('weeklySummaries').orderBy('weekStart','desc').limit(8).get().catch(()=>null),
       db.collection('students').doc(user.userId).get().catch(()=>null),
@@ -4552,6 +4552,9 @@ function getMonWeekDates(){
   return dates;
 }
 
+// Helper: date string N days ago (for healthLog range queries — avoids orderBy index requirement)
+function _hld(n){const d=new Date();d.setDate(d.getDate()-n);const p=v=>String(v).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;}
+
 // ===== STUDENT DETAIL =====
 let currentStudentData=null;
 
@@ -4579,7 +4582,7 @@ async function prefetchStudent(userId){
   try{
     const [tdSnap,hsSnap,wsSnap,wcSnap]=await Promise.all([
       db.collection('students').doc(userId).get().catch(()=>null),
-      db.collection('healthLogs').doc(userId).collection('days').orderBy(firebase.firestore.FieldPath.documentId(),'desc').limit(7).get().catch(()=>null),
+      db.collection('healthLogs').doc(userId).collection('days').where(firebase.firestore.FieldPath.documentId(),'>=',_hld(30)).get().catch(()=>null),
       db.collection('students').doc(userId).collection('weeklySummaries').orderBy('weekStart','desc').limit(4).get().catch(()=>null),
       db.collection('weeklyChecks').doc(userId).collection('entries').orderBy('date','asc').limit(20).get().catch(()=>null),
     ]);
@@ -4596,8 +4599,8 @@ async function prefetchStudent(userId){
     let weeklySummaries={};if(wsSnap)wsSnap.docs.forEach(d=>{weeklySummaries[d.id]=d.data();});
     let weeklyChecks=[];if(wcSnap)wcSnap.docs.forEach(d=>{weeklyChecks.push({id:d.id,...d.data()});});
     _sdCursors[userId]={
-      lastHL:hsSnap&&hsSnap.docs.length?hsSnap.docs[hsSnap.docs.length-1]:null,
-      hasMoreHL:!!(hsSnap&&hsSnap.docs.length>=7),
+      lastHLDate:hsSnap&&hsSnap.docs.length?hsSnap.docs.reduce((a,d)=>d.id<a?d.id:a,'9999-99-99'):null,
+      hasMoreHL:!!(hsSnap&&hsSnap.docs.length>0),
       lastWS:wsSnap&&wsSnap.docs.length?wsSnap.docs[wsSnap.docs.length-1]:null,
       hasMoreWS:!!(wsSnap&&wsSnap.docs.length>=4),
     };
@@ -4626,7 +4629,7 @@ async function openStudentDetail(userId){
       (async()=>{try{
         const MON=getMonWeekDates(),TH_SHORT=['จ','อ','พ','พฤ','ศ','ส','อา'];
         let _hlBgErr=null;
-        const hl=await db.collection('healthLogs').doc(userId).collection('days').orderBy(firebase.firestore.FieldPath.documentId(),'desc').limit(7).get().catch(e=>{console.error('[HL bg]',e?.code,e?.message);_hlBgErr=e?.code||'error';return null;});
+        const hl=await db.collection('healthLogs').doc(userId).collection('days').where(firebase.firestore.FieldPath.documentId(),'>=',_hld(30)).get().catch(e=>{console.error('[HL bg]',e?.code,e?.message);_hlBgErr=e?.code||'error';return null;});
         const el=document.getElementById('sd-lifestyle-'+userId);
         if(_hlBgErr){if(el)el.innerHTML=`<div style="padding:16px;text-align:center;color:#EF4444;font-size:13px">⚠️ health log โหลดไม่ได้<br><code style="font-size:11px;background:#FEE2E2;padding:2px 6px;border-radius:4px">${_hlBgErr}</code><br><small style="color:#6B7280">กด 🐞 ด้านล่างเพื่อดู console</small></div>`;}
         else if(hl&&!hl.empty){hl.docs.forEach(d=>{c.healthLogs[d.id]=d.data();});if(el)el.innerHTML=buildLifestyleSection(MON,TH_SHORT,c.healthLogs);}
@@ -4652,7 +4655,7 @@ async function openStudentDetail(userId){
   // === PHASE 2: โหลด health/weekly ใน background → update เฉพาะส่วนนั้น ===
   let _hlE=null;
   const [hsSnap,wsSnap,wcSnap]=await Promise.all([
-    db.collection('healthLogs').doc(userId).collection('days').orderBy(firebase.firestore.FieldPath.documentId(),'desc').limit(7).get().catch(e=>{console.error('[HL coach]',e?.code,e?.message,userId);_hlE=e?.code||'error';return null;}),
+    db.collection('healthLogs').doc(userId).collection('days').where(firebase.firestore.FieldPath.documentId(),'>=',_hld(30)).get().catch(e=>{console.error('[HL coach]',e?.code,e?.message,userId);_hlE=e?.code||'error';return null;}),
     db.collection('students').doc(userId).collection('weeklySummaries').orderBy('weekStart','desc').limit(4).get().catch(()=>null),
     db.collection('weeklyChecks').doc(userId).collection('entries').orderBy('date','asc').limit(20).get().catch(()=>null),
   ]);
@@ -4663,8 +4666,8 @@ async function openStudentDetail(userId){
   let weeklyChecks=[];
   if(wcSnap)wcSnap.docs.forEach(d=>{weeklyChecks.push({id:d.id,...d.data()});});
   _sdCursors[userId]={
-    lastHL: hsSnap&&hsSnap.docs.length ? hsSnap.docs[hsSnap.docs.length-1] : null,
-    hasMoreHL: !!(hsSnap&&hsSnap.docs.length>=7),
+    lastHLDate: hsSnap&&hsSnap.docs.length ? hsSnap.docs.reduce((a,d)=>d.id<a?d.id:a,'9999-99-99') : null,
+    hasMoreHL: !!(hsSnap&&hsSnap.docs.length>0),
     lastWS: wsSnap&&wsSnap.docs.length ? wsSnap.docs[wsSnap.docs.length-1] : null,
     hasMoreWS: !!(wsSnap&&wsSnap.docs.length>=4),
   };
@@ -4696,11 +4699,14 @@ async function loadMoreStudentHistory(userId){
   const btn=document.getElementById('load-more-hist-'+userId);
   if(btn){btn.textContent='⏳ กำลังโหลด...';btn.disabled=true;}
   // ยิง 2 queries พร้อมกัน
+  // next window: 30 days before oldest loaded date
+  const _hlPrev=cur.lastHLDate?(()=>{const d=new Date(cur.lastHLDate+'T00:00:00');d.setDate(d.getDate()-30);const p=v=>String(v).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;})():null;
   const [hlSnap,wsSnap]=await Promise.all([
-    (cur.hasMoreHL&&cur.lastHL)
+    (cur.hasMoreHL&&cur.lastHLDate&&_hlPrev)
       ? db.collection('healthLogs').doc(userId).collection('days')
-          .orderBy(firebase.firestore.FieldPath.documentId(),'desc')
-          .startAfter(cur.lastHL).limit(7).get().catch(()=>null)
+          .where(firebase.firestore.FieldPath.documentId(),'>=',_hlPrev)
+          .where(firebase.firestore.FieldPath.documentId(),'<',cur.lastHLDate)
+          .get().catch(()=>null)
       : Promise.resolve(null),
     (cur.hasMoreWS&&cur.lastWS)
       ? db.collection('students').doc(userId).collection('weeklySummaries')
@@ -4712,8 +4718,8 @@ async function loadMoreStudentHistory(userId){
   if(!cache)return;
   if(hlSnap&&!hlSnap.empty){
     hlSnap.docs.forEach(d=>{cache.healthLogs[d.id]=d.data();});
-    cur.lastHL=hlSnap.docs[hlSnap.docs.length-1];
-    if(hlSnap.docs.length<7)cur.hasMoreHL=false;
+    cur.lastHLDate=hlSnap.docs.reduce((a,d)=>d.id<a?d.id:a,'9999-99-99');
+    cur.hasMoreHL=true; // might have more; next loadMore will return empty if not
   }else{cur.hasMoreHL=false;}
   if(wsSnap&&!wsSnap.empty){
     wsSnap.docs.forEach(d=>{cache.weeklySummaries[d.id]=d.data();});
