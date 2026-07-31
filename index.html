@@ -6639,8 +6639,11 @@ function buildTestimonialFlex(lostKg, lostPct, weeks){
 async function sendFeedbackCard(currentSub){
   currentSub=currentSub||{};
   try{
-    // ใช้ cache แทน Firestore query (studentSubsCache อัปเดตแล้วก่อนฟังก์ชันนี้ถูกเรียก)
-    const subs=(studentSubsCache||[]).filter(s=>subDate(s)===selectedDate);
+    // ใช้ studentTodaySubs สำหรับวันนี้ (push ก่อนเรียก sendFeedbackCard เสมอ แม้ studentSubsCache=null)
+    // สำหรับวันอื่น ใช้ studentSubsCache filter ตามเดิม
+    const subs=selectedDate===todayStr()
+      ?studentTodaySubs
+      :(studentSubsCache||[]).filter(s=>subDate(s)===selectedDate);
     let totC=0,totP=0,totF=0,totKcal=0;
     subs.forEach(s=>{const m=getSubMacros(s);totC+=m.c;totP+=m.p;totF+=m.f;totKcal+=m.kcal;});
     totC=Math.round(totC);totP=Math.round(totP);totF=Math.round(totF);totKcal=Math.round(totKcal);
