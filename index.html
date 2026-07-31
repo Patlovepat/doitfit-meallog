@@ -3004,6 +3004,21 @@ const MUSCLE_OPTIONS=[
 ];
 
 function renderHealthLog(){
+  // Pre-load saved values from dashCache for the selected date (so students see real data, not defaults)
+  if(dashCache&&dashCache[3]){
+    const entry=dashCache[3][selectedDate];
+    if(entry){
+      hlSleep=typeof entry.sleep==='number'?entry.sleep:7.0;
+      hlStress=typeof entry.stress==='number'?entry.stress:2;
+      hlSteps=typeof entry.steps==='number'?entry.steps:8000;
+      hlCardio=typeof entry.cardio==='number'?entry.cardio:0;
+      hlMuscle=entry.muscleGroup||'none';
+      hlWeightMin=typeof entry.weightMin==='number'?entry.weightMin:30;
+    } else {
+      // No saved log for this date — reset to defaults so previous date values don't bleed over
+      hlSleep=7.0;hlStress=2;hlSteps=8000;hlCardio=0;hlMuscle='none';hlWeightMin=30;
+    }
+  }
   const el=document.getElementById('health-log-content');
   el.innerHTML=`
     <div style="padding:8px 12px 0;display:flex;align-items:center;justify-content:space-between">
@@ -3198,6 +3213,8 @@ async function saveHealthLog(){
       muscleGroup:hlMuscle, weightMin:hlMuscle==='none'?0:hlWeightMin,
       updatedAt:firebase.firestore.FieldValue.serverTimestamp()
     });
+    // Update local cache so switching tabs & dates shows the latest saved values
+    if(dashCache&&dashCache[3]){dashCache[3][selectedDate]={sleep:hlSleep,stress:hlStress,steps:hlSteps,cardio:hlCardio,muscleGroup:hlMuscle,weightMin:hlMuscle==='none'?0:hlWeightMin};}
     const msg=document.getElementById('hl-saved-msg');
     if(msg){msg.style.display='inline-block';setTimeout(()=>{msg.style.display='none';},2500);}
   }catch(e){alert('บันทึกไม่ได้: '+e.message);}
@@ -4604,7 +4621,7 @@ async function openStudentDetail(userId){
     loadCoachStudentPlan(userId);
       // background refresh health logs (เผื่อนักเรียน submit ใหม่หลัง cache)
       (async()=>{try{
-        const MON=getMonWeekDates(),TH_SHORT=['จ','อ','พ','พฤ','ว','ส','อา'];
+        const MON=getMonWeekDates(),TH_SHORT=['จ','อ','พ','พฤ','ศ','ส','อา'];
         const hl=await db.collection('healthLogs').doc(userId).collection('days').orderBy(firebase.firestore.FieldPath.documentId(),'desc').limit(7).get().catch(e=>{console.error('[HL bg]',e?.code,e?.message);return null;});
         if(hl&&!hl.empty){hl.docs.forEach(d=>{c.healthLogs[d.id]=d.data();});const el=document.getElementById('sd-lifestyle-'+userId);if(el)el.innerHTML=buildLifestyleSection(MON,TH_SHORT,c.healthLogs);}
       }catch(e){}})();
