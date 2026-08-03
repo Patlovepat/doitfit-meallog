@@ -2734,6 +2734,15 @@ let planVisibleFat=0;             // visible fat tsp
 let planEggWhole=0, planEggWhite=0, planAvoQty=0, planFruitLadles=0;
 let planFruitCounts={};
 let GEMINI_KEY=null; // โหลดจาก Firestore config/app.geminiKey — text + vision (ไม่ commit key!)
+// ถ้า GEMINI_KEY null (init fetch ล้มเหลว) → retry on-demand
+async function _ensureGeminiKey(){
+  if(GEMINI_KEY)return true;
+  try{
+    const s=await db.collection('config').doc('app').get();
+    if(s.exists)GEMINI_KEY=s.data().geminiKey||null;
+  }catch{}
+  return!!GEMINI_KEY;
+}
 let aiParsedData=null;
 // AI result cache (localStorage, expire 30 วัน, max 50 entries)
 function aiCacheGet(key){
@@ -3702,7 +3711,7 @@ function buildDBContext(text){
 async function callGeminiAI(){
   const text=document.getElementById('ai-food-input').value.trim();
   if(!text){alert('กรุณาพิมพ์รายการอาหารก่อนค่ะ');return;}
-  if(!GEMINI_KEY){alert('ระบบยังโหลดไม่เสร็จ กรุณารอสักครู่แล้วลองใหม่ค่ะ');return;}
+  if(!await _ensureGeminiKey()){alert('ระบบยังโหลดไม่เสร็จ กรุณารอสักครู่แล้วลองใหม่ค่ะ');return;}
   // เช็ค cache ก่อน disable ปุ่ม — cache hit ไม่ต้องยิง API
   const _cacheKey=text.toLowerCase().replace(/\s+/g,' ');
   const _cached=aiCacheGet(_cacheKey);
@@ -5201,7 +5210,7 @@ async function runPlanAI(){
   const photoSrc=(photoImg?.src&&photoImg.src.startsWith('data:'))?photoImg.src:null;
   const query=text||(name?`${name} 1 จาน`:'');
   if(!query&&!photoSrc){showToast('พิมพ์ชื่อเมนูหรือถ่ายรูปก่อนนะคะ');return;}
-  if(!GEMINI_KEY){showToast('ระบบยังโหลดไม่เสร็จ กรุณารอสักครู่แล้วลองใหม่ค่ะ');return;}
+  if(!await _ensureGeminiKey()){showToast('ระบบยังโหลดไม่เสร็จ กรุณารอสักครู่แล้วลองใหม่ค่ะ');return;}
   const btn=document.getElementById('btn-plan-ai');
   if(btn){btn.textContent='⏳ AI กำลังคิด...';btn.disabled=true;}
   try{
