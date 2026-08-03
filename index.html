@@ -3249,8 +3249,7 @@ async function saveHealthLog(){
     });
     // Update local cache so switching tabs & dates shows the latest saved values
     if(dashCache&&dashCache[3]){dashCache[3][selectedDate]={sleep:hlSleep,stress:hlStress,steps:hlSteps,cardio:hlCardio,muscleGroup:hlMuscle,weightMin:hlMuscle==='none'?0:hlWeightMin};}
-    const msg=document.getElementById('hl-saved-msg');
-    if(msg){msg.style.display='inline-block';setTimeout(()=>{msg.style.display='none';},2500);}
+    showToast('✅ บันทึกข้อมูลสุขภาพแล้วค่ะ');
   }catch(e){alert('บันทึกไม่ได้: '+e.message);}
 }
 
@@ -3271,8 +3270,7 @@ async function saveWeeklyCheck(){
   Object.keys(entry).forEach(k=>{if(entry[k]===null)delete entry[k];});
   try{
     await db.collection('weeklyChecks').doc(user.userId).collection('entries').doc(selectedDate).set(entry,{merge:true});
-    const msg=document.getElementById('wc-saved-msg');
-    if(msg){msg.style.display='block';setTimeout(()=>{msg.style.display='none';},2500);}
+    showToast('✅ บันทึกผลการวัดแล้วค่ะ');
     loadMyProgress(); // refresh chart
   }catch(e){alert('บันทึกไม่ได้: '+e.message);}
 }
@@ -3978,7 +3976,7 @@ async function saveCurrentMenu(){
     savedMenusCache=null;
     await loadSavedMenus();
     refreshAllChips();
-    alert('บันทึกเมนูแล้วค่ะ ✓');
+    showToast('✅ บันทึกเมนูโปรดแล้วค่ะ');
     const sb=document.getElementById('btn-save-success');if(sb)sb.style.display='none';
   }catch(e){alert('บันทึกไม่สำเร็จ: '+e.message);}
 }
