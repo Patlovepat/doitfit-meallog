@@ -2735,6 +2735,29 @@ let planEggWhole=0, planEggWhite=0, planAvoQty=0, planFruitLadles=0;
 let planFruitCounts={};
 let GEMINI_KEY=null; // โหลดจาก Firestore config/app.geminiKey — text + vision (ไม่ commit key!)
 let aiParsedData=null;
+// AI result cache (localStorage, expire 30 วัน, max 50 entries)
+function aiCacheGet(key){
+  try{
+    const raw=localStorage.getItem('aic_'+key);
+    if(!raw)return null;
+    const {data,ts}=JSON.parse(raw);
+    if(Date.now()-ts>30*24*3600*1000){localStorage.removeItem('aic_'+key);return null;}
+    return data;
+  }catch{return null;}
+}
+function aiCacheSet(key,data){
+  try{
+    // trim เมื่อมากกว่า 50 entries
+    const keys=Object.keys(localStorage).filter(k=>k.startsWith('aic_'));
+    if(keys.length>=50){
+      // ลบ entry เก่าที่สุด
+      let oldest=null,oldestTs=Infinity;
+      keys.forEach(k=>{try{const {ts}=JSON.parse(localStorage.getItem(k));if(ts<oldestTs){oldestTs=ts;oldest=k;}}catch{}});
+      if(oldest)localStorage.removeItem(oldest);
+    }
+    localStorage.setItem('aic_'+key,JSON.stringify({data,ts:Date.now()}));
+  }catch{}
+}
 let _photoProcessing=false;
 let selectedDate=todayStr();
 
@@ -3680,6 +3703,14 @@ async function callGeminiAI(){
   const text=document.getElementById('ai-food-input').value.trim();
   if(!text){alert('กรุณาพิมพ์รายการอาหารก่อนค่ะ');return;}
   if(!GEMINI_KEY){alert('ระบบยังโหลดไม่เสร็จ กรุณารอสักครู่แล้วลองใหม่ค่ะ');return;}
+  // เช็ค cache ก่อน disable ปุ่ม — cache hit ไม่ต้องยิง API
+  const _cacheKey=text.toLowerCase().replace(/\s+/g,' ');
+  const _cached=aiCacheGet(_cacheKey);
+  if(_cached){
+    aiParsedData=JSON.parse(JSON.stringify(_cached)); // deep copy ป้องกัน mutation
+    renderAIResult(aiParsedData);
+    return;
+  }
   const btn=document.getElementById('ai-calc-btn');
   btn.disabled=true;btn.textContent='⏳ กำลังวิเคราะห์...';
   document.getElementById('ai-result-area').style.display='none';
@@ -3722,6 +3753,7 @@ async function callGeminiAI(){
     const t=aiParsedData.total||{};
     if((t.kcal||0)>3000||(t.c||0)>400||(t.p||0)>300||(t.f||0)>300)
       throw new Error('ค่าสารอาหารผิดปกติ (AI ให้ค่าเกินจริง) กรุณาลองพิมพ์ใหม่ให้ละเอียดขึ้น');
+    aiCacheSet(_cacheKey,aiParsedData); // เก็บ cache หลังผ่าน sanity check แล้วเท่านั้น
     renderAIResult(aiParsedData);
   }catch(e){
     const area=document.getElementById('ai-result-area');
