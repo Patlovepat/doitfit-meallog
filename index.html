@@ -2952,7 +2952,7 @@ async function loadStudentData(){
     // ถ้ามี key แล้ว ไม่ต้อง fetch config ซ้ำ — ประหยัด 1 round trip
     const needCfg=!GEMINI_KEY;
     const [snap,td,savedSnap,cfgSnap]=await Promise.all([
-      db.collection('submissions').where('userId','==',user.userId).orderBy('createdAt','desc').limit(30).get(),
+      db.collection('submissions').where('userId','==',user.userId).orderBy('createdAt','desc').limit(30).get().catch(()=>({docs:[]})),
       db.collection('students').doc(user.userId).get().catch(()=>null),
       db.collection('users').doc(user.userId).collection('savedMenus').limit(12).get().catch(()=>null),
       needCfg?db.collection('config').doc('app').get().catch(()=>null):Promise.resolve(null)
@@ -4142,7 +4142,7 @@ async function loadHistory(){
     list.innerHTML='<div style="text-align:center;padding:24px;color:var(--gray);font-size:13px">⏳ กำลังโหลด...</div>';
     if(_loadingStudentData){
       // รอ loadStudentData ที่กำลังรันอยู่ให้เสร็จก่อน (poll ทุก 200ms)
-      await new Promise(res=>{const t=setInterval(()=>{if(!_loadingStudentData){clearInterval(t);res();}},200);});
+      await new Promise(res=>{const t=setInterval(()=>{if(!_loadingStudentData){clearInterval(t);res();}},200);setTimeout(()=>{clearInterval(t);res();},10000);});
     }else{
       await loadStudentData();
     }
@@ -4251,12 +4251,13 @@ async function loadDashboard(forceRefresh=false){
   }
   content.innerHTML='<div style="padding:32px;text-align:center;color:var(--gray)"><div style="font-size:32px;margin-bottom:8px">⏳</div>กำลังโหลด...</div>';
   try{
-    // Task #9: ยิง 4 queries พร้อมกัน (รวม coachNotes ที่เคยวิ่ง sequential หลัง Promise.all)
+    // Task #9: ยิง 4 queries พร้อมกัน + timeout 8s ป้องกัน hang กรณี network ค้าง
+    const _qt=ms=>new Promise(r=>setTimeout(()=>r(null),ms));
     const [hs,wc,ws,td2]=await Promise.all([
-      db.collection('healthLogs').doc(user.userId).collection('days').where(firebase.firestore.FieldPath.documentId(),'>=',_hld(60)).get().catch(()=>null),
-      db.collection('weeklyChecks').doc(user.userId).collection('entries').orderBy('date','asc').limit(20).get().catch(()=>null),
-      db.collection('students').doc(user.userId).collection('weeklySummaries').orderBy('weekStart','desc').limit(8).get().catch(()=>null),
-      db.collection('students').doc(user.userId).get().catch(()=>null),
+      Promise.race([db.collection('healthLogs').doc(user.userId).collection('days').where(firebase.firestore.FieldPath.documentId(),'>=',_hld(60)).get().catch(()=>null),_qt(8000)]),
+      Promise.race([db.collection('weeklyChecks').doc(user.userId).collection('entries').orderBy('date','asc').limit(20).get().catch(()=>null),_qt(8000)]),
+      Promise.race([db.collection('students').doc(user.userId).collection('weeklySummaries').orderBy('weekStart','desc').limit(8).get().catch(()=>null),_qt(8000)]),
+      Promise.race([db.collection('students').doc(user.userId).get().catch(()=>null),_qt(8000)]),
     ]);
     const subs=studentSubsCache||[];
     let targets={kcal:TARGETS.kcal,c:TARGETS.c,p:TARGETS.p,f:TARGETS.f};
