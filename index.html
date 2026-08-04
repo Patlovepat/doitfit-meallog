@@ -2734,14 +2734,22 @@ let planVisibleFat=0;             // visible fat tsp
 let planEggWhole=0, planEggWhite=0, planAvoQty=0, planFruitLadles=0;
 let planFruitCounts={};
 let GEMINI_KEY=null; // โหลดจาก Firestore config/app.geminiKey — text + vision (ไม่ commit key!)
-// ถ้า GEMINI_KEY null (init fetch ล้มเหลว) → retry on-demand
+try{GEMINI_KEY=localStorage.getItem('_dfk')||null;}catch(_){} // bootstrap จากเครื่อง — โหลดสำเร็จครั้งแรกแล้วใช้ได้ตลอดแม้เน็ตช้า
+function _setGeminiKey(k){
+  if(!k)return;
+  GEMINI_KEY=k;
+  try{localStorage.setItem('_dfk',k);}catch(_){}
+}
+// ถ้า GEMINI_KEY null (init fetch ล้มเหลว) → retry on-demand: server (10s) → Firestore offline cache
 async function _ensureGeminiKey(){
   if(GEMINI_KEY)return true;
+  const ref=db.collection('config').doc('app');
   try{
     const _gkt=ms=>new Promise(r=>setTimeout(()=>r(null),ms));
-    const s=await Promise.race([db.collection('config').doc('app').get().catch(()=>null),_gkt(10000)]);
-    if(s&&s.exists)GEMINI_KEY=s.data().geminiKey||null;
-  }catch{}
+    let s=await Promise.race([ref.get().catch(()=>null),_gkt(10000)]);
+    if(!s){s=await ref.get({source:'cache'}).catch(()=>null);} // เน็ตช้า → ใช้ cache ในเครื่อง
+    if(s&&s.exists)_setGeminiKey(s.data().geminiKey||null);
+  }catch(_){}
   return!!GEMINI_KEY;
 }
 let aiParsedData=null;
@@ -2953,20 +2961,23 @@ async function loadStudentData(){
     // NP1: config/app fetch แยกเป็น fire-and-forget — ไม่ block submissions/targets load
     if(!GEMINI_KEY){
       db.collection('config').doc('app').get()
-        .then(s=>{if(s&&s.exists)GEMINI_KEY=s.data().geminiKey||null;})
+        .then(s=>{if(s&&s.exists)_setGeminiKey(s.data().geminiKey||null);})
         .catch(()=>{});
     }
+    // NW1: server query (8s) → timeout แล้ว fallback อ่าน Firestore offline cache ในเครื่อง
     const _lsdt=ms=>new Promise(r=>setTimeout(()=>r(null),ms));
+    const _qf=q=>Promise.race([q.get().catch(()=>null),_lsdt(8000)]).then(r=>r||q.get({source:'cache'}).catch(()=>null));
     const [snap,td,savedSnap]=await Promise.all([
-      Promise.race([db.collection('submissions').where('userId','==',user.userId).orderBy('createdAt','desc').limit(30).get().catch(()=>({docs:[]})),_lsdt(8000).then(()=>({docs:[]}))]),
-      Promise.race([db.collection('students').doc(user.userId).get().catch(()=>null),_lsdt(8000)]),
-      Promise.race([db.collection('users').doc(user.userId).collection('savedMenus').limit(12).get().catch(()=>null),_lsdt(8000)]),
+      _qf(db.collection('submissions').where('userId','==',user.userId).orderBy('createdAt','desc').limit(30)).then(r=>r||{docs:[]}),
+      _qf(db.collection('students').doc(user.userId)),
+      _qf(db.collection('users').doc(user.userId).collection('savedMenus').limit(12)),
     ]);
     // sort client-side + ลบ photoBase64 ออกจาก RAM (ยังใช้ photoUrl แทนได้)
     studentSubsCache=snap.docs.map(d=>{const dat=d.data();delete dat.photoBase64;return{id:d.id,...dat};}).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
     applyTargets(td);
     if(td&&td.exists){const d=td.data();studentProgramData={programStart:d.programStart||'',programWeeks:d.programWeeks||12,pausedDays:d.pausedDays||0,isPaused:d.isPaused||false,discountCode:d.discountCode||'',discountPercent:d.discountPercent||0};}
-    if(savedSnap){savedMenusCache=savedSnap.docs.map(d=>({id:d.id,...d.data()}));}
+    // NW1: ถ้าผลมาจาก offline cache แล้วว่างเปล่า → อย่าทับ ปล่อย null ให้ loadSavedMenus retry ได้
+    if(savedSnap&&!(savedSnap.metadata&&savedSnap.metadata.fromCache&&savedSnap.empty)){savedMenusCache=savedSnap.docs.map(d=>({id:d.id,...d.data()}));}
     renderStreak();
     renderTodayProgress();
     refreshAllChips();
@@ -3306,14 +3317,14 @@ async function loadMyProgress(){
   }
   try{
     const _mpt=ms=>new Promise(r=>setTimeout(()=>r(null),ms));
-    const snap=await Promise.race([
-      db.collection('weeklyChecks').doc(user.userId).collection('entries').orderBy('date','asc').limit(20).get(),
-      _mpt(8000)
-    ]);
+    const q=db.collection('weeklyChecks').doc(user.userId).collection('entries').orderBy('date','asc').limit(20);
+    let snap=await Promise.race([q.get().catch(()=>null),_mpt(8000)]);
+    if(!snap){snap=await q.get({source:'cache'}).catch(()=>null);} // NW1: เน็ตช้า → อ่าน cache ในเครื่อง
     if(existing)existing.remove();
-    if(!snap){return;} // timeout
+    if(!snap){return;} // timeout + ไม่มี cache
     const entries=snap.docs.map(d=>({id:d.id,...d.data()}));
-    _myProgressCache=entries; // เก็บ cache
+    // NW1: อย่า cache ผลว่างที่มาจาก offline cache — ให้ fetch ใหม่ครั้งหน้า
+    if(!(snap.metadata&&snap.metadata.fromCache&&snap.empty))_myProgressCache=entries;
     if(!entries.length)return;
     const html=buildMyProgressHtml(entries);
     const wrap=document.createElement('div');
@@ -3799,6 +3810,7 @@ async function callGeminiAI(){
     aiCacheSet(_cacheKey,aiParsedData); // เก็บ cache หลังผ่าน sanity check แล้วเท่านั้น
     renderAIResult(aiParsedData);
   }catch(e){
+    if(/api.?key/i.test(e.message||'')){GEMINI_KEY=null;try{localStorage.removeItem('_dfk');}catch(_){}} // key ถูก rotate → ล้างแล้วโหลดใหม่ครั้งหน้า
     const area=document.getElementById('ai-result-area');
     area.innerHTML=`<div class="ai-error">⚠️ ${e.message}</div>`;
     area.style.display='block';
@@ -3943,11 +3955,10 @@ async function loadSavedMenus(){
   if(!user)return[];
   try{
     const _smT=ms=>new Promise(r=>setTimeout(()=>r(null),ms));
-    const snap=await Promise.race([
-      db.collection('users').doc(user.userId).collection('savedMenus').limit(12).get(),
-      _smT(8000)
-    ]);
-    if(!snap)return savedMenusCache||[];
+    const q=db.collection('users').doc(user.userId).collection('savedMenus').limit(12);
+    let snap=await Promise.race([q.get().catch(()=>null),_smT(8000)]);
+    if(!snap){snap=await q.get({source:'cache'}).catch(()=>null);} // NW1: เน็ตช้า → อ่าน cache ในเครื่อง
+    if(!snap||(snap.metadata&&snap.metadata.fromCache&&snap.empty))return savedMenusCache||[];
     savedMenusCache=snap.docs.map(d=>({id:d.id,...d.data()}))
       .sort((a,b)=>{const at=a.createdAt?.seconds||0,bt=b.createdAt?.seconds||0;return bt-at;});
     return savedMenusCache;
@@ -4291,13 +4302,14 @@ async function loadDashboard(forceRefresh=false){
   }
   content.innerHTML='<div style="padding:32px;text-align:center;color:var(--gray)"><div style="font-size:32px;margin-bottom:8px">⏳</div>กำลังโหลด...</div>';
   try{
-    // Task #9: ยิง 4 queries พร้อมกัน + timeout 8s ป้องกัน hang กรณี network ค้าง
+    // Task #9: ยิง 4 queries พร้อมกัน + timeout 8s → fallback อ่าน offline cache (NW1)
     const _qt=ms=>new Promise(r=>setTimeout(()=>r(null),ms));
+    const _dqf=q=>Promise.race([q.get().catch(()=>null),_qt(8000)]).then(r=>r||q.get({source:'cache'}).catch(()=>null));
     const [hs,wc,ws,td2]=await Promise.all([
-      Promise.race([db.collection('healthLogs').doc(user.userId).collection('days').where(firebase.firestore.FieldPath.documentId(),'>=',_hld(60)).get().catch(()=>null),_qt(8000)]),
-      Promise.race([db.collection('weeklyChecks').doc(user.userId).collection('entries').orderBy('date','asc').limit(20).get().catch(()=>null),_qt(8000)]),
-      Promise.race([db.collection('students').doc(user.userId).collection('weeklySummaries').orderBy('weekStart','desc').limit(8).get().catch(()=>null),_qt(8000)]),
-      Promise.race([db.collection('students').doc(user.userId).get().catch(()=>null),_qt(8000)]),
+      _dqf(db.collection('healthLogs').doc(user.userId).collection('days').where(firebase.firestore.FieldPath.documentId(),'>=',_hld(60))),
+      _dqf(db.collection('weeklyChecks').doc(user.userId).collection('entries').orderBy('date','asc').limit(20)),
+      _dqf(db.collection('students').doc(user.userId).collection('weeklySummaries').orderBy('weekStart','desc').limit(8)),
+      _dqf(db.collection('students').doc(user.userId)),
     ]);
     const subs=studentSubsCache||[];
     let targets={kcal:TARGETS.kcal,c:TARGETS.c,p:TARGETS.p,f:TARGETS.f};
@@ -5306,7 +5318,10 @@ async function runPlanAI(){
       resultText.innerHTML=`<strong>${escHtml(planAIData.name)}</strong><br>C ${planAIData.c}g · P ${planAIData.p}g · F ${planAIData.f}g · ⚡ ${kcal} kcal`;
     }
     const ni=document.getElementById('plan-name');if(ni&&!ni.value)ni.value=planAIData.name;
-  }catch(e){showToast('AI คำนวณไม่ได้: '+e.message);}
+  }catch(e){
+    if(/api.?key/i.test(e.message||'')){GEMINI_KEY=null;try{localStorage.removeItem('_dfk');}catch(_){}} // key ถูก rotate → ล้างแล้วโหลดใหม่ครั้งหน้า
+    showToast('AI คำนวณไม่ได้: '+e.message);
+  }
   if(btn){btn.textContent='✨ AI คำนวณ';btn.disabled=false;}
 }
 function addPlanItem(){
