@@ -2739,7 +2739,7 @@ async function _ensureGeminiKey(){
   if(GEMINI_KEY)return true;
   try{
     const _gkt=ms=>new Promise(r=>setTimeout(()=>r(null),ms));
-    const s=await Promise.race([db.collection('config').doc('app').get().catch(()=>null),_gkt(5000)]);
+    const s=await Promise.race([db.collection('config').doc('app').get().catch(()=>null),_gkt(10000)]);
     if(s&&s.exists)GEMINI_KEY=s.data().geminiKey||null;
   }catch{}
   return!!GEMINI_KEY;
@@ -2950,16 +2950,18 @@ async function loadStudentData(){
   if(_loadingStudentData)return; // ป้องกัน double-fetch
   _loadingStudentData=true;
   try{
-    // ถ้ามี key แล้ว ไม่ต้อง fetch config ซ้ำ — ประหยัด 1 round trip
-    const needCfg=!GEMINI_KEY;
+    // NP1: config/app fetch แยกเป็น fire-and-forget — ไม่ block submissions/targets load
+    if(!GEMINI_KEY){
+      db.collection('config').doc('app').get()
+        .then(s=>{if(s&&s.exists)GEMINI_KEY=s.data().geminiKey||null;})
+        .catch(()=>{});
+    }
     const _lsdt=ms=>new Promise(r=>setTimeout(()=>r(null),ms));
-    const [snap,td,savedSnap,cfgSnap]=await Promise.all([
+    const [snap,td,savedSnap]=await Promise.all([
       Promise.race([db.collection('submissions').where('userId','==',user.userId).orderBy('createdAt','desc').limit(30).get().catch(()=>({docs:[]})),_lsdt(8000).then(()=>({docs:[]}))]),
       Promise.race([db.collection('students').doc(user.userId).get().catch(()=>null),_lsdt(8000)]),
       Promise.race([db.collection('users').doc(user.userId).collection('savedMenus').limit(12).get().catch(()=>null),_lsdt(8000)]),
-      needCfg?Promise.race([db.collection('config').doc('app').get().catch(()=>null),_lsdt(5000)]):Promise.resolve(null)
     ]);
-    if(cfgSnap&&cfgSnap.exists){GEMINI_KEY=cfgSnap.data().geminiKey||null;}
     // sort client-side + ลบ photoBase64 ออกจาก RAM (ยังใช้ photoUrl แทนได้)
     studentSubsCache=snap.docs.map(d=>{const dat=d.data();delete dat.photoBase64;return{id:d.id,...dat};}).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
     applyTargets(td);
@@ -3738,7 +3740,7 @@ function buildDBContext(text){
 async function callGeminiAI(){
   const text=document.getElementById('ai-food-input').value.trim();
   if(!text){alert('กรุณาพิมพ์รายการอาหารก่อนค่ะ');return;}
-  if(!await _ensureGeminiKey()){alert('ระบบยังโหลดไม่เสร็จ กรุณารอสักครู่แล้วลองใหม่ค่ะ');return;}
+  if(!await _ensureGeminiKey()){showToast('⚠️ โหลด AI key ไม่ได้ค่ะ กรุณาเช็คเน็ตแล้วลองใหม่',3500);return;}
   // เช็ค cache ก่อน disable ปุ่ม — cache hit ไม่ต้องยิง API
   const _cacheKey=text.toLowerCase().replace(/\s+/g,' ');
   const _cached=aiCacheGet(_cacheKey);
@@ -4114,8 +4116,8 @@ async function submitMeal(){
     const bss=document.getElementById('btn-save-success');
     if(bss)bss.style.display=(curMode==='restaurant')?'none':'inline-block';
     if(!testMode)sendFeedbackCard({mode:curMode,handData,labelData,weighData,photoUrl}); // ไม่ส่ง LINE card ใน test mode
-  }catch(e){console.error(e);alert('เกิดข้อผิดพลาด: '+e.message);resetBtn();}
-  finally{resetBtn();}
+  }catch(e){console.error(e);alert('เกิดข้อผิดพลาด: '+e.message);}
+  finally{resetBtn();} // NM1: ย้าย resetBtn มาไว้ finally ที่เดียว
 }
 
 function showSuccess(mode,handData,labelData,weighData){
@@ -5260,7 +5262,7 @@ async function runPlanAI(){
   const photoSrc=(photoImg?.src&&photoImg.src.startsWith('data:'))?photoImg.src:null;
   const query=text||(name?`${name} 1 จาน`:'');
   if(!query&&!photoSrc){showToast('พิมพ์ชื่อเมนูหรือถ่ายรูปก่อนนะคะ');return;}
-  if(!await _ensureGeminiKey()){showToast('ระบบยังโหลดไม่เสร็จ กรุณารอสักครู่แล้วลองใหม่ค่ะ');return;}
+  if(!await _ensureGeminiKey()){showToast('⚠️ โหลด AI key ไม่ได้ค่ะ กรุณาเช็คเน็ตแล้วลองใหม่',3500);return;}
   const btn=document.getElementById('btn-plan-ai');
   if(btn){btn.textContent='⏳ AI กำลังคิด...';btn.disabled=true;}
   try{
@@ -6675,8 +6677,11 @@ async function autoMarkMissedDays(userId, byDate){
 }
 
 // ===== TESTIMONIAL SYSTEM =====
+let _testimonialInProgress=false; // NH1: ป้องกัน race condition ส่งซ้ำ
 async function checkTestimonialEligibility(weeklyChecks){
+  if(_testimonialInProgress)return; // NH1
   if(!weeklyChecks||weeklyChecks.length<2)return;
+  _testimonialInProgress=true;
   const first=weeklyChecks[0].weight_kg;
   const last=weeklyChecks[weeklyChecks.length-1].weight_kg;
   if(!first||!last)return;
@@ -6696,6 +6701,7 @@ async function checkTestimonialEligibility(weeklyChecks){
       await liff.sendMessages([flex]);
     }
   }catch(e){console.log('testimonial check err',e);}
+  finally{_testimonialInProgress=false;} // NH1: reset ให้ retry ได้ถ้า error
 }
 
 function buildTestimonialFlex(lostKg, lostPct, weeks){
