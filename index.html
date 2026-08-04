@@ -3976,10 +3976,24 @@ async function loadSavedMenus(){
     return savedMenusCache;
   }catch(e){console.warn('loadSavedMenus',e);savedMenusCache=savedMenusCache||[];return savedMenusCache;}
 }
+let _smRetrying=false; // NB2: guard กัน retry ซ้อน
 function renderSavedChips(mode){
   const el=document.getElementById('saved-chips-'+mode);
   if(!el)return;
-  const menus=(savedMenusCache||[]).filter(m=>m.mode===mode);
+  // NB2: โหลดครั้งแรกล้ม (เน็ตช้าตอนเปิดแอป) → auto-retry background แล้ว render ใหม่
+  // เดิม: cache ค้าง null ตลอด session → เมนูโปรด "หาย" จนกว่าจะเปิดแอปใหม่
+  if(savedMenusCache===null){
+    el.style.display='none';
+    if(!_smRetrying&&typeof user!=='undefined'&&user){
+      _smRetrying=true;
+      loadSavedMenus().then(()=>{
+        _smRetrying=false;
+        if(savedMenusCache&&savedMenusCache.length)refreshAllChips();
+      }).catch(()=>{_smRetrying=false;});
+    }
+    return;
+  }
+  const menus=savedMenusCache.filter(m=>m.mode===mode);
   if(!menus.length){el.style.display='none';return;}
   el.style.display='block';
   el.innerHTML=`<div style="font-size:11px;color:#92400E;font-weight:600;margin-bottom:6px">⭐ เมนูโปรด — แตะเพื่อใช้</div>
@@ -4260,8 +4274,8 @@ function buildHistCard(s){
     if(hd.eggWhole>0)chips+=`<span class="chip">🥚×${hd.eggWhole}</span>`;
     chips+=`<span class="chip">⚡ ${hd.totalKcal} kcal</span>`;
   }else if(s.mode==='label'&&s.labelData){
-    chips=`<span class="chip">C ${s.labelData.carb.toFixed(1)}g</span><span class="chip">P ${s.labelData.protein.toFixed(1)}g</span><span class="chip">F ${s.labelData.fat.toFixed(1)}g</span>`;
-    chips+=`<span class="chip">⚡ ${Math.round(s.labelData.carb*4+s.labelData.protein*4+s.labelData.fat*9)} kcal</span>`;
+    chips=`<span class="chip">C ${(s.labelData.carb||0).toFixed(1)}g</span><span class="chip">P ${(s.labelData.protein||0).toFixed(1)}g</span><span class="chip">F ${(s.labelData.fat||0).toFixed(1)}g</span>`; // NB4: null-safe
+    chips+=`<span class="chip">⚡ ${Math.round((s.labelData.carb||0)*4+(s.labelData.protein||0)*4+(s.labelData.fat||0)*9)} kcal</span>`;
   }else if(s.mode==='weigh'&&s.weighData){
     const wd=s.weighData;
     if(wd.aiItems&&wd.aiItems.length){
@@ -4847,17 +4861,19 @@ async function loadMoreStudentHistory(userId){
   // ยิง 2 queries พร้อมกัน
   // next window: 30 days before oldest loaded date
   const _hlPrev=cur.lastHLDate?(()=>{const d=new Date(cur.lastHLDate+'T00:00:00');d.setDate(d.getDate()-30);const p=v=>String(v).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;})():null;
+  // NB5: timeout 8s + cache fallback — กันปุ่มค้าง "กำลังโหลด" บนเน็ตช้า
+  const _lmT=ms=>new Promise(r=>setTimeout(()=>r(null),ms));
+  const _lmQ=q=>Promise.race([q.get().catch(()=>null),_lmT(8000)]).then(r=>r||q.get({source:'cache'}).catch(()=>null));
   const [hlSnap,wsSnap]=await Promise.all([
     (cur.hasMoreHL&&cur.lastHLDate&&_hlPrev)
-      ? db.collection('healthLogs').doc(userId).collection('days')
+      ? _lmQ(db.collection('healthLogs').doc(userId).collection('days')
           .where(firebase.firestore.FieldPath.documentId(),'>=',_hlPrev)
-          .where(firebase.firestore.FieldPath.documentId(),'<',cur.lastHLDate)
-          .get().catch(()=>null)
+          .where(firebase.firestore.FieldPath.documentId(),'<',cur.lastHLDate))
       : Promise.resolve(null),
     (cur.hasMoreWS&&cur.lastWS)
-      ? db.collection('students').doc(userId).collection('weeklySummaries')
+      ? _lmQ(db.collection('students').doc(userId).collection('weeklySummaries')
           .orderBy('weekStart','desc')
-          .startAfter(cur.lastWS).limit(4).get().catch(()=>null)
+          .startAfter(cur.lastWS).limit(4))
       : Promise.resolve(null),
   ]);
   const cache=_sdCache[userId];
@@ -4876,7 +4892,7 @@ async function loadMoreStudentHistory(userId){
   const u=Object.values(
     allSubs.reduce((acc,s)=>{if(!acc[s.userId])acc[s.userId]={userId:s.userId,displayName:s.displayName,pictureUrl:s.pictureUrl,subs:[]};acc[s.userId].subs.push(s);return acc;},{})
   ).find(u=>u.userId===userId);
-  if(!u)return;
+  if(!u){if(btn){btn.textContent='📅 ดูย้อนหลังเพิ่มเติม';btn.disabled=false;}return;} // NB5: คืนสภาพปุ่มก่อน return
   const byDate={};
   u.subs.forEach(s=>{const k=subDate(s);if(!byDate[k])byDate[k]=[];byDate[k].push(s);});
   // re-render weekly section เฉพาะส่วนนั้น (ไม่ render ทั้งหน้า)
@@ -4895,13 +4911,19 @@ async function loadCoachStudentPlan(uid){
     const tomorrow=tomorrowStr();
     const today=todayStr();
     const _cpt=ms=>new Promise(r=>setTimeout(()=>r(null),ms));
+    // NB3: timeout → fallback อ่าน offline cache + null guard (เดิม null.exists → crash)
+    const _cq=ref=>Promise.race([ref.get().catch(()=>null),_cpt(8000)]).then(r=>r||ref.get({source:'cache'}).catch(()=>null));
     const[tmDoc,todDoc]=await Promise.all([
-      Promise.race([db.collection('mealPlans').doc(uid).collection('plans').doc(tomorrow).get().catch(()=>null),_cpt(8000)]),
-      Promise.race([db.collection('mealPlans').doc(uid).collection('plans').doc(today).get().catch(()=>null),_cpt(8000)]),
+      _cq(db.collection('mealPlans').doc(uid).collection('plans').doc(tomorrow)),
+      _cq(db.collection('mealPlans').doc(uid).collection('plans').doc(today)),
     ]);
+    if(!tmDoc&&!todDoc){ // เน็ตช้า + ไม่มี cache → บอกตรงๆ ไม่ crash
+      el.innerHTML='<div style="color:var(--gray);font-size:12px;text-align:center;padding:8px">📡 โหลดแผนไม่ได้ (เน็ตช้า) — เปิดหน้านี้ใหม่อีกครั้งค่ะ</div>';
+      return;
+    }
     let html='';
     for(const[dateStr,doc,label] of[[tomorrow,tmDoc,'พรุ่งนี้'],[today,todDoc,'วันนี้']]){
-      if(!doc.exists)continue;
+      if(!doc||!doc.exists)continue; // NB3: null guard
       const items=doc.data().items||[];
       if(!items.length)continue;
       const tC=Math.round(items.reduce((a,i)=>a+(i.c||0),0));
@@ -4983,8 +5005,8 @@ async function checkCoachComments(){
     try{
       const card=buildCoachCommentCard(s,s.coachComment,s.coachCommentTone||'good',s.coachCommentWithPhoto);
       await liff.sendMessages([card]);
-      await db.collection('submissions').doc(s.id).update({coachCommentSent:true});
-      s.coachCommentSent=true; // L3: อัปเดต local state หลัง Firestore confirm แล้วเท่านั้น
+      await _fsWrite(db.collection('submissions').doc(s.id).update({coachCommentSent:true})); // W1: กัน loop ค้าง
+      s.coachCommentSent=true; // L3: card ส่งแล้ว + update confirm/queued แล้ว
     }catch(e){console.log('send coach comment err',e);} // ถ้า error → s.coachCommentSent ยังเป็น false → retry ครั้งหน้า
   }
 }
@@ -5444,8 +5466,11 @@ async function loadPlanFromFirestore(){
   if(!mealPlanDate)mealPlanDate=tomorrowStr(); // guard: Firestore ไม่รับ empty doc ID
   mealPlan=[];renderPlanPanel(); // clear ทันทีก่อน query — ไม่ให้เห็นข้อมูลวันเก่า
   try{
-    const doc=await db.collection('mealPlans').doc(user.userId).collection('plans').doc(mealPlanDate).get();
-    if(doc.exists){
+    // NW1: server 8s → fallback offline cache
+    const _ref=db.collection('mealPlans').doc(user.userId).collection('plans').doc(mealPlanDate);
+    let doc=await Promise.race([_ref.get().catch(()=>null),new Promise(r=>setTimeout(()=>r(null),8000))]);
+    if(!doc){doc=await _ref.get({source:'cache'}).catch(()=>null);}
+    if(doc&&doc.exists){
       const d=doc.data();
       mealPlan=d.items||[];
       // show coach comment if any
@@ -5596,18 +5621,18 @@ async function saveProgramSettings(uid){
   const startEl=document.getElementById(`prog-start-${uid}`);
   const weeksEl=document.getElementById(`prog-weeks-${uid}`);
   if(!startEl||!weeksEl)return;
-  const payload={programStart:startEl.value,programWeeks:parseInt(weeksEl.value)};
+  const payload={programStart:startEl.value,programWeeks:parseInt(weeksEl.value)||12}; // NB6: กัน NaN → Firestore reject
   try{
-    await db.collection('students').doc(uid).set(payload,{merge:true});
-    showToast('บันทึกข้อมูลคอร์สแล้วค่ะ ✅');
+    const _r=await _fsWrite(db.collection('students').doc(uid).set(payload,{merge:true})); // W1
+    showToast(_r==='timeout'?'📡 เน็ตช้า — บันทึกไว้ในเครื่องแล้ว จะซิงค์อัตโนมัติค่ะ':'บันทึกข้อมูลคอร์สแล้วค่ะ ✅',_r==='timeout'?4000:2500);
     delete _sdCache[uid];
     if(currentStudentData&&currentStudentData.userId===uid)openStudentDetail(uid);
-  }catch(e){showToast('บันทึกไม่ได้: '+e.message);}
+  }catch(e){showToast('⚠️ บันทึกไม่ได้: '+e.message,4000);}
 }
 async function pauseStudentProgram(uid){
   if(!confirm('พักเทรนนักเรียนคนนี้? วันจบจะถูกเลื่อนออกไปทุกวันที่พัก'))return;
   try{
-    await db.collection('students').doc(uid).set({isPaused:true,pauseStartDate:todayStr()},{merge:true});
+    await _fsWrite(db.collection('students').doc(uid).set({isPaused:true,pauseStartDate:todayStr()},{merge:true})); // W1
     showToast('⏸ พักเทรนแล้วค่ะ วันจบจะถูกคำนวณใหม่');
     if(_sdCache)delete _sdCache[uid]; // M3: flush cache ก่อน reopen
     if(currentStudentData&&currentStudentData.userId===uid)openStudentDetail(uid);
@@ -5615,8 +5640,11 @@ async function pauseStudentProgram(uid){
 }
 async function resumeStudentProgram(uid){
   try{
-    // calculate days paused
-    const doc=await db.collection('students').doc(uid).get();
+    // calculate days paused — NB5: timeout 8s + cache fallback กันค้าง
+    const _ref=db.collection('students').doc(uid);
+    let doc=await Promise.race([_ref.get().catch(()=>null),new Promise(r=>setTimeout(()=>r(null),8000))]);
+    if(!doc){doc=await _ref.get({source:'cache'}).catch(()=>null);}
+    if(!doc){showToast('📡 เน็ตช้า — ลองใหม่อีกครั้งค่ะ',3500);return;}
     const d=doc.data()||{};
     let extra=0;
     if(d.pauseStartDate){
@@ -5624,7 +5652,7 @@ async function resumeStudentProgram(uid){
       extra=Math.max(0,Math.floor((new Date()-pauseStart)/(1000*60*60*24)));
     }
     const prevPaused=d.pausedDays||0;
-    await db.collection('students').doc(uid).set({isPaused:false,pauseStartDate:null,pausedDays:prevPaused+extra},{merge:true});
+    await _fsWrite(db.collection('students').doc(uid).set({isPaused:false,pauseStartDate:null,pausedDays:prevPaused+extra},{merge:true})); // W1
     showToast(`▶ กลับมาเทรนต่อแล้วค่ะ เพิ่มเวลา ${extra} วัน`);
     if(_sdCache)delete _sdCache[uid]; // M3: flush cache ก่อน reopen
     if(currentStudentData&&currentStudentData.userId===uid)openStudentDetail(uid);
@@ -6183,12 +6211,12 @@ async function doApproveQuiet(id){
   if(_approveInProgress.has(id))return; // M1
   _approveInProgress.add(id);
   try{
-    await db.collection('submissions').doc(id).update({
+    const _r=await _fsWrite(db.collection('submissions').doc(id).update({
       status:'approved',coachComment:'',coachCommentSent:true
-    });
+    })); // W1
     if(cState[id])delete cState[id].approveOpen;
     renderCoach();
-    showToast('✅ อนุมัติแล้วค่ะ');
+    showToast(_r==='timeout'?'📡 เน็ตช้า — อนุมัติไว้ในเครื่องแล้ว จะซิงค์อัตโนมัติค่ะ':'✅ อนุมัติแล้วค่ะ',_r==='timeout'?4000:2500);
   }catch(e){alert('Error: '+e.message);}
   finally{_approveInProgress.delete(id);} // M1
 }
@@ -6200,14 +6228,14 @@ async function doApprove(id){
   const withPhoto=document.getElementById(`approve-photo-${id}`)?.checked||false;
   const s=allSubs.find(x=>x.id===id);
   try{
-    await db.collection('submissions').doc(id).update({
+    const _r=await _fsWrite(db.collection('submissions').doc(id).update({
       status:'approved',coachComment:comment,coachCommentTone:tone,
       coachCommentSent:false,coachCommentWithPhoto:withPhoto
-    });
+    })); // W1
     // ลองส่ง Card ทันทีจาก LIFF ของโค้ช
     // ถ้าโค้ชเปิด LIFF จากใน chat เดียวกับนักเรียน → ส่งถึงนักเรียนเลย
     let sentNow=false;
-    if(s&&liff.isInClient()){
+    if(_r!=='timeout'&&s&&liff.isInClient()){
       try{
         const cardData=Object.assign({},s,{coachComment:comment,coachCommentTone:tone,coachCommentWithPhoto:withPhoto,status:'approved'});
         const card=buildCoachCommentCard(cardData,comment,tone,withPhoto);
@@ -6221,7 +6249,7 @@ async function doApprove(id){
     }
     if(cState[id])cState[id].approveOpen=false;
     renderCoach();
-    showToast(sentNow?'✅ ส่ง Card ให้นักเรียนแล้วค่ะ':'✅ อนุมัติแล้ว — Card จะส่งเมื่อนักเรียนเปิดแอปค่ะ');
+    showToast(_r==='timeout'?'📡 เน็ตช้า — อนุมัติไว้ในเครื่องแล้ว Card จะส่งเมื่อนักเรียนเปิดแอปค่ะ':(sentNow?'✅ ส่ง Card ให้นักเรียนแล้วค่ะ':'✅ อนุมัติแล้ว — Card จะส่งเมื่อนักเรียนเปิดแอปค่ะ'),_r==='timeout'?4500:2500);
   }catch(e){alert('Error: '+e.message);}
   finally{_approveInProgress.delete(id);} // M1
 }
@@ -6274,17 +6302,17 @@ async function sendCorrection(id,action='save'){
       ]}
     ].filter(h=>h.fields.length);
     const _modeChanged=cState[id]?.corrMode&&cState[id].corrMode!==existingSub.mode;
-    await db.collection('submissions').doc(id).update({
+    const _r=await _fsWrite(db.collection('submissions').doc(id).update({
       status:'approved',correction:{carb,protein:prot,fat,note},
       coachComment:note||'โค้ชปรับค่า macro ให้แล้วนะคะ',
       coachCommentTone:'fix',coachCommentSent:true,coachCommentWithPhoto:false,
       origMacros:{c:origM.c,p:origM.p,f:origM.f},
       editHistory,
       ...(_modeChanged?{mode:cState[id].corrMode}:{})
-    });
+    })); // W1
     cState[id]={};
     renderCoach();
-    showToast('✅ บันทึกแล้วค่ะ');
+    showToast(_r==='timeout'?'📡 เน็ตช้า — บันทึกไว้ในเครื่องแล้ว จะซิงค์อัตโนมัติค่ะ':'✅ บันทึกแล้วค่ะ',_r==='timeout'?4000:2500);
   }catch(e){alert('Error: '+e.message);}
   finally{_corrInProgress.delete(id);} // M2
 }
@@ -6479,9 +6507,10 @@ async function sendZigzagVerdict(userId){
   if(!ta)return;
   const text=ta.value.trim();
   try{
-    await db.collection('students').doc(userId).set({zigzagVerdict:{text,sentAt:firebase.firestore.FieldValue.serverTimestamp()}},{merge:true});
+    const _r=await _fsWrite(db.collection('students').doc(userId).set({zigzagVerdict:{text,sentAt:firebase.firestore.FieldValue.serverTimestamp()}},{merge:true})); // W1
     ta.style.background='#D1FAE5';
     setTimeout(()=>{ta.style.background='white';},1500);
+    if(_r==='timeout')showToast('📡 เน็ตช้า — บันทึกไว้ในเครื่องแล้ว จะซิงค์อัตโนมัติค่ะ',4000);
   }catch(e){alert('ส่งไม่ได้: '+e.message);}
 }
 
@@ -6670,10 +6699,11 @@ async function saveCoachNotes(userId){
   const ta=document.getElementById(`cn-note-${userId}`);
   if(!ta)return;
   try{
-    await db.collection('students').doc(userId).set({coachNotes:ta.value.trim()},{merge:true});
+    const _r=await _fsWrite(db.collection('students').doc(userId).set({coachNotes:ta.value.trim()},{merge:true})); // W1
     delete _sdCache[userId]; // invalidate cache
     const btn=ta.nextElementSibling;
     if(btn){const orig=btn.textContent;btn.textContent='✅ บันทึกแล้ว';setTimeout(()=>{btn.textContent=orig;},1500);}
+    if(_r==='timeout')showToast('📡 เน็ตช้า — บันทึกไว้ในเครื่องแล้ว จะซิงค์อัตโนมัติค่ะ',4000);
   }catch(e){alert('บันทึกไม่ได้: '+e.message);}
 }
 
@@ -6694,7 +6724,8 @@ async function saveTargets(userId){
   const p=parseInt(document.getElementById(`ti-p-${userId}`).value)||0;
   const f=parseInt(document.getElementById(`ti-f-${userId}`).value)||0;
   try{
-    await db.collection('students').doc(userId).set({targets:{kcal,c,p,f}},{merge:true});
+    const _r=await _fsWrite(db.collection('students').doc(userId).set({targets:{kcal,c,p,f}},{merge:true})); // W1
+    if(_r==='timeout')showToast('📡 เน็ตช้า — บันทึกไว้ในเครื่องแล้ว จะซิงค์อัตโนมัติค่ะ',4000);
     delete _sdCache[userId]; // invalidate cache
     // update display
     document.getElementById(`tv-kcal-${userId}`).textContent=kcal;
