@@ -4065,7 +4065,8 @@ async function submitMeal(){
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
     // update cache locally (ไม่ต้อง re-query)
-    const newSubLocal={id:docRef.id,userId:user.userId,mode:curMode,mealDate:selectedDate,handData,labelData,weighData,photoUrl,photoUrls:photoUrls.length>0?photoUrls:null,status:'pending'};
+    const _now=Date.now();
+    const newSubLocal={id:docRef.id,userId:user.userId,mode:curMode,mealDate:selectedDate,handData,labelData,weighData,photoUrl,photoUrls:photoUrls.length>0?photoUrls:null,status:'pending',createdAt:{seconds:Math.floor(_now/1000),nanoseconds:0,toDate:()=>new Date(_now)}};
     studentTodaySubs.push(newSubLocal);
     if(studentSubsCache)studentSubsCache.unshift(newSubLocal);
     renderDailyProgress();
@@ -4212,7 +4213,7 @@ async function deleteHistSub(id){
   if(!confirm('ลบรายการนี้?'))return;
   try{
     await db.collection('submissions').doc(id).delete();
-    histCache=null;studentSubsCache=null; // H2: invalidate both caches so deleted item disappears
+    histCache=null;studentSubsCache=null;dashCache=null; // H2: invalidate all caches so deleted item disappears everywhere
     loadHistory();
     renderTodayProgress(); // H1: was loadTodayProgress (undefined)
   }catch(e){alert('ลบไม่ได้: '+e.message);}
@@ -4619,11 +4620,12 @@ async function prefetchStudent(userId){
   if(_sdCache[userId]||_sdCache['_pf_'+userId])return;
   _sdCache['_pf_'+userId]=true;
   try{
+    const _pft=ms=>new Promise(r=>setTimeout(()=>r(null),ms));
     const [tdSnap,hsSnap,wsSnap,wcSnap]=await Promise.all([
-      db.collection('students').doc(userId).get().catch(()=>null),
-      db.collection('healthLogs').doc(userId).collection('days').where(firebase.firestore.FieldPath.documentId(),'>=',_hld(30)).get().catch(()=>null),
-      db.collection('students').doc(userId).collection('weeklySummaries').orderBy('weekStart','desc').limit(4).get().catch(()=>null),
-      db.collection('weeklyChecks').doc(userId).collection('entries').orderBy('date','asc').limit(20).get().catch(()=>null),
+      Promise.race([db.collection('students').doc(userId).get().catch(()=>null),_pft(8000)]),
+      Promise.race([db.collection('healthLogs').doc(userId).collection('days').where(firebase.firestore.FieldPath.documentId(),'>=',_hld(30)).get().catch(()=>null),_pft(8000)]),
+      Promise.race([db.collection('students').doc(userId).collection('weeklySummaries').orderBy('weekStart','desc').limit(4).get().catch(()=>null),_pft(8000)]),
+      Promise.race([db.collection('weeklyChecks').doc(userId).collection('entries').orderBy('date','asc').limit(20).get().catch(()=>null),_pft(8000)]),
     ]);
     let targets={kcal:1600,c:160,p:120,f:55};
     if(tdSnap&&tdSnap.exists){
@@ -4675,6 +4677,8 @@ async function openStudentDetail(userId){
       }catch(e){}})();
       return;
   }
+  // แสดง loading ก่อน Phase 1 fetch (sd-content ยังว่าง)
+  document.getElementById('sd-content').innerHTML='<div style="padding:48px 0;text-align:center;color:var(--gray);font-family:\'Prompt\',sans-serif;font-size:14px">⏳ กำลังโหลดข้อมูล...</div>';
   // === PHASE 1: โหลด students doc เดียว → render ทันที ===
   const tdSnap=await db.collection('students').doc(userId).get().catch(()=>null);
   let targets={kcal:1600,c:160,p:120,f:55};
@@ -4690,6 +4694,11 @@ async function openStudentDetail(userId){
     targets.discountPercent=d.discountPercent||0;
   }
   renderStudentDetail(u,targets,{},{},[]); // render ทันที ยังไม่มี health/weekly data
+  // แสดง loading ใน Lifestyle + Weekly sections ระหว่างรอ Phase 2
+  const _lsLoading=document.getElementById('sd-lifestyle-'+userId);
+  if(_lsLoading)_lsLoading.innerHTML='<div style="padding:16px;text-align:center;color:var(--gray);font-size:13px;font-family:\'Prompt\',sans-serif">⏳ กำลังโหลด...</div>';
+  const _wsLoading=document.getElementById('sd-weekly-'+userId);
+  if(_wsLoading)_wsLoading.innerHTML='<div style="padding:16px;text-align:center;color:var(--gray);font-size:13px;font-family:\'Prompt\',sans-serif">⏳ กำลังโหลด...</div>';
   loadCoachStudentPlan(userId);
   // === PHASE 2: โหลด health/weekly ใน background → update เฉพาะส่วนนั้น ===
   let _hlE=null;
@@ -4787,9 +4796,10 @@ async function loadCoachStudentPlan(uid){
   try{
     const tomorrow=tomorrowStr();
     const today=todayStr();
+    const _cpt=ms=>new Promise(r=>setTimeout(()=>r(null),ms));
     const[tmDoc,todDoc]=await Promise.all([
-      db.collection('mealPlans').doc(uid).collection('plans').doc(tomorrow).get(),
-      db.collection('mealPlans').doc(uid).collection('plans').doc(today).get()
+      Promise.race([db.collection('mealPlans').doc(uid).collection('plans').doc(tomorrow).get().catch(()=>null),_cpt(8000)]),
+      Promise.race([db.collection('mealPlans').doc(uid).collection('plans').doc(today).get().catch(()=>null),_cpt(8000)]),
     ]);
     let html='';
     for(const[dateStr,doc,label] of[[tomorrow,tmDoc,'พรุ่งนี้'],[today,todDoc,'วันนี้']]){
