@@ -2740,6 +2740,12 @@ function _setGeminiKey(k){
   GEMINI_KEY=k;
   try{localStorage.setItem('_dfk',k);}catch(_){}
 }
+// W1: รอ Firestore write สูงสุด ms — คืน 'timeout' = write ถูกคิวไว้ในเครื่องแล้ว (offline persistence)
+// จะซิงค์อัตโนมัติเมื่อเน็ตกลับมา — ถือเป็นสำเร็จ ห้ามโชว์ error (กันผู้ใช้กดซ้ำ → ข้อมูลซ้ำ)
+function _fsWrite(p,ms){
+  p.catch(()=>{});
+  return Promise.race([p.then(()=>'ok'),new Promise(r=>setTimeout(()=>r('timeout'),ms||15000))]);
+}
 // ถ้า GEMINI_KEY null (init fetch ล้มเหลว) → retry on-demand: server (10s) → Firestore offline cache
 async function _ensureGeminiKey(){
   if(GEMINI_KEY)return true;
@@ -3259,21 +3265,24 @@ function adjHL(key,delta){
 }
 async function saveHealthLog(){
   try{
-    await db.collection('healthLogs').doc(user.userId).collection('days').doc(selectedDate).set({
+    // W1: race 15s — timeout = คิวไว้ในเครื่องแล้ว (offline persistence) จะซิงค์เอง ถือเป็นสำเร็จ
+    const _p=db.collection('healthLogs').doc(user.userId).collection('days').doc(selectedDate).set({
       sleep:hlSleep, stress:hlStress, steps:hlSteps, cardio:hlCardio,
       muscleGroup:hlMuscle, weightMin:hlMuscle==='none'?0:hlWeightMin,
       updatedAt:firebase.firestore.FieldValue.serverTimestamp()
     });
+    _p.catch(()=>{});
+    const _r=await Promise.race([_p.then(()=>'ok'),new Promise(r=>setTimeout(()=>r('timeout'),15000))]);
     // Update local cache so switching tabs & dates shows the latest saved values
     if(dashCache&&dashCache[3]){dashCache[3][selectedDate]={sleep:hlSleep,stress:hlStress,steps:hlSteps,cardio:hlCardio,muscleGroup:hlMuscle,weightMin:hlMuscle==='none'?0:hlWeightMin};}
-    showToast('✅ บันทึกข้อมูลสุขภาพแล้วค่ะ');
-  }catch(e){alert('บันทึกไม่ได้: '+e.message);}
+    showToast(_r==='timeout'?'📡 เน็ตช้า — บันทึกไว้ในเครื่องแล้ว จะซิงค์อัตโนมัติค่ะ':'✅ บันทึกข้อมูลสุขภาพแล้วค่ะ',_r==='timeout'?4000:2500);
+  }catch(e){showToast('⚠️ บันทึกไม่ได้: '+e.message,4000);} // W2: toast แทน alert
 }
 
 // ===== WEEKLY CHECK (Student) =====
 async function saveWeeklyCheck(){
   const weight=parseFloat(document.getElementById('wc-weight').value);
-  if(!weight||isNaN(weight)){alert('กรุณากรอกน้ำหนักอย่างน้อยหนึ่งช่องค่ะ');return;}
+  if(!weight||isNaN(weight)){showToast('กรุณากรอกน้ำหนักอย่างน้อยหนึ่งช่องค่ะ');return;}
   const getV=id=>{const v=parseFloat(document.getElementById(id).value);return isNaN(v)?null:v;};
   const entry={
     date:selectedDate, weight_kg:weight,
@@ -3286,11 +3295,14 @@ async function saveWeeklyCheck(){
   // remove null fields
   Object.keys(entry).forEach(k=>{if(entry[k]===null)delete entry[k];});
   try{
-    await db.collection('weeklyChecks').doc(user.userId).collection('entries').doc(selectedDate).set(entry,{merge:true});
-    showToast('✅ บันทึกผลการวัดแล้วค่ะ');
-    _myProgressCache=null; // invalidate cache เพื่อ fetch ใหม่พร้อมข้อมูลล่าสุด
+    // W1: race 15s — timeout = คิวไว้ในเครื่องแล้ว จะซิงค์เอง ถือเป็นสำเร็จ
+    const _p=db.collection('weeklyChecks').doc(user.userId).collection('entries').doc(selectedDate).set(entry,{merge:true});
+    _p.catch(()=>{});
+    const _r=await Promise.race([_p.then(()=>'ok'),new Promise(r=>setTimeout(()=>r('timeout'),15000))]);
+    showToast(_r==='timeout'?'📡 เน็ตช้า — บันทึกไว้ในเครื่องแล้ว จะซิงค์อัตโนมัติค่ะ':'✅ บันทึกผลการวัดแล้วค่ะ',_r==='timeout'?4000:2500);
+    _myProgressCache=null; // invalidate cache เพื่อ fetch ใหม่พร้อมข้อมูลล่าสุด (pending write โผล่ใน cache query ด้วย)
     loadMyProgress(); // refresh chart
-  }catch(e){alert('บันทึกไม่ได้: '+e.message);}
+  }catch(e){showToast('⚠️ บันทึกไม่ได้: '+e.message,4000);} // W2: toast แทน alert
 }
 
 async function loadMyProgress(){
@@ -3750,7 +3762,7 @@ function buildDBContext(text){
 // WEIGH (AI only)
 async function callGeminiAI(){
   const text=document.getElementById('ai-food-input').value.trim();
-  if(!text){alert('กรุณาพิมพ์รายการอาหารก่อนค่ะ');return;}
+  if(!text){showToast('กรุณาพิมพ์รายการอาหารก่อนค่ะ');return;}
   if(!await _ensureGeminiKey()){showToast('⚠️ โหลด AI key ไม่ได้ค่ะ กรุณาเช็คเน็ตแล้วลองใหม่',3500);return;}
   // เช็ค cache ก่อน disable ปุ่ม — cache hit ไม่ต้องยิง API
   const _cacheKey=text.toLowerCase().replace(/\s+/g,' ');
@@ -3986,18 +3998,24 @@ function refreshAllChips(){
 async function deleteSavedMenu(id){
   if(!confirm('ลบเมนูนี้?'))return;
   try{
-    await db.collection('users').doc(user.userId).collection('savedMenus').doc(id).delete();
-    savedMenusCache=null;
-    await loadSavedMenus();
-    refreshAllChips();
-  }catch(e){alert('ลบไม่สำเร็จ: '+e.message);}
+    const _r=await _fsWrite(db.collection('users').doc(user.userId).collection('savedMenus').doc(id).delete()); // W1
+    if(_r==='timeout'){
+      if(savedMenusCache)savedMenusCache=savedMenusCache.filter(m=>m.id!==id); // ลบจาก local ทันที
+      refreshAllChips();
+      showToast('📡 เน็ตช้า — ลบไว้ในเครื่องแล้ว จะซิงค์อัตโนมัติค่ะ',4000);
+    }else{
+      savedMenusCache=null;
+      await loadSavedMenus();
+      refreshAllChips();
+    }
+  }catch(e){showToast('⚠️ ลบไม่สำเร็จ: '+e.message,4000);} // W2
 }
 async function saveCurrentMenu(){
   const name=prompt('ตั้งชื่อเมนูนี้ว่า:','');
   if(!name||!name.trim())return;
   let data={name:name.trim(),mode:curMode,createdAt:firebase.firestore.FieldValue.serverTimestamp()};
   if(curMode==='weigh'){
-    if(!aiParsedData){alert('กรุณาให้ AI คำนวณก่อนค่ะ');return;}
+    if(!aiParsedData){showToast('กรุณาให้ AI คำนวณก่อนค่ะ');return;}
     data.inputText=document.getElementById('ai-food-input').value.trim();
     data.items=JSON.parse(JSON.stringify(aiParsedData.items));
     data.total=JSON.parse(JSON.stringify(aiParsedData.total));
@@ -4006,7 +4024,7 @@ async function saveCurrentMenu(){
     const p=parseFloat(document.getElementById('lb-prot').value)||0;
     const f=parseFloat(document.getElementById('lb-fat').value)||0;
     const s=parseFloat(document.getElementById('lb-serv').value)||1;
-    if(!c&&!p&&!f){alert('กรุณากรอกข้อมูลจากฉลากก่อนค่ะ');return;}
+    if(!c&&!p&&!f){showToast('กรุณากรอกข้อมูลจากฉลากก่อนค่ะ');return;}
     data.labelData={carbPerServ:c,protPerServ:p,fatPerServ:f,servings:s};
     data.total={c:Math.round(c*s*10)/10,p:Math.round(p*s*10)/10,f:Math.round(f*s*10)/10,kcal:Math.round((c*s)*4+(p*s)*4+(f*s)*9)};
   }else if(curMode==='hand'){
@@ -4023,13 +4041,24 @@ async function saveCurrentMenu(){
     data.total={c:C,p:P,f:F,kcal:Math.round(C*4+P*4+F*9)};
   }
   try{
-    await db.collection('users').doc(user.userId).collection('savedMenus').add(data);
-    savedMenusCache=null;
-    await loadSavedMenus();
-    refreshAllChips();
-    showToast('✅ บันทึกเมนูโปรดแล้วค่ะ');
+    // W1: race 15s — timeout = คิวไว้ในเครื่องแล้ว จะซิงค์เอง
+    const _ref=db.collection('users').doc(user.userId).collection('savedMenus').doc();
+    const _p=_ref.set(data);
+    _p.catch(()=>{});
+    const _r=await Promise.race([_p.then(()=>'ok'),new Promise(r=>setTimeout(()=>r('timeout'),15000))]);
+    if(_r==='timeout'){
+      // เพิ่มเข้า local cache ทันที ไม่ต้องรอ server reload
+      if(savedMenusCache)savedMenusCache.unshift({id:_ref.id,...data,createdAt:{seconds:Math.floor(Date.now()/1000)}});
+      refreshAllChips();
+      showToast('📡 เน็ตช้า — บันทึกเมนูไว้ในเครื่องแล้ว จะซิงค์อัตโนมัติค่ะ',4000);
+    }else{
+      savedMenusCache=null;
+      await loadSavedMenus();
+      refreshAllChips();
+      showToast('✅ บันทึกเมนูโปรดแล้วค่ะ');
+    }
     const sb=document.getElementById('btn-save-success');if(sb)sb.style.display='none';
-  }catch(e){alert('บันทึกไม่สำเร็จ: '+e.message);}
+  }catch(e){showToast('⚠️ บันทึกไม่สำเร็จ: '+e.message,4000);} // W2: toast แทน alert
 }
 function applySavedMenu(id){
   const menu=(savedMenusCache||[]).find(m=>m.id===id);
@@ -4090,11 +4119,12 @@ async function submitMeal(){
       labelData=getLabelData();
     }else if(curMode==='weigh'){
       weighData=getWeighData();
-      if(!weighData){alert('กรุณาให้ AI คำนวณก่อนค่ะ');resetBtn();return;}
+      if(!weighData){showToast('กรุณาให้ AI คำนวณก่อนค่ะ');resetBtn();return;}
     }
-    // อัปโหลดรูปไป Firebase Storage (สูงสุด 3 รูป, timeout 10s ต่อรูป)
+    // อัปโหลดรูปไป Firebase Storage (สูงสุด 3 รูป, timeout 20s ต่อรูป)
     let photoUrl=null, photoUrls=[];
     if(photoBase64List.length>0){
+      btn.textContent='📷 กำลังอัปโหลดรูป...'; // W1: progress text
       const uploadOne=async(b64,i)=>{
         try{
           const ref=storage.ref(`photos/${user.userId}/${Date.now()}_${i}.jpg`);
@@ -4107,7 +4137,11 @@ async function submitMeal(){
       photoUrls=urls.filter(Boolean);
       photoUrl=photoUrls[0]||null; // backward compat
     }
-    const docRef=await db.collection('submissions').add({
+    // W1: pre-generate ref + set() race 15s — timeout = write ถูกคิวไว้ในเครื่องแล้ว (offline persistence)
+    // จะซิงค์อัตโนมัติเมื่อเน็ตกลับมา — ถือเป็นสำเร็จ ห้ามโชว์ error (กันนักเรียนกดส่งซ้ำ → ข้อมูลซ้ำ)
+    btn.textContent='💾 กำลังบันทึก...'; // W1: progress text
+    const docRef=db.collection('submissions').doc();
+    const _setP=docRef.set({
       userId:user.userId,displayName:user.displayName,pictureUrl:user.pictureUrl||null,
       meal:curMeal,mode:curMode,mealDate:selectedDate,
       handData,labelData,weighData,photoUrl:photoUrl||null,photoUrls:photoUrls.length>0?photoUrls:null,
@@ -4115,6 +4149,8 @@ async function submitMeal(){
       isTest:testMode||false,
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
+    _setP.catch(()=>{}); // กัน unhandled rejection กรณี timeout ชนะ race
+    const _wres=await Promise.race([_setP.then(()=>'ok'),new Promise(r=>setTimeout(()=>r('timeout'),15000))]);
     // update cache locally (ไม่ต้อง re-query)
     const _now=Date.now();
     const newSubLocal={id:docRef.id,userId:user.userId,mode:curMode,mealDate:selectedDate,handData,labelData,weighData,photoUrl,photoUrls:photoUrls.length>0?photoUrls:null,status:'pending',createdAt:{seconds:Math.floor(_now/1000),nanoseconds:0,toDate:()=>new Date(_now)}};
@@ -4126,8 +4162,12 @@ async function submitMeal(){
     showSuccess(curMode,handData,labelData,weighData);
     const bss=document.getElementById('btn-save-success');
     if(bss)bss.style.display=(curMode==='restaurant')?'none':'inline-block';
-    if(!testMode)sendFeedbackCard({mode:curMode,handData,labelData,weighData,photoUrl}); // ไม่ส่ง LINE card ใน test mode
-  }catch(e){console.error(e);alert('เกิดข้อผิดพลาด: '+e.message);}
+    if(_wres==='timeout'){
+      showToast('📡 เน็ตช้า — บันทึกไว้ในเครื่องแล้ว จะส่งให้โค้ชอัตโนมัติเมื่อเน็ตกลับมาค่ะ',4500); // W1
+    }else if(!testMode){
+      sendFeedbackCard({mode:curMode,handData,labelData,weighData,photoUrl}); // ไม่ส่ง LINE card ใน test mode / เน็ตช้า
+    }
+  }catch(e){console.error(e);showToast('⚠️ ส่งไม่สำเร็จ: '+e.message,4500);} // W2: toast แทน alert (LIFF block alert บางครั้ง)
   finally{resetBtn();} // NM1: ย้าย resetBtn มาไว้ finally ที่เดียว
 }
 
@@ -4263,11 +4303,14 @@ function buildHistCard(s){
 async function deleteHistSub(id){
   if(!confirm('ลบรายการนี้?'))return;
   try{
-    await db.collection('submissions').doc(id).delete();
-    histCache=null;studentSubsCache=null;dashCache=null; // H2: invalidate all caches so deleted item disappears everywhere
+    const _r=await _fsWrite(db.collection('submissions').doc(id).delete()); // W1
+    // NB1: filter แทน null — กัน today progress bar หายทั้งแถบ + history โหลดจาก cache ทันทีไม่ต้อง re-fetch
+    if(studentSubsCache)studentSubsCache=studentSubsCache.filter(s=>s.id!==id);
+    histCache=null;dashCache=null;
     loadHistory();
     renderTodayProgress(); // H1: was loadTodayProgress (undefined)
-  }catch(e){alert('ลบไม่ได้: '+e.message);}
+    if(_r==='timeout')showToast('📡 เน็ตช้า — ลบไว้ในเครื่องแล้ว จะซิงค์อัตโนมัติค่ะ',4000);
+  }catch(e){showToast('⚠️ ลบไม่ได้: '+e.message,4000);} // W2
 }
 
 // DASHBOARD
@@ -5367,16 +5410,16 @@ function addSavedMenuToPlan(id){
   renderPlanPanel();
 }
 async function savePlanToFirestore(){
-  if(!mealPlan.length){alert('ยังไม่มีรายการค่ะ');return;}
+  if(!mealPlan.length){showToast('ยังไม่มีรายการค่ะ');return;}
   const btn=document.querySelector('#panel-plan button[onclick="savePlanToFirestore()"]');
   if(btn){btn.textContent='⏳ กำลังบันทึก...';btn.disabled=true;}
   try{
-    await db.collection('mealPlans').doc(user.userId).collection('plans').doc(mealPlanDate).set({
+    const _r=await _fsWrite(db.collection('mealPlans').doc(user.userId).collection('plans').doc(mealPlanDate).set({
       items:mealPlan,date:mealPlanDate,userId:user.userId,
       updatedAt:firebase.firestore.FieldValue.serverTimestamp()
-    });
-    showToast('บันทึกแผนอาหารแล้วค่ะ ✅');
-  }catch(e){showToast('บันทึกไม่ได้: '+e.message);}
+    })); // W1
+    showToast(_r==='timeout'?'📡 เน็ตช้า — บันทึกแผนไว้ในเครื่องแล้ว จะซิงค์อัตโนมัติค่ะ':'บันทึกแผนอาหารแล้วค่ะ ✅',_r==='timeout'?4000:2500);
+  }catch(e){showToast('⚠️ บันทึกไม่ได้: '+e.message,4000);}
   if(btn){btn.textContent='💾 บันทึกแผนอาหาร';btn.disabled=false;}
 }
 async function sendPlanToLine(){
@@ -7052,13 +7095,13 @@ async function editHistSub(id){
   if(!s){
     // cache ว่าง (เพิ่งแก้ไขก่อนหน้า) — fetch โดยตรงจาก Firestore
     try{const doc=await db.collection('submissions').doc(id).get();if(doc.exists)s={id:doc.id,...doc.data()};}catch(e){}
-    if(!s){alert('ไม่พบข้อมูล');return;}
+    if(!s){showToast('ไม่พบข้อมูลค่ะ');return;}
   }
 
   // Guard 1: 24h time limit
   const createdMs=s.createdAt?.toDate?.()?.getTime?.()||((s.createdAt?.seconds||0)*1000);
   if(createdMs&&(Date.now()-createdMs)>24*60*60*1000){
-    alert('⏰ หมดเวลาแก้ไขแล้วค่ะ\nแก้ได้แค่ภายใน 24 ชม. หลังบันทึก');
+    showToast('⏰ หมดเวลาแก้ไขแล้วค่ะ — แก้ได้ภายใน 24 ชม. หลังบันทึก',4000);
     return;
   }
 
@@ -7225,7 +7268,7 @@ async function saveHistEdit(){
       upd.status='corrected';
     }
 
-    await db.collection('submissions').doc(_editSubId).update(upd);
+    const _r=await _fsWrite(db.collection('submissions').doc(_editSubId).update(upd)); // W1
 
     // Invalidate caches
     histCache=null;studentSubsCache=null;dashCache=null;
@@ -7233,7 +7276,8 @@ async function saveHistEdit(){
     closeEditSub();
     await loadHistory();
     renderTodayProgress(); // H1: was loadTodayProgress (undefined)
-  }catch(e){alert('เกิดข้อผิดพลาด: '+e.message);}
+    if(_r==='timeout')showToast('📡 เน็ตช้า — แก้ไขไว้ในเครื่องแล้ว จะซิงค์อัตโนมัติค่ะ',4000);
+  }catch(e){showToast('⚠️ แก้ไขไม่สำเร็จ: '+e.message,4000);} // W2
   finally{btn.disabled=false;btn.textContent='💾 บันทึก';}
 }
 
