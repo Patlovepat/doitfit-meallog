@@ -2738,8 +2738,9 @@ let GEMINI_KEY=null; // โหลดจาก Firestore config/app.geminiKey —
 async function _ensureGeminiKey(){
   if(GEMINI_KEY)return true;
   try{
-    const s=await db.collection('config').doc('app').get();
-    if(s.exists)GEMINI_KEY=s.data().geminiKey||null;
+    const _gkt=ms=>new Promise(r=>setTimeout(()=>r(null),ms));
+    const s=await Promise.race([db.collection('config').doc('app').get().catch(()=>null),_gkt(5000)]);
+    if(s&&s.exists)GEMINI_KEY=s.data().geminiKey||null;
   }catch{}
   return!!GEMINI_KEY;
 }
@@ -2875,7 +2876,7 @@ function formatDateShort(str){
 }
 function subDate(s){
   if(s.mealDate)return s.mealDate;
-  if(s.createdAt)return s.createdAt.toDate().toISOString().split('T')[0];
+  if(s.createdAt){const d=s.createdAt.toDate();const p=n=>String(n).padStart(2,'0');return`${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;}
   return todayStr();
 }
 
@@ -2951,11 +2952,12 @@ async function loadStudentData(){
   try{
     // ถ้ามี key แล้ว ไม่ต้อง fetch config ซ้ำ — ประหยัด 1 round trip
     const needCfg=!GEMINI_KEY;
+    const _lsdt=ms=>new Promise(r=>setTimeout(()=>r(null),ms));
     const [snap,td,savedSnap,cfgSnap]=await Promise.all([
-      db.collection('submissions').where('userId','==',user.userId).orderBy('createdAt','desc').limit(30).get().catch(()=>({docs:[]})),
-      db.collection('students').doc(user.userId).get().catch(()=>null),
-      db.collection('users').doc(user.userId).collection('savedMenus').limit(12).get().catch(()=>null),
-      needCfg?db.collection('config').doc('app').get().catch(()=>null):Promise.resolve(null)
+      Promise.race([db.collection('submissions').where('userId','==',user.userId).orderBy('createdAt','desc').limit(30).get().catch(()=>({docs:[]})),_lsdt(8000).then(()=>({docs:[]}))]),
+      Promise.race([db.collection('students').doc(user.userId).get().catch(()=>null),_lsdt(8000)]),
+      Promise.race([db.collection('users').doc(user.userId).collection('savedMenus').limit(12).get().catch(()=>null),_lsdt(8000)]),
+      needCfg?Promise.race([db.collection('config').doc('app').get().catch(()=>null),_lsdt(5000)]):Promise.resolve(null)
     ]);
     if(cfgSnap&&cfgSnap.exists){GEMINI_KEY=cfgSnap.data().geminiKey||null;}
     // sort client-side + ลบ photoBase64 ออกจาก RAM (ยังใช้ photoUrl แทนได้)
@@ -3006,6 +3008,8 @@ function renderDailyProgress(){
 
 // STUDENT NAV
 function selStudentTab(tab, el){
+  // L2: ล้าง aiParsedData เมื่อออกจาก log tab ป้องกัน submit ด้วยผล AI เก่า
+  if(studentTab==='log'&&tab!=='log')aiParsedData=null;
   studentTab=tab;
   document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
   if(el) el.classList.add('active');
@@ -3271,6 +3275,7 @@ async function saveWeeklyCheck(){
   try{
     await db.collection('weeklyChecks').doc(user.userId).collection('entries').doc(selectedDate).set(entry,{merge:true});
     showToast('✅ บันทึกผลการวัดแล้วค่ะ');
+    _myProgressCache=null; // invalidate cache เพื่อ fetch ใหม่พร้อมข้อมูลล่าสุด
     loadMyProgress(); // refresh chart
   }catch(e){alert('บันทึกไม่ได้: '+e.message);}
 }
@@ -3279,10 +3284,34 @@ async function loadMyProgress(){
   const el=document.getElementById('health-log-content');
   if(!el)return;
   let existing=document.getElementById('my-progress-section');
-  if(existing)existing.remove();
+  // ถ้ามี cache แล้ว render ทันที ไม่ต้อง fetch ซ้ำ
+  if(_myProgressCache){
+    if(existing)existing.remove();
+    if(!_myProgressCache.length)return;
+    const wrap=document.createElement('div');
+    wrap.id='my-progress-section';wrap.style.padding='0 12px 24px';
+    wrap.innerHTML=buildMyProgressHtml(_myProgressCache);
+    el.appendChild(wrap);
+    return;
+  }
+  // แสดง loading ขณะ fetch
+  if(!existing){
+    const loadWrap=document.createElement('div');
+    loadWrap.id='my-progress-section';loadWrap.style.padding='16px 12px';
+    loadWrap.innerHTML='<div style="text-align:center;color:var(--gray);font-size:13px;font-family:\'Prompt\',sans-serif">⏳ กำลังโหลดผลการวัด...</div>';
+    el.appendChild(loadWrap);
+    existing=loadWrap;
+  }
   try{
-    const snap=await db.collection('weeklyChecks').doc(user.userId).collection('entries').orderBy('date','asc').limit(20).get();
+    const _mpt=ms=>new Promise(r=>setTimeout(()=>r(null),ms));
+    const snap=await Promise.race([
+      db.collection('weeklyChecks').doc(user.userId).collection('entries').orderBy('date','asc').limit(20).get(),
+      _mpt(8000)
+    ]);
+    if(existing)existing.remove();
+    if(!snap){return;} // timeout
     const entries=snap.docs.map(d=>({id:d.id,...d.data()}));
+    _myProgressCache=entries; // เก็บ cache
     if(!entries.length)return;
     const html=buildMyProgressHtml(entries);
     const wrap=document.createElement('div');
@@ -3741,13 +3770,18 @@ async function callGeminiAI(){
 {"items":[{"name":"ชื่ออาหาร","amount":"จำนวน+หน่วย","c":0.0,"p":0.0,"f":0.0,"kcal":0}],"total":{"c":0.0,"p":0.0,"f":0.0,"kcal":0}}
 กฎ: c=คาร์บ p=โปรตีน f=ไขมัน หน่วยกรัม ทศนิยม1ตำแหน่ง kcal=c*4+p*4+f*9 (ปัดเป็นจำนวนเต็ม ใส่ตัวเลขเท่านั้น) | amount ต้องมีตัวเลขเสมอ เช่น "100 กรัม" "1 ทัพพี" "2 ลูก" — ห้ามใช้คำอธิบายอย่างเดียว`;
   try{
-    const res=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent',{
-      method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':GEMINI_KEY},
-      body:JSON.stringify({
-        contents:[{parts:[{text:sysMsg+'\n\n'+userPrompt}]}],
-        generationConfig:{temperature:0.1,responseMimeType:'application/json'}
-      })
-    });
+    const _h2ctrl=new AbortController();const _h2tid=setTimeout(()=>_h2ctrl.abort(),15000); // H2: 15s timeout
+    let res;
+    try{
+      res=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent',{
+        method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':GEMINI_KEY},
+        body:JSON.stringify({
+          contents:[{parts:[{text:sysMsg+'\n\n'+userPrompt}]}],
+          generationConfig:{temperature:0.1,responseMimeType:'application/json'}
+        }),
+        signal:_h2ctrl.signal
+      });
+    }finally{clearTimeout(_h2tid);}
     const data=await res.json();
     if(data.error)throw new Error(data.error.message||JSON.stringify(data.error));
     const raw=data.candidates?.[0]?.content?.parts?.[0]?.text||'';
@@ -3906,8 +3940,12 @@ let savedMenusCache=null;
 async function loadSavedMenus(){
   if(!user)return[];
   try{
-    const snap=await db.collection('users').doc(user.userId).collection('savedMenus')
-      .limit(12).get();
+    const _smT=ms=>new Promise(r=>setTimeout(()=>r(null),ms));
+    const snap=await Promise.race([
+      db.collection('users').doc(user.userId).collection('savedMenus').limit(12).get(),
+      _smT(8000)
+    ]);
+    if(!snap)return savedMenusCache||[];
     savedMenusCache=snap.docs.map(d=>({id:d.id,...d.data()}))
       .sort((a,b)=>{const at=a.createdAt?.seconds||0,bt=b.createdAt?.seconds||0;return bt-at;});
     return savedMenusCache;
@@ -4242,6 +4280,7 @@ function getSubOrigMacros(s){
 }
 
 let dashCache=null;
+let _myProgressCache=null; // cache ผลการวัด — invalidate เมื่อ saveWeeklyCheck สำเร็จ
 async function loadDashboard(forceRefresh=false){
   const content=document.getElementById('dashboard-content');
   if(dashCache&&!forceRefresh){
@@ -4448,11 +4487,13 @@ function exitCoachLog(){
   histCache=null;
 }
 // COACH
+let _coachUnsub=null; // H1: เก็บ unsubscribe เพื่อ cancel listener เก่าก่อนสร้างใหม่
 function startCoach(){
+  if(_coachUnsub){_coachUnsub();_coachUnsub=null;} // H1: ยกเลิก listener เก่า
   document.getElementById('coach-view').style.display='block';
   // จำกัดแค่ 30 วันล่าสุด + limit 200 docs — ลดข้อมูลโหลดจาก "ทั้งหมด" เป็น "เดือนนี้"
   const cutoff=firebase.firestore.Timestamp.fromDate(new Date(Date.now()-30*24*60*60*1000));
-  db.collection('submissions').where('createdAt','>=',cutoff).orderBy('createdAt','desc').limit(200)
+  _coachUnsub=db.collection('submissions').where('createdAt','>=',cutoff).orderBy('createdAt','desc').limit(200)
     .onSnapshot(snap=>{
       allSubs=snap.docs.map(d=>{const dat=d.data();delete dat.photoBase64;return{id:d.id,...dat};});
       renderCoach();
@@ -4656,7 +4697,7 @@ async function openStudentDetail(userId){
   const u=Object.values(
     allSubs.reduce((acc,s)=>{if(!acc[s.userId])acc[s.userId]={userId:s.userId,displayName:s.displayName,pictureUrl:s.pictureUrl,subs:[]};acc[s.userId].subs.push(s);return acc;},{})
   ).find(u=>u.userId===userId);
-  if(!u){return;}
+  if(!u){overlay.style.display='none';return;} // L4: ปิด overlay ถ้าหา user ไม่เจอ
   currentStudentData=u;
   document.getElementById('sd-name').textContent=u.displayName||'นักเรียน';
   const streak=calcStreak(u.subs);
@@ -4763,7 +4804,7 @@ async function loadMoreStudentHistory(userId){
       : Promise.resolve(null),
   ]);
   const cache=_sdCache[userId];
-  if(!cache)return;
+  if(!cache){if(btn){btn.textContent='📅 ดูย้อนหลังเพิ่มเติม';btn.disabled=false;}return;} // H4: cache evicted ระหว่าง fetch
   if(hlSnap&&!hlSnap.empty){
     hlSnap.docs.forEach(d=>{cache.healthLogs[d.id]=d.data();});
     cur.lastHLDate=hlSnap.docs.reduce((a,d)=>d.id<a?d.id:a,'9999-99-99');
@@ -4886,8 +4927,8 @@ async function checkCoachComments(){
       const card=buildCoachCommentCard(s,s.coachComment,s.coachCommentTone||'good',s.coachCommentWithPhoto);
       await liff.sendMessages([card]);
       await db.collection('submissions').doc(s.id).update({coachCommentSent:true});
-      s.coachCommentSent=true;
-    }catch(e){console.log('send coach comment err',e);}
+      s.coachCommentSent=true; // L3: อัปเดต local state หลัง Firestore confirm แล้วเท่านั้น
+    }catch(e){console.log('send coach comment err',e);} // ถ้า error → s.coachCommentSent ยังเป็น false → retry ครั้งหน้า
   }
 }
 function buildCoachCommentCard(s,comment,tone,withPhoto){
@@ -5235,14 +5276,19 @@ async function runPlanAI(){
       parts.push({inline_data:{mime_type:mimeType,data:b64data}});
     }
     parts.push({text:prompt});
-    const res=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent',{
-      method:'POST',
-      headers:{'Content-Type':'application/json','x-goog-api-key':GEMINI_KEY},
-      body:JSON.stringify({
-        contents:[{parts}],
-        generationConfig:{temperature:0.2,responseMimeType:'application/json'}
-      })
-    });
+    const _h3ctrl=new AbortController();const _h3tid=setTimeout(()=>_h3ctrl.abort(),15000); // H3: 15s timeout
+    let res;
+    try{
+      res=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','x-goog-api-key':GEMINI_KEY},
+        body:JSON.stringify({
+          contents:[{parts}],
+          generationConfig:{temperature:0.2,responseMimeType:'application/json'}
+        }),
+        signal:_h3ctrl.signal
+      });
+    }finally{clearTimeout(_h3tid);}
     const data=await res.json();
     if(data.error)throw new Error(data.error.message||'Gemini error');
     const raw=data.candidates?.[0]?.content?.parts?.[0]?.text||'{}';
@@ -5503,6 +5549,7 @@ async function pauseStudentProgram(uid){
   try{
     await db.collection('students').doc(uid).set({isPaused:true,pauseStartDate:todayStr()},{merge:true});
     showToast('⏸ พักเทรนแล้วค่ะ วันจบจะถูกคำนวณใหม่');
+    if(_sdCache)delete _sdCache[uid]; // M3: flush cache ก่อน reopen
     if(currentStudentData&&currentStudentData.userId===uid)openStudentDetail(uid);
   }catch(e){showToast('เกิดข้อผิดพลาด: '+e.message);}
 }
@@ -5519,6 +5566,7 @@ async function resumeStudentProgram(uid){
     const prevPaused=d.pausedDays||0;
     await db.collection('students').doc(uid).set({isPaused:false,pauseStartDate:null,pausedDays:prevPaused+extra},{merge:true});
     showToast(`▶ กลับมาเทรนต่อแล้วค่ะ เพิ่มเวลา ${extra} วัน`);
+    if(_sdCache)delete _sdCache[uid]; // M3: flush cache ก่อน reopen
     if(currentStudentData&&currentStudentData.userId===uid)openStudentDetail(uid);
   }catch(e){showToast('เกิดข้อผิดพลาด: '+e.message);}
 }
@@ -5624,9 +5672,7 @@ function buildLifestyleSection(MON, TH_SHORT, healthLogs){
   function numAvg(arr){const v=arr.filter(x=>x!==null&&x>0);return v.length?v.reduce((a,b)=>a+b,0)/v.length:0;}
   function calcBarH(val,min,max){if(val===null)return 0;const r=Math.max(0,Math.min(1,(val-min)/(max-min)));return Math.max(4,r*BAR_H);}
 
-  function barCol(d,i,type){
-    const bar=document.createElement('div');
-  }
+  // L1: barCol() removed — dead code, never called
 
   function makeBars(vals, opts){
     return MON.map((d,i)=>{
@@ -6072,7 +6118,10 @@ function genCorrNote(id){
   if(ta){ta.value=`โค้ชปรับค่าให้นะคะ 💪\n${lines.join('\n')}\n\n`;ta.focus();}
 }
 function approveCard(id){if(!cState[id])cState[id]={};cState[id].approveOpen=!cState[id].approveOpen;renderCoach();}
+const _approveInProgress=new Set(); // M1: ป้องกัน double-tap
 async function doApproveQuiet(id){
+  if(_approveInProgress.has(id))return; // M1
+  _approveInProgress.add(id);
   try{
     await db.collection('submissions').doc(id).update({
       status:'approved',coachComment:'',coachCommentSent:true
@@ -6081,8 +6130,11 @@ async function doApproveQuiet(id){
     renderCoach();
     showToast('✅ อนุมัติแล้วค่ะ');
   }catch(e){alert('Error: '+e.message);}
+  finally{_approveInProgress.delete(id);} // M1
 }
 async function doApprove(id){
+  if(_approveInProgress.has(id))return; // M1
+  _approveInProgress.add(id);
   const tone=cState[id]?._tone||'good';
   const comment=(document.getElementById(`approve-comment-${id}`)?.value||'').trim();
   const withPhoto=document.getElementById(`approve-photo-${id}`)?.checked||false;
@@ -6111,8 +6163,14 @@ async function doApprove(id){
     renderCoach();
     showToast(sentNow?'✅ ส่ง Card ให้นักเรียนแล้วค่ะ':'✅ อนุมัติแล้ว — Card จะส่งเมื่อนักเรียนเปิดแอปค่ะ');
   }catch(e){alert('Error: '+e.message);}
+  finally{_approveInProgress.delete(id);} // M1
 }
+const _corrInProgress=new Set(); // M2: ป้องกัน double-tap correction
 async function sendCorrection(id,action='save'){
+  if(action==='save'){
+    if(_corrInProgress.has(id))return; // M2
+    _corrInProgress.add(id);
+  }
   const existingSub=cState[id]?._sub||{};
   let carb,prot,fat;
   const _activeMode=cState[id]?.corrMode||existingSub.mode;
@@ -6168,6 +6226,7 @@ async function sendCorrection(id,action='save'){
     renderCoach();
     showToast('✅ บันทึกแล้วค่ะ');
   }catch(e){alert('Error: '+e.message);}
+  finally{_corrInProgress.delete(id);} // M2
 }
 
 function formatTime(date){
