@@ -875,7 +875,7 @@ db.enablePersistence({synchronizeTabs:true}).catch(e=>{console.warn('Persistence
 // ===== AUTO ERROR REPORTING → Firestore errorLogs =====
 // JS error ที่เกิดบนเครื่องลูกค้าจะถูกส่งเข้า collection 'errorLogs' อัตโนมัติ
 // ดูได้ใน Firebase Console → Firestore → errorLogs (เรียงตาม at ล่าสุด)
-const APP_VERSION='v13-2026-08-05'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
+const APP_VERSION='v15-2026-08-05'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
 const _errLogged=new Set();let _errCount=0;
 function _reportError(type,msg,stack,src){
   try{
@@ -2772,7 +2772,7 @@ function _setGeminiKey(k){
 // จะซิงค์อัตโนมัติเมื่อเน็ตกลับมา — ถือเป็นสำเร็จ ห้ามโชว์ error (กันผู้ใช้กดซ้ำ → ข้อมูลซ้ำ)
 function _fsWrite(p,ms){
   p.catch(()=>{});
-  return Promise.race([p.then(()=>'ok'),new Promise(r=>setTimeout(()=>r('timeout'),ms||15000))]);
+  return Promise.race([p.then(()=>'ok'),new Promise(r=>setTimeout(()=>r('timeout'),ms||6000))]);
 }
 // ถ้า GEMINI_KEY null (init fetch ล้มเหลว) → retry on-demand: server (10s) → Firestore offline cache
 async function _ensureGeminiKey(){
@@ -3002,12 +3002,18 @@ async function loadStudentData(){
     const _lsdt=ms=>new Promise(r=>setTimeout(()=>r(null),ms));
     const _qf=q=>Promise.race([q.get().catch(()=>null),_lsdt(8000)]).then(r=>r||q.get({source:'cache'}).catch(()=>null));
     const [snap,td,savedSnap]=await Promise.all([
-      _qf(db.collection('submissions').where('userId','==',user.userId).orderBy('createdAt','desc').limit(30)).then(r=>r||{docs:[]}),
+      _qf(db.collection('submissions').where('userId','==',user.userId).orderBy('createdAt','desc').limit(30)),
       _qf(db.collection('students').doc(user.userId)),
       _qf(db.collection('users').doc(user.userId).collection('savedMenus').limit(12)),
     ]);
-    // sort client-side + ลบ photoBase64 ออกจาก RAM (ยังใช้ photoUrl แทนได้)
-    studentSubsCache=snap.docs.map(d=>{const dat=d.data();delete dat.photoBase64;return{id:d.id,...dat};}).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
+    // NB7: ล้มเหลว (null) ≠ ไม่มีข้อมูล — อย่า cache เป็น [] ปล่อย null ให้ retry รอบถัดไป
+    if(snap){
+      // sort client-side + ลบ photoBase64 ออกจาก RAM (ยังใช้ photoUrl แทนได้)
+      studentSubsCache=snap.docs.map(d=>{const dat=d.data();delete dat.photoBase64;return{id:d.id,...dat};}).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
+    }else{
+      studentSubsCache=null;
+      showToast('📡 โหลดข้อมูลไม่สำเร็จ — จะลองใหม่อัตโนมัติค่ะ',3000);
+    }
     applyTargets(td);
     if(td&&td.exists){const d=td.data();studentProgramData={programStart:d.programStart||'',programWeeks:d.programWeeks||12,pausedDays:d.pausedDays||0,isPaused:d.isPaused||false,discountCode:d.discountCode||'',discountPercent:d.discountPercent||0};}
     // NW1: ถ้าผลมาจาก offline cache แล้วว่างเปล่า → อย่าทับ ปล่อย null ให้ loadSavedMenus retry ได้
@@ -3292,19 +3298,22 @@ function adjHL(key,delta){
   else if(key==='weight'){hlWeightMin=Math.max(0,hlWeightMin+delta);const el=document.getElementById('hl-weight');if(el)el.value=hlWeightMin;}
 }
 async function saveHealthLog(){
+  const _hlBtn=document.querySelector('button[onclick="saveHealthLog()"]');
+  if(_hlBtn){_hlBtn.disabled=true;_hlBtn.textContent='⏳ กำลังบันทึก...';} // UX: feedback ทันทีที่กด
   try{
-    // W1: race 15s — timeout = คิวไว้ในเครื่องแล้ว (offline persistence) จะซิงค์เอง ถือเป็นสำเร็จ
+    // W1: race 6s — timeout = คิวไว้ในเครื่องแล้ว (offline persistence) จะซิงค์เอง ถือเป็นสำเร็จ
     const _p=db.collection('healthLogs').doc(user.userId).collection('days').doc(selectedDate).set({
       sleep:hlSleep, stress:hlStress, steps:hlSteps, cardio:hlCardio,
       muscleGroup:hlMuscle, weightMin:hlMuscle==='none'?0:hlWeightMin,
       updatedAt:firebase.firestore.FieldValue.serverTimestamp()
     });
     _p.catch(()=>{});
-    const _r=await Promise.race([_p.then(()=>'ok'),new Promise(r=>setTimeout(()=>r('timeout'),15000))]);
+    const _r=await Promise.race([_p.then(()=>'ok'),new Promise(r=>setTimeout(()=>r('timeout'),6000))]);
     // Update local cache so switching tabs & dates shows the latest saved values
     if(dashCache&&dashCache[3]){dashCache[3][selectedDate]={sleep:hlSleep,stress:hlStress,steps:hlSteps,cardio:hlCardio,muscleGroup:hlMuscle,weightMin:hlMuscle==='none'?0:hlWeightMin};}
     showToast(_r==='timeout'?'📡 เน็ตช้า — บันทึกไว้ในเครื่องแล้ว จะซิงค์อัตโนมัติค่ะ':'✅ บันทึกข้อมูลสุขภาพแล้วค่ะ',_r==='timeout'?4000:2500);
   }catch(e){showToast('⚠️ บันทึกไม่ได้: '+e.message,4000);} // W2: toast แทน alert
+  finally{if(_hlBtn){_hlBtn.disabled=false;_hlBtn.textContent='💾 บันทึกข้อมูลสุขภาพวันนี้';}}
 }
 
 // ===== WEEKLY CHECK (Student) =====
@@ -3322,15 +3331,18 @@ async function saveWeeklyCheck(){
   };
   // remove null fields
   Object.keys(entry).forEach(k=>{if(entry[k]===null)delete entry[k];});
+  const _wcBtn=document.querySelector('button[onclick="saveWeeklyCheck()"]');
+  if(_wcBtn){_wcBtn.disabled=true;_wcBtn.textContent='⏳ กำลังบันทึก...';} // UX: feedback ทันทีที่กด
   try{
-    // W1: race 15s — timeout = คิวไว้ในเครื่องแล้ว จะซิงค์เอง ถือเป็นสำเร็จ
+    // W1: race 6s — timeout = คิวไว้ในเครื่องแล้ว จะซิงค์เอง ถือเป็นสำเร็จ
     const _p=db.collection('weeklyChecks').doc(user.userId).collection('entries').doc(selectedDate).set(entry,{merge:true});
     _p.catch(()=>{});
-    const _r=await Promise.race([_p.then(()=>'ok'),new Promise(r=>setTimeout(()=>r('timeout'),15000))]);
+    const _r=await Promise.race([_p.then(()=>'ok'),new Promise(r=>setTimeout(()=>r('timeout'),6000))]);
     showToast(_r==='timeout'?'📡 เน็ตช้า — บันทึกไว้ในเครื่องแล้ว จะซิงค์อัตโนมัติค่ะ':'✅ บันทึกผลการวัดแล้วค่ะ',_r==='timeout'?4000:2500);
     _myProgressCache=null; // invalidate cache เพื่อ fetch ใหม่พร้อมข้อมูลล่าสุด (pending write โผล่ใน cache query ด้วย)
     loadMyProgress(); // refresh chart
   }catch(e){showToast('⚠️ บันทึกไม่ได้: '+e.message,4000);} // W2: toast แทน alert
+  finally{if(_wcBtn){_wcBtn.disabled=false;_wcBtn.textContent='📏 บันทึกผลการวัด';}}
 }
 
 async function loadMyProgress(){
@@ -4083,11 +4095,11 @@ async function saveCurrentMenu(){
     data.total={c:C,p:P,f:F,kcal:Math.round(C*4+P*4+F*9)};
   }
   try{
-    // W1: race 15s — timeout = คิวไว้ในเครื่องแล้ว จะซิงค์เอง
+    // W1: race 6s — timeout = คิวไว้ในเครื่องแล้ว จะซิงค์เอง
     const _ref=db.collection('users').doc(user.userId).collection('savedMenus').doc();
     const _p=_ref.set(data);
     _p.catch(()=>{});
-    const _r=await Promise.race([_p.then(()=>'ok'),new Promise(r=>setTimeout(()=>r('timeout'),15000))]);
+    const _r=await Promise.race([_p.then(()=>'ok'),new Promise(r=>setTimeout(()=>r('timeout'),6000))]);
     if(_r==='timeout'){
       // เพิ่มเข้า local cache ทันที ไม่ต้องรอ server reload
       if(savedMenusCache)savedMenusCache.unshift({id:_ref.id,...data,createdAt:{seconds:Math.floor(Date.now()/1000)}});
@@ -4179,7 +4191,7 @@ async function submitMeal(){
       photoUrls=urls.filter(Boolean);
       photoUrl=photoUrls[0]||null; // backward compat
     }
-    // W1: pre-generate ref + set() race 15s — timeout = write ถูกคิวไว้ในเครื่องแล้ว (offline persistence)
+    // W1: pre-generate ref + set() race 6s — timeout = write ถูกคิวไว้ในเครื่องแล้ว (offline persistence)
     // จะซิงค์อัตโนมัติเมื่อเน็ตกลับมา — ถือเป็นสำเร็จ ห้ามโชว์ error (กันนักเรียนกดส่งซ้ำ → ข้อมูลซ้ำ)
     btn.textContent='💾 กำลังบันทึก...'; // W1: progress text
     const docRef=db.collection('submissions').doc();
@@ -4192,7 +4204,7 @@ async function submitMeal(){
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
     _setP.catch(()=>{}); // กัน unhandled rejection กรณี timeout ชนะ race
-    const _wres=await Promise.race([_setP.then(()=>'ok'),new Promise(r=>setTimeout(()=>r('timeout'),15000))]);
+    const _wres=await Promise.race([_setP.then(()=>'ok'),new Promise(r=>setTimeout(()=>r('timeout'),6000))]);
     // update cache locally (ไม่ต้อง re-query)
     const _now=Date.now();
     const newSubLocal={id:docRef.id,userId:user.userId,mode:curMode,mealDate:selectedDate,handData,labelData,weighData,photoUrl,photoUrls:photoUrls.length>0?photoUrls:null,status:'pending',createdAt:{seconds:Math.floor(_now/1000),nanoseconds:0,toDate:()=>new Date(_now)}};
@@ -4279,7 +4291,13 @@ async function loadHistory(){
       await loadStudentData();
     }
   }
-  const subs=(studentSubsCache||[])
+  // NB7: โหลดล้ม (null) ≠ ไม่มีข้อมูล — โชว์ปุ่มแตะลองใหม่ แทนบอก "ยังไม่มีประวัติ" ผิดๆ
+  if(studentSubsCache===null){
+    histCache=null;
+    list.innerHTML='<div class="hist-empty" onclick="loadHistory()" style="cursor:pointer"><div class="he-icon">📡</div><p>โหลดไม่ได้ (เน็ตช้า)<br>แตะที่นี่เพื่อลองใหม่ค่ะ</p></div>';
+    return;
+  }
+  const subs=studentSubsCache
     .slice().sort((a,b)=>{const ta=a.createdAt?.toDate?.()?.getTime?.()||0,tb=b.createdAt?.toDate?.()?.getTime?.()||0;return tb-ta;});
   histCache=subs;
   if(!subs.length){list.innerHTML='<div class="hist-empty"><div class="he-icon">📭</div><p>ยังไม่มีประวัติการส่งค่ะ<br>ลองบันทึกมื้อแรกเลย!</p></div>';return;}
@@ -4406,7 +4424,13 @@ async function loadDashboard(forceRefresh=false){
     if(wc)wc.docs.forEach(d=>{weeklyChecks.push({id:d.id,...d.data()});});
     let weeklySummaries={};
     if(ws)ws.docs.forEach(d=>{weeklySummaries[d.id]=d.data();});
-    dashCache=[subs,targets,coachNotes,healthLogs,weeklyChecks,weeklySummaries];
+    // NB7: cache เฉพาะตอนโหลดครบทุก query — ถ้าล้มบางส่วน render ที่มีแต่ไม่ cache ให้ครั้งหน้าดึงใหม่
+    if(hs&&wc&&ws&&td2){
+      dashCache=[subs,targets,coachNotes,healthLogs,weeklyChecks,weeklySummaries];
+    }else{
+      dashCache=null;
+      showToast('📡 ข้อมูลบางส่วนโหลดไม่สำเร็จ — เปิดหน้านี้ใหม่จะดึงให้อีกครั้งค่ะ',3500);
+    }
     checkTestimonialEligibility(weeklyChecks).catch(()=>{});
     renderStudentDashboard(subs,targets,coachNotes,healthLogs,weeklyChecks,weeklySummaries);
   }catch(e){content.innerHTML='<div style="padding:24px;text-align:center;color:#EF4444">โหลดไม่ได้: '+e.message+'</div>';}
@@ -4776,16 +4800,19 @@ async function prefetchStudent(userId){
       targets.pausedDays=d.pausedDays||0;targets.isPaused=d.isPaused||false;
       targets.discountCode=d.discountCode||'';targets.discountPercent=d.discountPercent||0;
     }
-    let healthLogs={};if(hsSnap)hsSnap.docs.forEach(d=>{healthLogs[d.id]=d.data();});
-    let weeklySummaries={};if(wsSnap)wsSnap.docs.forEach(d=>{weeklySummaries[d.id]=d.data();});
-    let weeklyChecks=[];if(wcSnap)wcSnap.docs.forEach(d=>{weeklyChecks.push({id:d.id,...d.data()});});
-    _sdCursors[userId]={
-      lastHLDate:hsSnap&&hsSnap.docs.length?hsSnap.docs.reduce((a,d)=>d.id<a?d.id:a,'9999-99-99'):null,
-      hasMoreHL:!!(hsSnap&&hsSnap.docs.length>0),
-      lastWS:wsSnap&&wsSnap.docs.length?wsSnap.docs[wsSnap.docs.length-1]:null,
-      hasMoreWS:!!(wsSnap&&wsSnap.docs.length>=4),
-    };
-    _sdCachePut(userId,{targets,healthLogs,weeklySummaries,weeklyChecks});
+    // NB7: prefetch ล้มบางส่วน (เน็ตช้า) → อย่า cache — ไม่งั้นหน้านักเรียนจะโชว์ "ไม่มีข้อมูล" ทั้งที่มี
+    if(tdSnap&&hsSnap&&wsSnap&&wcSnap){
+      let healthLogs={};hsSnap.docs.forEach(d=>{healthLogs[d.id]=d.data();});
+      let weeklySummaries={};wsSnap.docs.forEach(d=>{weeklySummaries[d.id]=d.data();});
+      let weeklyChecks=[];wcSnap.docs.forEach(d=>{weeklyChecks.push({id:d.id,...d.data()});});
+      _sdCursors[userId]={
+        lastHLDate:hsSnap.docs.length?hsSnap.docs.reduce((a,d)=>d.id<a?d.id:a,'9999-99-99'):null,
+        hasMoreHL:!!(hsSnap.docs.length>0),
+        lastWS:wsSnap.docs.length?wsSnap.docs[wsSnap.docs.length-1]:null,
+        hasMoreWS:!!(wsSnap.docs.length>=4),
+      };
+      _sdCachePut(userId,{targets,healthLogs,weeklySummaries,weeklyChecks});
+    }
   }catch(e){}
   delete _sdCache['_pf_'+userId];
 }
@@ -4841,12 +4868,16 @@ async function openStudentDetail(userId){
   if(_wsLoading)_wsLoading.innerHTML='<div style="padding:16px;text-align:center;color:var(--gray);font-size:13px;font-family:\'Prompt\',sans-serif">⏳ กำลังโหลด...</div>';
   loadCoachStudentPlan(userId);
   // === PHASE 2: โหลด health/weekly ใน background → update เฉพาะส่วนนั้น ===
+  // NB7: เพิ่ม timeout 8s + fallback offline cache — เน็ตช้าจะได้ใช้ข้อมูลในเครื่องแทนหน้าว่าง
   let _hlE=null;
+  const _p2T=ms=>new Promise(r=>setTimeout(()=>r(null),ms));
+  const _p2Q=q=>Promise.race([q.get().catch(()=>null),_p2T(8000)]).then(r=>r||q.get({source:'cache'}).catch(()=>null));
   const [hsSnap,wsSnap,wcSnap]=await Promise.all([
-    db.collection('healthLogs').doc(userId).collection('days').where(firebase.firestore.FieldPath.documentId(),'>=',_hld(30)).get().catch(e=>{console.error('[HL coach]',e?.code,e?.message,userId);_hlE=e?.code||'error';return null;}),
-    db.collection('students').doc(userId).collection('weeklySummaries').orderBy('weekStart','desc').limit(4).get().catch(()=>null),
-    db.collection('weeklyChecks').doc(userId).collection('entries').orderBy('date','asc').limit(20).get().catch(()=>null),
+    _p2Q(db.collection('healthLogs').doc(userId).collection('days').where(firebase.firestore.FieldPath.documentId(),'>=',_hld(30))),
+    _p2Q(db.collection('students').doc(userId).collection('weeklySummaries').orderBy('weekStart','desc').limit(4)),
+    _p2Q(db.collection('weeklyChecks').doc(userId).collection('entries').orderBy('date','asc').limit(20)),
   ]);
+  if(!hsSnap)_hlE='timeout/เน็ตช้า';
   let healthLogs={};
   if(hsSnap)hsSnap.docs.forEach(d=>{healthLogs[d.id]=d.data();});
   let weeklySummaries={};
@@ -4859,16 +4890,21 @@ async function openStudentDetail(userId){
     lastWS: wsSnap&&wsSnap.docs.length ? wsSnap.docs[wsSnap.docs.length-1] : null,
     hasMoreWS: !!(wsSnap&&wsSnap.docs.length>=4),
   };
-  _sdCachePut(userId,{targets,healthLogs,weeklySummaries,weeklyChecks});
+  // NB7: cache เฉพาะตอนโหลดครบ — ล้มบางส่วนอย่า cache ไม่งั้นเปิดซ้ำจะเจอ "ไม่มีข้อมูล" ค้าง
+  if(hsSnap&&wsSnap&&wcSnap){_sdCachePut(userId,{targets,healthLogs,weeklySummaries,weeklyChecks});}
   // อัปเดตเฉพาะ section ที่ต้องการ health data (ถ้ายังเปิดหน้านี้อยู่)
   if(currentStudentData&&currentStudentData.userId===userId){
     const MON=getMonWeekDates(),TH_SHORT=['จ','อ','พ','พฤ','ศ','ส','อา'];
     const byDate={};u.subs.forEach(s=>{const k=subDate(s);if(!byDate[k])byDate[k]=[];byDate[k].push(s);});
     const lsEl=document.getElementById('sd-lifestyle-'+userId);
-    if(_hlE){if(lsEl)lsEl.innerHTML=`<div style="padding:16px;text-align:center;color:#EF4444;font-size:13px">⚠️ health log โหลดไม่ได้<br><code style="font-size:11px;background:#FEE2E2;padding:2px 6px;border-radius:4px">${_hlE}</code><br><small style="color:#6B7280">กด 🐞 ด้านล่างเพื่อดู console</small></div>`;}
+    if(_hlE){if(lsEl)lsEl.innerHTML=`<div style="padding:16px;text-align:center;color:#EF4444;font-size:13px;font-family:'Prompt',sans-serif">📡 โหลด health log ไม่ได้ (${_hlE})<br><small style="color:#6B7280">ปิดหน้านี้แล้วเปิดใหม่อีกครั้งค่ะ</small></div>`;}
     else if(lsEl)lsEl.innerHTML=buildLifestyleSection(MON,TH_SHORT,healthLogs);
     const wsEl=document.getElementById('sd-weekly-'+userId);
-    if(wsEl)wsEl.innerHTML=buildWeeklySummaryAccordion(u,byDate,targets,healthLogs,weeklySummaries);
+    if(wsEl){
+      // NB7: ล้มเหลว ≠ ไม่มีข้อมูล — บอกตรงๆ ให้เปิดใหม่ แทนโชว์หน้าว่าง
+      if(!wsSnap&&!wcSnap){wsEl.innerHTML='<div style="padding:16px;text-align:center;color:var(--gray);font-size:13px;font-family:\'Prompt\',sans-serif">📡 โหลดไม่ได้ (เน็ตช้า) — ปิดหน้านี้แล้วเปิดใหม่อีกครั้งค่ะ</div>';}
+      else wsEl.innerHTML=buildWeeklySummaryAccordion(u,byDate,targets,healthLogs,weeklySummaries);
+    }
     const pgEl=document.getElementById('sd-progress-'+userId);
     if(pgEl)pgEl.innerHTML=buildProgressSection(weeklyChecks,userId);
   }
