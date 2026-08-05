@@ -28,6 +28,13 @@ window.onerror=function(msg,src,line,col,err){
 }
 body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-height:100vh;font-size:15px}
 
+/* SPINNER + SKELETON (loading ที่ดูมีชีวิต) */
+@keyframes dfspin{to{transform:rotate(360deg)}}
+.df-spin{width:34px;height:34px;border:3.5px solid #FDE9C8;border-top-color:var(--primary);border-radius:50%;animation:dfspin .8s linear infinite;margin:0 auto 10px}
+.df-spin.sm{width:20px;height:20px;border-width:2.5px;margin-bottom:6px}
+@keyframes dfsh{0%{background-position:-300px 0}100%{background-position:300px 0}}
+.df-skel{background:linear-gradient(90deg,#F3F4F6 25%,#E7E9EC 50%,#F3F4F6 75%);background-size:600px 100%;animation:dfsh 1.3s infinite linear;border-radius:12px}
+
 /* LOADING */
 #loading{position:fixed;inset:0;background:white;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999}
 .logo-circle{width:72px;height:72px;background:var(--primary);border-radius:50%;display:flex;align-items:center;justify-content:center;margin-bottom:16px}
@@ -875,7 +882,7 @@ db.enablePersistence({synchronizeTabs:true}).catch(e=>{console.warn('Persistence
 // ===== AUTO ERROR REPORTING → Firestore errorLogs =====
 // JS error ที่เกิดบนเครื่องลูกค้าจะถูกส่งเข้า collection 'errorLogs' อัตโนมัติ
 // ดูได้ใน Firebase Console → Firestore → errorLogs (เรียงตาม at ล่าสุด)
-const APP_VERSION='v16-2026-08-05'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
+const APP_VERSION='v18-2026-08-05'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
 const _errLogged=new Set();let _errCount=0;
 function _reportError(type,msg,stack,src){
   try{
@@ -3394,7 +3401,7 @@ async function loadMyProgress(){
   if(!existing){
     const loadWrap=document.createElement('div');
     loadWrap.id='my-progress-section';loadWrap.style.padding='16px 12px';
-    loadWrap.innerHTML='<div style="text-align:center;color:var(--gray);font-size:13px;font-family:\'Prompt\',sans-serif">⏳ กำลังโหลดผลการวัด...</div>';
+    loadWrap.innerHTML='<div style="padding:14px;text-align:center;font-family:\'Prompt\',sans-serif"><div class="df-spin sm"></div><div style="color:var(--gray);font-size:12px">กำลังโหลดผลการวัด...</div></div>';
     el.appendChild(loadWrap);
     existing=loadWrap;
   }
@@ -4314,7 +4321,7 @@ async function loadHistory(){
     return;
   }
   if(studentSubsCache===null){
-    list.innerHTML='<div style="text-align:center;padding:24px;color:var(--gray);font-size:13px">⏳ กำลังโหลด...</div>';
+    list.innerHTML='<div style="padding:28px 16px;font-family:\'Prompt\',sans-serif"><div class="df-spin"></div><div style="text-align:center;color:var(--gray);font-size:13px;margin-bottom:14px">กำลังโหลดประวัติ...</div><div class="df-skel" style="height:84px;margin-bottom:10px"></div><div class="df-skel" style="height:84px"></div></div>';
     if(_loadingStudentData){
       // รอ loadStudentData ที่กำลังรันอยู่ให้เสร็จก่อน (poll ทุก 200ms)
       await new Promise(res=>{const t=setInterval(()=>{if(!_loadingStudentData){clearInterval(t);res();}},200);setTimeout(()=>{clearInterval(t);res();},10000);});
@@ -4435,7 +4442,13 @@ async function loadDashboard(forceRefresh=false){
     renderStudentDashboard(...dashCache);
     return;
   }
-  content.innerHTML='<div style="padding:32px;text-align:center;color:var(--gray)"><div style="font-size:32px;margin-bottom:8px">⏳</div>กำลังโหลด...</div>';
+  content.innerHTML=`<div style="padding:24px 16px;font-family:'Prompt',sans-serif">
+    <div class="df-spin"></div>
+    <div style="text-align:center;color:var(--gray);font-size:13px;margin-bottom:18px">กำลังโหลดข้อมูล...</div>
+    <div class="df-skel" style="height:92px;margin-bottom:10px"></div>
+    <div class="df-skel" style="height:64px;margin-bottom:10px"></div>
+    <div class="df-skel" style="height:130px"></div>
+  </div>`;
   try{
     // Task #9: ยิง 4 queries พร้อมกัน + timeout 8s → fallback อ่าน offline cache (NW1)
     const _qt=ms=>new Promise(r=>setTimeout(()=>r(null),ms));
@@ -4661,8 +4674,7 @@ function selCoachTab(tab){
   // cancel prefetch ถ้าออกจาก students tab ก่อน 800ms
   if(coachTab!=='students')clearTimeout(_prefetchTimer);
   if(coachTab==='mylog'){enterCoachLog();return;}
-  renderCoach();
-  if(coachTab==='students')loadStudentList();
+  renderCoach(); // NB8: renderCoach เรียก loadStudentList เองแล้วเมื่ออยู่ tab นักเรียน
 }
 function renderCoach(){
   const pending=allSubs.filter(s=>s.status==='pending'),done=allSubs.filter(s=>s.status!=='pending');
@@ -4671,8 +4683,10 @@ function renderCoach(){
   const container=document.getElementById('cards-container');
   const filterBar=document.getElementById('coach-filter-bar');
   if(coachTab==='students'){
-    container.innerHTML='<div style="padding:20px;text-align:center;color:var(--gray)">⏳ กำลังโหลด...</div>';
     if(filterBar)filterBar.style.display='none';
+    // NB8: rebuild รายชื่อจาก allSubs ทันที (sync ไม่รอ network) — เดิมทับด้วย loading ค้าง
+    // เมื่อ onSnapshot เรียก renderCoach ระหว่างโค้ชอยู่ tab นักเรียน แล้วไม่มีใครโหลดกลับ
+    loadStudentList();
     return;
   }
   if(filterBar)filterBar.style.display='flex';
@@ -4877,7 +4891,12 @@ async function openStudentDetail(userId){
       return;
   }
   // แสดง loading ก่อน Phase 1 fetch (sd-content ยังว่าง)
-  document.getElementById('sd-content').innerHTML='<div style="padding:48px 0;text-align:center;color:var(--gray);font-family:\'Prompt\',sans-serif;font-size:14px">⏳ กำลังโหลดข้อมูล...</div>';
+  document.getElementById('sd-content').innerHTML=`<div style="padding:36px 16px;font-family:'Prompt',sans-serif">
+    <div class="df-spin"></div>
+    <div style="text-align:center;color:var(--gray);font-size:13px;margin-bottom:18px">กำลังโหลดข้อมูลนักเรียน...</div>
+    <div class="df-skel" style="height:80px;margin-bottom:10px"></div>
+    <div class="df-skel" style="height:110px"></div>
+  </div>`;
   // === PHASE 1: โหลด students doc เดียว → render ทันที ===
   const tdSnap=await db.collection('students').doc(userId).get().catch(()=>null);
   let targets={kcal:1600,c:160,p:120,f:55};
@@ -4895,9 +4914,9 @@ async function openStudentDetail(userId){
   renderStudentDetail(u,targets,{},{},[]); // render ทันที ยังไม่มี health/weekly data
   // แสดง loading ใน Lifestyle + Weekly sections ระหว่างรอ Phase 2
   const _lsLoading=document.getElementById('sd-lifestyle-'+userId);
-  if(_lsLoading)_lsLoading.innerHTML='<div style="padding:16px;text-align:center;color:var(--gray);font-size:13px;font-family:\'Prompt\',sans-serif">⏳ กำลังโหลด...</div>';
+  if(_lsLoading)_lsLoading.innerHTML='<div style="padding:14px;text-align:center;font-family:\'Prompt\',sans-serif"><div class="df-spin sm"></div><div style="color:var(--gray);font-size:12px">กำลังโหลด...</div></div>';
   const _wsLoading=document.getElementById('sd-weekly-'+userId);
-  if(_wsLoading)_wsLoading.innerHTML='<div style="padding:16px;text-align:center;color:var(--gray);font-size:13px;font-family:\'Prompt\',sans-serif">⏳ กำลังโหลด...</div>';
+  if(_wsLoading)_wsLoading.innerHTML='<div style="padding:14px;text-align:center;font-family:\'Prompt\',sans-serif"><div class="df-spin sm"></div><div style="color:var(--gray);font-size:12px">กำลังโหลด...</div></div>';
   loadCoachStudentPlan(userId);
   // === PHASE 2: โหลด health/weekly ใน background → update เฉพาะส่วนนั้น ===
   // NB7: เพิ่ม timeout 8s + fallback offline cache — เน็ตช้าจะได้ใช้ข้อมูลในเครื่องแทนหน้าว่าง
@@ -5828,7 +5847,7 @@ function renderStudentDetail(u, targets, healthLogs, weeklySummaries={}, weeklyC
   const progressHtml=buildProgressSection(weeklyChecks, u.userId);
   const planSectionHtml=`<div class="sd-section">
     <div class="sd-section-title">📋 แผนมื้ออาหาร</div>
-    <div id="coach-plan-${uid}"><div style="color:var(--gray);font-size:12px;text-align:center;padding:8px">⏳ กำลังโหลด...</div></div>
+    <div id="coach-plan-${uid}"><div style="padding:10px;text-align:center"><div class="df-spin sm"></div><div style="color:var(--gray);font-size:12px">กำลังโหลด...</div></div></div>
   </div>`;
   const cur=_sdCursors[uid]||{};
   const showLoadMore=cur.hasMoreHL||cur.hasMoreWS;
