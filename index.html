@@ -872,6 +872,34 @@ firebase.auth().signInAnonymously().catch(e=>console.warn('anon auth:',e));
 // Offline persistence — reload ครั้งที่ 2+ โหลดจาก cache ทันที
 db.enablePersistence({synchronizeTabs:true}).catch(e=>{console.warn('Persistence:',e.code);});
 
+// ===== AUTO ERROR REPORTING → Firestore errorLogs =====
+// JS error ที่เกิดบนเครื่องลูกค้าจะถูกส่งเข้า collection 'errorLogs' อัตโนมัติ
+// ดูได้ใน Firebase Console → Firestore → errorLogs (เรียงตาม at ล่าสุด)
+const APP_VERSION='v12-2026-08-04'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
+const _errLogged=new Set();let _errCount=0;
+function _reportError(type,msg,stack,src){
+  try{
+    if(_errCount>=10)return; // cap 10 ต่อ session กัน error loop สแปม Firestore
+    const key=(msg||'').slice(0,120);
+    if(_errLogged.has(key))return; // ไม่ส่ง error เดิมซ้ำ
+    _errLogged.add(key);_errCount++;
+    db.collection('errorLogs').add({
+      type,
+      msg:(msg||'').slice(0,300),
+      stack:(stack||'').slice(0,1000),
+      src:(src||'').slice(0,200),
+      userId:(typeof user!=='undefined'&&user&&user.userId)||null,
+      isCoach:(typeof isCoach!=='undefined'&&!!isCoach),
+      ua:navigator.userAgent.slice(0,200),
+      ver:APP_VERSION,
+      online:navigator.onLine,
+      at:firebase.firestore.FieldValue.serverTimestamp()
+    }).catch(()=>{}); // fire-and-forget — ห้าม throw เอง
+  }catch(_){}
+}
+window.addEventListener('error',e=>{_reportError('js-error',e.message,e.error&&e.error.stack,(e.filename||'')+':'+(e.lineno||0));});
+window.addEventListener('unhandledrejection',e=>{const r=e.reason||{};_reportError('promise',r.message||String(r),r.stack,'');});
+
 const _REMOVED=[
   {name:'ข้าวขาวสุก',c:28,p:2.7,f:0.3,src:'th'},
   {name:'ข้าวกล้องสุก',c:23,p:2.5,f:1.0,src:'th'},
