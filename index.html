@@ -875,7 +875,7 @@ db.enablePersistence({synchronizeTabs:true}).catch(e=>{console.warn('Persistence
 // ===== AUTO ERROR REPORTING → Firestore errorLogs =====
 // JS error ที่เกิดบนเครื่องลูกค้าจะถูกส่งเข้า collection 'errorLogs' อัตโนมัติ
 // ดูได้ใน Firebase Console → Firestore → errorLogs (เรียงตาม at ล่าสุด)
-const APP_VERSION='v15-2026-08-05'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
+const APP_VERSION='v16-2026-08-05'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
 const _errLogged=new Set();let _errCount=0;
 function _reportError(type,msg,stack,src){
   try{
@@ -3312,8 +3312,39 @@ async function saveHealthLog(){
     // Update local cache so switching tabs & dates shows the latest saved values
     if(dashCache&&dashCache[3]){dashCache[3][selectedDate]={sleep:hlSleep,stress:hlStress,steps:hlSteps,cardio:hlCardio,muscleGroup:hlMuscle,weightMin:hlMuscle==='none'?0:hlWeightMin};}
     showToast(_r==='timeout'?'📡 เน็ตช้า — บันทึกไว้ในเครื่องแล้ว จะซิงค์อัตโนมัติค่ะ':'✅ บันทึกข้อมูลสุขภาพแล้วค่ะ',_r==='timeout'?4000:2500);
+    if(_r!=='timeout')sendHealthLogCard(); // F3: ส่ง LINE card (ข้ามตอนเน็ตช้า — LINE ก็ส่งไม่ได้อยู่ดี)
   }catch(e){showToast('⚠️ บันทึกไม่ได้: '+e.message,4000);} // W2: toast แทน alert
   finally{if(_hlBtn){_hlBtn.disabled=false;_hlBtn.textContent='💾 บันทึกข้อมูลสุขภาพวันนี้';}}
+}
+
+// F3: Health Log card — แสดงเฉพาะช่องที่กรอก (นักเรียนกรอกบางช่องได้ ไม่บังคับครบ)
+async function sendHealthLogCard(){
+  try{
+    if(typeof liff==='undefined'||!liff.isInClient())return;
+    const MUSCLE_TH={full:'เต็มตัว',legs:'ขา',chest:'อก',back:'หลัง',shoulder:'บ่า',arms:'แขน',core:'Core'};
+    const rows=[];
+    const row=(emoji,label,val)=>rows.push({"type":"box","layout":"horizontal","margin":"sm","contents":[
+      {"type":"text","text":`${emoji} ${label}`,"size":"sm","color":"#555555","flex":1},
+      {"type":"text","text":String(val),"size":"sm","color":"#111111","weight":"bold","align":"end","flex":1}
+    ]});
+    if(hlSleep>0)row('😴','นอน',hlSleep+' ชม.');
+    if(hlStress>0)row('🧠','ความเครียด',hlStress+'/5');
+    if(hlSteps>0)row('👟','ก้าวเดิน',hlSteps.toLocaleString()+' ก้าว');
+    if(hlCardio>0)row('🏃','คาร์ดิโอ',hlCardio+' นาที');
+    if(hlMuscle&&hlMuscle!=='none')row('🏋️','เวทเทรนนิ่ง',(MUSCLE_TH[hlMuscle]||hlMuscle)+(hlWeightMin>0?` ${hlWeightMin} นาที`:''));
+    if(!rows.length)return; // ไม่กรอกอะไรเลย → ไม่ส่ง card
+    const dateLabel=formatDateTH(selectedDate);
+    await liff.sendMessages([{
+      "type":"flex","altText":"🩺 บันทึก Health Log แล้วค่ะ",
+      "contents":{"type":"bubble","size":"kilo",
+        "header":{"type":"box","layout":"vertical","backgroundColor":"#0891B2","paddingAll":"14px","contents":[
+          {"type":"text","text":"🩺 Health Log วันนี้","color":"#FFFFFF","weight":"bold","size":"md"},
+          {"type":"text","text":dateLabel,"color":"#CFFAFE","size":"xs","margin":"xs"}
+        ]},
+        "body":{"type":"box","layout":"vertical","paddingAll":"14px","contents":rows}
+      }
+    }]);
+  }catch(e){console.log('health log card err',e);}
 }
 
 // ===== WEEKLY CHECK (Student) =====
@@ -4336,8 +4367,9 @@ function buildHistCard(s){
   const photoSrc=s.photoBase64||s.photoUrl||null;
   const photoHtml=photoSrc?`<img style="width:100%;max-height:160px;object-fit:cover;border-radius:8px;margin-bottom:8px" src="${photoSrc}" loading="lazy">`:'';
   const editHistHtml=(s.editHistory&&s.editHistory.length)?`<div class="hist-edit-log">
-    <div style="font-size:10px;font-weight:700;color:#92400E;margin-bottom:4px">✏️ โค้ชแก้ไข</div>
-    ${s.editHistory.flatMap(h=>h.fields.map(f=>`<div class="hist-edit-row"><span style="color:#6B7280;min-width:48px">${f.k}</span><span class="hist-edit-from">${f.from}g</span><span style="color:#9CA3AF">→</span><span class="hist-edit-to">${f.to}g</span></div>`)).join('')}
+    ${s.editHistory.map(h=>`
+    <div style="font-size:10px;font-weight:700;color:${h.by==='student'?'#1D4ED8':'#92400E'};margin-bottom:4px">${h.by==='student'?'✏️ นักเรียนแก้ไขเอง':'✏️ โค้ชแก้ไข'}</div>
+    ${h.fields.map(f=>`<div class="hist-edit-row"><span style="color:#6B7280;min-width:48px">${f.k}</span><span class="hist-edit-from">${f.from}g</span><span style="color:#9CA3AF">→</span><span class="hist-edit-to">${f.to}g</span></div>`).join('')}`).join('')}
   </div>`:'';
   const coachCommentHtml=s.coachComment?`<div class="hist-coach-comment">💬 ${escHtml(s.coachComment)}</div>`:'';
   let corrHtml='';
@@ -5978,6 +6010,8 @@ function buildCard(s){
   </div>`:'';
   const commentBadge=s.coachComment&&s.status!=='pending'?`<div class="hist-coach-comment" style="background:#F0FDF4;color:#065F46;margin-top:6px">💬 ${escHtml(s.coachComment)}</div>`:'';
   if(s.status==='pending')actions=`<div class="card-actions"><button class="btn-approve" onclick="doApproveQuiet('${s.id}')">✅ อนุมัติ</button><button class="btn-correct" onclick="toggleCorr('${s.id}')">${showCorr?'✕ ยกเลิก':'✏️ แก้ไข + ส่ง Card'}</button></div>`;
+  // F1: การ์ดที่อนุมัติ/แก้ไปแล้ว → โค้ชกลับมาแก้ใหม่ได้ (บันทึกแล้วส่ง Card อัปเดตให้นักเรียน)
+  else if(s.status==='approved'||s.status==='corrected')actions=`<div class="card-actions"><button class="btn-correct" onclick="toggleCorr('${s.id}')" style="flex:1">${showCorr?'✕ ยกเลิก':'✏️ แก้ไขการอนุมัติ'}</button></div>`;
   const corrPanel=showCorr?buildCorrPanel(s,cs):'';
   const testBadge=s.isTest?'<span style="background:#EDE9FE;color:#7C3AED;border-radius:6px;padding:1px 7px;font-size:11px;margin-left:4px">🧪 ทดสอบ</span>':'';
   return`<div class="card" id="card-${s.id}"><div class="card-header">${avatarHtml}<div><div class="card-name">${escHtml(s.displayName||'นักเรียน')}<span class="mode-tag ${s.mode}">${modeLabel}</span>${testBadge}</div><div class="card-meta">${dateLabel}มื้อ${s.meal} &nbsp;${statusBadge}</div></div><div class="card-time">${timeStr}</div></div>${photoHtml}<div class="card-body"><div class="est-chips">${chips}</div>${macroBar}${corrNote}${actions}</div>${corrPanel}</div>`;
@@ -6080,9 +6114,10 @@ ${_modeSwitchRow}<h4>✏️ แก้ค่า — Hand Portion</h4>
   const origC=_orig.c,origP=_orig.p,origF=_orig.f;
   if(!cState[s.id])cState[s.id]={};
   cState[s.id]._sub=s;
-  carb=cs.carb!==undefined?cs.carb:origC;
-  prot=cs.protein!==undefined?cs.protein:origP;
-  fat=cs.fat!==undefined?cs.fat:origF;
+  // F1: re-edit → เริ่มจากค่าที่โค้ชแก้ล่าสุด (correction) ไม่ใช่ค่าดั้งเดิมนักเรียน
+  carb=cs.carb!==undefined?cs.carb:(s.correction?.carb??origC);
+  prot=cs.protein!==undefined?cs.protein:(s.correction?.protein??origP);
+  fat=cs.fat!==undefined?cs.fat:(s.correction?.fat??origF);
   const origKcal=Math.round(origC*4+origP*4+origF*9);
   const prevKcal=Math.round(carb*4+prot*4+fat*9);
   const kcalDiff=prevKcal-origKcal;
@@ -6356,27 +6391,40 @@ async function sendCorrection(id,action='save'){
   }
   // action === 'save'
   try{
+    // F1: ถ้ารายการเคยอนุมัติ/แก้ไปแล้ว = โค้ชกลับมาแก้ใหม่ → ส่ง Card อัปเดตแจ้งนักเรียน
+    const _isReEdit=existingSub.status==='approved'||existingSub.status==='corrected';
     const prevHistory=existingSub.editHistory||[];
     const editHistory=[
       ...prevHistory,
-      {at:new Date().toISOString(),fields:[
+      {at:new Date().toISOString(),by:'coach',fields:[ // F2: บันทึกว่าโค้ชแก้
         ...(Math.abs(origM.c-carb)>0.5?[{k:'Carb',from:origM.c,to:carb}]:[]),
         ...(Math.abs(origM.p-prot)>0.5?[{k:'Protein',from:origM.p,to:prot}]:[]),
         ...(Math.abs(origM.f-fat)>0.5?[{k:'Fat',from:origM.f,to:fat}]:[])
       ]}
     ].filter(h=>h.fields.length);
     const _modeChanged=cState[id]?.corrMode&&cState[id].corrMode!==existingSub.mode;
+    const _corrNote=note||(_isReEdit?'โค้ชปรับค่าอัปเดตให้ใหม่นะคะ':'โค้ชปรับค่า macro ให้แล้วนะคะ');
     const _r=await _fsWrite(db.collection('submissions').doc(id).update({
       status:'approved',correction:{carb,protein:prot,fat,note},
-      coachComment:note||'โค้ชปรับค่า macro ให้แล้วนะคะ',
-      coachCommentTone:'fix',coachCommentSent:true,coachCommentWithPhoto:false,
+      coachComment:_corrNote,
+      coachCommentTone:'fix',coachCommentSent:!_isReEdit,coachCommentWithPhoto:false, // F1: re-edit → sent:false ให้ Card อัปเดตส่งเมื่อนักเรียนเปิดแอป
       origMacros:{c:origM.c,p:origM.p,f:origM.f},
       editHistory,
       ...(_modeChanged?{mode:cState[id].corrMode}:{})
     })); // W1
+    // F1: ลองส่ง Card อัปเดตทันทีถ้าโค้ชเปิด LIFF ใน chat นักเรียน (fallback = ส่งเมื่อนักเรียนเปิดแอป)
+    let _sentNow=false;
+    if(_isReEdit&&_r!=='timeout'&&liff.isInClient()){
+      try{
+        const cardData=Object.assign({},existingSub,{correction:{carb,protein:prot,fat,note},status:'approved',coachComment:_corrNote,coachCommentTone:'fix'});
+        await liff.sendMessages([buildCoachCommentCard(cardData,_corrNote,'fix',false)]);
+        await _fsWrite(db.collection('submissions').doc(id).update({coachCommentSent:true}));
+        _sentNow=true;
+      }catch(_){}
+    }
     cState[id]={};
     renderCoach();
-    showToast(_r==='timeout'?'📡 เน็ตช้า — บันทึกไว้ในเครื่องแล้ว จะซิงค์อัตโนมัติค่ะ':'✅ บันทึกแล้วค่ะ',_r==='timeout'?4000:2500);
+    showToast(_r==='timeout'?'📡 เน็ตช้า — บันทึกไว้ในเครื่องแล้ว จะซิงค์อัตโนมัติค่ะ':(_isReEdit?(_sentNow?'✅ แก้ไขแล้ว — ส่ง Card อัปเดตให้นักเรียนแล้วค่ะ':'✅ แก้ไขแล้ว — Card อัปเดตจะส่งเมื่อนักเรียนเปิดแอปค่ะ'):'✅ บันทึกแล้วค่ะ'),_r==='timeout'?4000:3000);
   }catch(e){alert('Error: '+e.message);}
   finally{_corrInProgress.delete(id);} // M2
 }
@@ -7299,7 +7347,8 @@ async function saveHistEdit(){
     if(rnd(p)!==_editSubOrigP)histFields.push({k:'โปรตีน',from:_editSubOrigP,to:rnd(p)});
     if(rnd(f)!==_editSubOrigF)histFields.push({k:'ไขมัน',from:_editSubOrigF,to:rnd(f)});
     const histEntry=histFields.length?{
-      at:new Date().toISOString(),fields:histFields
+      at:new Date().toISOString(),fields:histFields,
+      by:(typeof isCoach!=='undefined'&&isCoach)?'coach':'student' // F2: บันทึกว่าใครแก้
     }:null;
 
     let upd={meal,mealDate,mode:_editSubMode,edited:true,editedAt:firebase.firestore.FieldValue.serverTimestamp()};
