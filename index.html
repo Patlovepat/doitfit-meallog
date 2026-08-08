@@ -882,7 +882,7 @@ db.enablePersistence({synchronizeTabs:true}).catch(e=>{console.warn('Persistence
 // ===== AUTO ERROR REPORTING → Firestore errorLogs =====
 // JS error ที่เกิดบนเครื่องลูกค้าจะถูกส่งเข้า collection 'errorLogs' อัตโนมัติ
 // ดูได้ใน Firebase Console → Firestore → errorLogs (เรียงตาม at ล่าสุด)
-const APP_VERSION='v18-2026-08-05'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
+const APP_VERSION='v20-2026-08-05'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
 const _errLogged=new Set();let _errCount=0;
 function _reportError(type,msg,stack,src){
   try{
@@ -2781,6 +2781,71 @@ function _fsWrite(p,ms){
   p.catch(()=>{});
   return Promise.race([p.then(()=>'ok'),new Promise(r=>setTimeout(()=>r('timeout'),ms||6000))]);
 }
+
+// ===== W3: BACKUP QUEUE ใน localStorage =====
+// เคสจริง: นักเรียนส่งตอนเน็ตแย่ → queue ภายในของ Firestore หายได้ (persistence fail / LINE ล้าง storage)
+// → เก็บสำรองเองใน localStorage แล้วส่งซ้ำเมื่อเปิดแอป/เน็ตกลับมา
+// ใช้ doc id เดิมเสมอ → retry กี่ครั้งก็ไม่เกิดข้อมูลซ้ำ | timestamp เก็บเป็น {__ts:ms} แล้วแปลงตอนส่ง
+function _queueBackup(path,data){
+  try{
+    let q=JSON.parse(localStorage.getItem('_dfq')||'[]');
+    q=q.filter(it=>it.p!==path); // W3-1: path เดิม → แทนที่ด้วยค่าล่าสุด (ไม่ใช่ข้าม — กัน backup ค้างค่าเก่า)
+    q.push({p:path,d:data,at:Date.now()});
+    while(q.length>20)q.shift();
+    localStorage.setItem('_dfq',JSON.stringify(q));
+  }catch(_){}
+}
+function _dropBackup(path){ // เรียกเมื่อ write path เดิมสำเร็จ — กัน backup เก่าไปทับข้อมูลใหม่
+  try{
+    const q=JSON.parse(localStorage.getItem('_dfq')||'[]');
+    const n=q.filter(it=>it.p!==path);
+    if(n.length!==q.length)localStorage.setItem('_dfq',JSON.stringify(n));
+  }catch(_){}
+}
+let _dfqFlushing=false;
+async function _flushBackupQueue(){
+  if(_dfqFlushing)return;
+  _dfqFlushing=true;
+  try{
+    let q=[];try{q=JSON.parse(localStorage.getItem('_dfq')||'[]');}catch(_){q=[];}
+    if(!q.length)return;
+    const remain=[];let sent=0;
+    for(const it of q){
+      try{
+        // W3-3: เช็คว่า entry ยังอยู่ในคิวไหม — ถ้ามี write ใหม่สำเร็จระหว่าง flush (_dropBackup ลบไปแล้ว) ห้ามส่งของเก่าทับ
+        let cur=[];try{cur=JSON.parse(localStorage.getItem('_dfq')||'[]');}catch(_){}
+        if(!cur.some(x=>x.p===it.p))continue;
+        const ref=db.doc(it.p);
+        // W3-2: submissions เช็คกับ server ตรงๆ (ไม่ใช่ cache — cache โชว์ pending write หลอกว่ามีแล้ว)
+        // กันไปทับ status ที่โค้ชอนุมัติไปแล้ว
+        if(it.p.indexOf('submissions/')===0){
+          const ex=await Promise.race([ref.get({source:'server'}).catch(()=>null),new Promise(r=>setTimeout(()=>r(null),6000))]);
+          if(ex&&ex.exists){sent++;continue;} // server มีแล้ว → ทิ้ง backup
+          if(!ex){remain.push(it);continue;} // เช็ค server ไม่ได้ (เน็ตยังแย่) → เก็บไว้รอบหน้า
+        }
+        const data={};
+        for(const k of Object.keys(it.d)){
+          const v=it.d[k];
+          data[k]=(v&&typeof v==='object'&&v.__ts)?firebase.firestore.Timestamp.fromMillis(v.__ts):v;
+        }
+        const wp=ref.set(data,{merge:true});
+        wp.catch(()=>{});
+        const r=await Promise.race([wp.then(()=>'ok'),new Promise(res=>setTimeout(()=>res(null),8000))]);
+        if(r==='ok')sent++;else remain.push(it);
+      }catch(_){remain.push(it);}
+    }
+    // W3-3: merge กับ entry ใหม่ที่ถูกเพิ่มระหว่าง flush — ไม่ clobber
+    try{
+      let endQ=[];try{endQ=JSON.parse(localStorage.getItem('_dfq')||'[]');}catch(_){}
+      const newDuring=endQ.filter(x=>!q.some(y=>y.p===x.p));
+      localStorage.setItem('_dfq',JSON.stringify([...remain,...newDuring]));
+    }catch(_){}
+    if(sent>0&&!remain.length){try{showToast('✅ ส่งข้อมูลที่ค้างไว้ '+sent+' รายการเรียบร้อยแล้วค่ะ',3500);}catch(_){}}
+  }finally{_dfqFlushing=false;}
+}
+window.addEventListener('online',()=>setTimeout(_flushBackupQueue,1500));
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)setTimeout(_flushBackupQueue,1000);});
+setTimeout(_flushBackupQueue,4000); // ตอนเปิดแอป — ส่งของที่ค้างจากรอบก่อน
 // ถ้า GEMINI_KEY null (init fetch ล้มเหลว) → retry on-demand: server (10s) → Firestore offline cache
 async function _ensureGeminiKey(){
   if(GEMINI_KEY)return true;
@@ -3308,14 +3373,15 @@ async function saveHealthLog(){
   const _hlBtn=document.querySelector('button[onclick="saveHealthLog()"]');
   if(_hlBtn){_hlBtn.disabled=true;_hlBtn.textContent='⏳ กำลังบันทึก...';} // UX: feedback ทันทีที่กด
   try{
-    // W1: race 6s — timeout = คิวไว้ในเครื่องแล้ว (offline persistence) จะซิงค์เอง ถือเป็นสำเร็จ
-    const _p=db.collection('healthLogs').doc(user.userId).collection('days').doc(selectedDate).set({
-      sleep:hlSleep, stress:hlStress, steps:hlSteps, cardio:hlCardio,
-      muscleGroup:hlMuscle, weightMin:hlMuscle==='none'?0:hlWeightMin,
-      updatedAt:firebase.firestore.FieldValue.serverTimestamp()
-    });
+    // W1: race 6s — timeout = คิวไว้ในเครื่องแล้ว จะซิงค์เอง ถือเป็นสำเร็จ + W3 backup
+    const _hlPath=`healthLogs/${user.userId}/days/${selectedDate}`;
+    const _hlBase={sleep:hlSleep, stress:hlStress, steps:hlSteps, cardio:hlCardio,
+      muscleGroup:hlMuscle, weightMin:hlMuscle==='none'?0:hlWeightMin};
+    const _p=db.doc(_hlPath).set({..._hlBase,updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
     _p.catch(()=>{});
     const _r=await Promise.race([_p.then(()=>'ok'),new Promise(r=>setTimeout(()=>r('timeout'),6000))]);
+    if(_r==='timeout')_queueBackup(_hlPath,{..._hlBase,updatedAt:{__ts:Date.now()}}); // W3
+    else _dropBackup(_hlPath);
     // Update local cache so switching tabs & dates shows the latest saved values
     if(dashCache&&dashCache[3]){dashCache[3][selectedDate]={sleep:hlSleep,stress:hlStress,steps:hlSteps,cardio:hlCardio,muscleGroup:hlMuscle,weightMin:hlMuscle==='none'?0:hlWeightMin};}
     showToast(_r==='timeout'?'📡 เน็ตช้า — บันทึกไว้ในเครื่องแล้ว จะซิงค์อัตโนมัติค่ะ':'✅ บันทึกข้อมูลสุขภาพแล้วค่ะ',_r==='timeout'?4000:2500);
@@ -3372,10 +3438,13 @@ async function saveWeeklyCheck(){
   const _wcBtn=document.querySelector('button[onclick="saveWeeklyCheck()"]');
   if(_wcBtn){_wcBtn.disabled=true;_wcBtn.textContent='⏳ กำลังบันทึก...';} // UX: feedback ทันทีที่กด
   try{
-    // W1: race 6s — timeout = คิวไว้ในเครื่องแล้ว จะซิงค์เอง ถือเป็นสำเร็จ
-    const _p=db.collection('weeklyChecks').doc(user.userId).collection('entries').doc(selectedDate).set(entry,{merge:true});
+    // W1: race 6s — timeout = คิวไว้ในเครื่องแล้ว จะซิงค์เอง ถือเป็นสำเร็จ + W3 backup
+    const _wcPath=`weeklyChecks/${user.userId}/entries/${selectedDate}`;
+    const _p=db.doc(_wcPath).set(entry,{merge:true});
     _p.catch(()=>{});
     const _r=await Promise.race([_p.then(()=>'ok'),new Promise(r=>setTimeout(()=>r('timeout'),6000))]);
+    if(_r==='timeout')_queueBackup(_wcPath,{...entry,submittedAt:{__ts:Date.now()}}); // W3
+    else _dropBackup(_wcPath);
     showToast(_r==='timeout'?'📡 เน็ตช้า — บันทึกไว้ในเครื่องแล้ว จะซิงค์อัตโนมัติค่ะ':'✅ บันทึกผลการวัดแล้วค่ะ',_r==='timeout'?4000:2500);
     _myProgressCache=null; // invalidate cache เพื่อ fetch ใหม่พร้อมข้อมูลล่าสุด (pending write โผล่ใน cache query ด้วย)
     loadMyProgress(); // refresh chart
@@ -4133,11 +4202,14 @@ async function saveCurrentMenu(){
     data.total={c:C,p:P,f:F,kcal:Math.round(C*4+P*4+F*9)};
   }
   try{
-    // W1: race 6s — timeout = คิวไว้ในเครื่องแล้ว จะซิงค์เอง
+    // W1: race 6s — timeout = คิวไว้ในเครื่องแล้ว จะซิงค์เอง + W3 backup
     const _ref=db.collection('users').doc(user.userId).collection('savedMenus').doc();
     const _p=_ref.set(data);
     _p.catch(()=>{});
     const _r=await Promise.race([_p.then(()=>'ok'),new Promise(r=>setTimeout(()=>r('timeout'),6000))]);
+    const _smPath=`users/${user.userId}/savedMenus/${_ref.id}`;
+    if(_r==='timeout')_queueBackup(_smPath,{...data,createdAt:{__ts:Date.now()}}); // W3
+    else _dropBackup(_smPath);
     if(_r==='timeout'){
       // เพิ่มเข้า local cache ทันที ไม่ต้องรอ server reload
       if(savedMenusCache)savedMenusCache.unshift({id:_ref.id,...data,createdAt:{seconds:Math.floor(Date.now()/1000)}});
@@ -4233,16 +4305,19 @@ async function submitMeal(){
     // จะซิงค์อัตโนมัติเมื่อเน็ตกลับมา — ถือเป็นสำเร็จ ห้ามโชว์ error (กันนักเรียนกดส่งซ้ำ → ข้อมูลซ้ำ)
     btn.textContent='💾 กำลังบันทึก...'; // W1: progress text
     const docRef=db.collection('submissions').doc();
-    const _setP=docRef.set({
+    const _basePayload={
       userId:user.userId,displayName:user.displayName,pictureUrl:user.pictureUrl||null,
       meal:curMeal,mode:curMode,mealDate:selectedDate,
       handData,labelData,weighData,photoUrl:photoUrl||null,photoUrls:photoUrls.length>0?photoUrls:null,
       status:'pending',correction:null,
-      isTest:testMode||false,
-      createdAt:firebase.firestore.FieldValue.serverTimestamp()
-    });
+      isTest:testMode||false
+    };
+    const _setP=docRef.set({..._basePayload,createdAt:firebase.firestore.FieldValue.serverTimestamp()});
     _setP.catch(()=>{}); // กัน unhandled rejection กรณี timeout ชนะ race
     const _wres=await Promise.race([_setP.then(()=>'ok'),new Promise(r=>setTimeout(()=>r('timeout'),6000))]);
+    // W3: timeout → เก็บสำรองใน localStorage (Firestore queue อย่างเดียวหายได้) | สำเร็จ → ล้าง backup path นี้
+    if(_wres==='timeout')_queueBackup('submissions/'+docRef.id,{..._basePayload,createdAt:{__ts:Date.now()}});
+    else _dropBackup('submissions/'+docRef.id);
     // update cache locally (ไม่ต้อง re-query)
     const _now=Date.now();
     const newSubLocal={id:docRef.id,userId:user.userId,mode:curMode,mealDate:selectedDate,handData,labelData,weighData,photoUrl,photoUrls:photoUrls.length>0?photoUrls:null,status:'pending',createdAt:{seconds:Math.floor(_now/1000),nanoseconds:0,toDate:()=>new Date(_now)}};
@@ -5551,10 +5626,11 @@ async function savePlanToFirestore(){
   const btn=document.querySelector('#panel-plan button[onclick="savePlanToFirestore()"]');
   if(btn){btn.textContent='⏳ กำลังบันทึก...';btn.disabled=true;}
   try{
-    const _r=await _fsWrite(db.collection('mealPlans').doc(user.userId).collection('plans').doc(mealPlanDate).set({
-      items:mealPlan,date:mealPlanDate,userId:user.userId,
-      updatedAt:firebase.firestore.FieldValue.serverTimestamp()
-    })); // W1
+    const _plPath=`mealPlans/${user.userId}/plans/${mealPlanDate}`;
+    const _plBase={items:mealPlan,date:mealPlanDate,userId:user.userId};
+    const _r=await _fsWrite(db.doc(_plPath).set({..._plBase,updatedAt:firebase.firestore.FieldValue.serverTimestamp()})); // W1
+    if(_r==='timeout')_queueBackup(_plPath,{..._plBase,updatedAt:{__ts:Date.now()}}); // W3
+    else _dropBackup(_plPath);
     showToast(_r==='timeout'?'📡 เน็ตช้า — บันทึกแผนไว้ในเครื่องแล้ว จะซิงค์อัตโนมัติค่ะ':'บันทึกแผนอาหารแล้วค่ะ ✅',_r==='timeout'?4000:2500);
   }catch(e){showToast('⚠️ บันทึกไม่ได้: '+e.message,4000);}
   if(btn){btn.textContent='💾 บันทึกแผนอาหาร';btn.disabled=false;}
