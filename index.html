@@ -882,7 +882,7 @@ db.enablePersistence({synchronizeTabs:true}).catch(e=>{console.warn('Persistence
 // ===== AUTO ERROR REPORTING → Firestore errorLogs =====
 // JS error ที่เกิดบนเครื่องลูกค้าจะถูกส่งเข้า collection 'errorLogs' อัตโนมัติ
 // ดูได้ใน Firebase Console → Firestore → errorLogs (เรียงตาม at ล่าสุด)
-const APP_VERSION='v20-2026-08-05'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
+const APP_VERSION='v22-2026-08-05'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
 const _errLogged=new Set();let _errCount=0;
 function _reportError(type,msg,stack,src){
   try{
@@ -2787,13 +2787,18 @@ function _fsWrite(p,ms){
 // → เก็บสำรองเองใน localStorage แล้วส่งซ้ำเมื่อเปิดแอป/เน็ตกลับมา
 // ใช้ doc id เดิมเสมอ → retry กี่ครั้งก็ไม่เกิดข้อมูลซ้ำ | timestamp เก็บเป็น {__ts:ms} แล้วแปลงตอนส่ง
 function _queueBackup(path,data){
-  try{
+  const _put=d=>{
     let q=JSON.parse(localStorage.getItem('_dfq')||'[]');
     q=q.filter(it=>it.p!==path); // W3-1: path เดิม → แทนที่ด้วยค่าล่าสุด (ไม่ใช่ข้าม — กัน backup ค้างค่าเก่า)
-    q.push({p:path,d:data,at:Date.now()});
+    q.push({p:path,d,at:Date.now()});
     while(q.length>20)q.shift();
     localStorage.setItem('_dfq',JSON.stringify(q));
-  }catch(_){}
+  };
+  try{_put(data);}
+  catch(_){
+    // W4: localStorage เต็ม (รูปใหญ่เกิน) → ลองใหม่แบบไม่มีรูป — อย่างน้อยข้อความต้องรอด
+    try{if(data&&data.__photos){const d2={...data};delete d2.__photos;_put(d2);}}catch(__){}
+  }
 }
 function _dropBackup(path){ // เรียกเมื่อ write path เดิมสำเร็จ — กัน backup เก่าไปทับข้อมูลใหม่
   try{
@@ -2809,30 +2814,90 @@ async function _flushBackupQueue(){
   try{
     let q=[];try{q=JSON.parse(localStorage.getItem('_dfq')||'[]');}catch(_){q=[];}
     if(!q.length)return;
-    const remain=[];let sent=0;
+    const remain=[];let sent=0;let _flushedSub=null;
+    const _upPhotos=async(photos,uid)=>{ // W4: อัปโหลดรูปที่ค้างจาก backup ขึ้น Storage
+      const urls=[];
+      for(let i=0;i<photos.length;i++){
+        try{
+          const sref=storage.ref(`photos/${uid}/${Date.now()}_bk${i}.jpg`);
+          const u=await Promise.race([
+            sref.putString(photos[i],'data_url').then(()=>sref.getDownloadURL()),
+            new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),20000))
+          ]);
+          if(u)urls.push(u);
+        }catch(_){}
+      }
+      return urls;
+    };
+    const _race=(pr,ms)=>{pr.catch(()=>{});return Promise.race([pr.then(()=>'ok'),new Promise(res=>setTimeout(()=>res(null),ms))]);};
     for(const it of q){
       try{
         // W3-3: เช็คว่า entry ยังอยู่ในคิวไหม — ถ้ามี write ใหม่สำเร็จระหว่าง flush (_dropBackup ลบไปแล้ว) ห้ามส่งของเก่าทับ
         let cur=[];try{cur=JSON.parse(localStorage.getItem('_dfq')||'[]');}catch(_){}
         if(!cur.some(x=>x.p===it.p))continue;
         const ref=db.doc(it.p);
-        // W3-2: submissions เช็คกับ server ตรงๆ (ไม่ใช่ cache — cache โชว์ pending write หลอกว่ามีแล้ว)
-        // กันไปทับ status ที่โค้ชอนุมัติไปแล้ว
         if(it.p.indexOf('submissions/')===0){
+          // W3-2: เช็คกับ server ตรงๆ (ไม่ใช่ cache — cache โชว์ pending write หลอกว่ามีแล้ว)
           const ex=await Promise.race([ref.get({source:'server'}).catch(()=>null),new Promise(r=>setTimeout(()=>r(null),6000))]);
-          if(ex&&ex.exists){sent++;continue;} // server มีแล้ว → ทิ้ง backup
           if(!ex){remain.push(it);continue;} // เช็ค server ไม่ได้ (เน็ตยังแย่) → เก็บไว้รอบหน้า
+          // อัปโหลดรูปค้าง (base64) หรือใช้ URL ที่อัปไว้แล้ว (entry เติมรูป __ph)
+          let _photoUrls=[];
+          if(it.d.__photos&&it.d.__photos.length)_photoUrls=await _upPhotos(it.d.__photos,it.d.userId||'unknown');
+          else if(it.d.__ph&&it.d.photoUrls&&it.d.photoUrls.length)_photoUrls=it.d.photoUrls;
+          if(ex.exists){
+            // doc ถึง server แล้ว — เหลือแค่เติมรูป (ถ้ามี)
+            if(_photoUrls.length){
+              const mr=await _race(ref.set({photoUrl:_photoUrls[0],photoUrls:_photoUrls},{merge:true}),8000);
+              if(mr!=='ok'){ // merge ไม่ทัน → เก็บ URL ไว้ merge รอบหน้า (ไม่อัปโหลดรูปซ้ำ)
+                const n=(it.n||0)+1;
+                if(n<=5)remain.push({p:it.p,d:{userId:it.d.userId,photoUrl:_photoUrls[0],photoUrls:_photoUrls,__ph:1},n,at:it.at});
+              }
+            }else if(it.d.__photos&&it.d.__photos.length){
+              // W4-1: อัปโหลดรูปล้มทั้งหมด → เก็บ base64 ไว้ลองใหม่ (สูงสุด 5 ครั้ง) — รูปต้องไม่หายเงียบ
+              const n=(it.n||0)+1;
+              if(n<=5)remain.push({p:it.p,d:{userId:it.d.userId,__photos:it.d.__photos},n,at:it.at});
+            }
+            if(it.d.mode){sent++;_flushedSub={...it.d,photoUrl:_photoUrls[0]||it.d.photoUrl||null};} // ส่ง card เฉพาะ entry มื้อเต็ม
+            else if(!it.d.__ph&&!it.d.__photos)sent++;
+            continue;
+          }
+          // W4-3: entry เติมรูปอย่างเดียว แต่ doc ยังไม่ถึง server → ห้าม set (จะได้ doc มีแต่รูป) รอรอบหน้า
+          if(it.d.__ph||( !it.d.mode&&it.d.__photos )){const n=(it.n||0)+1;if(n<=10){it.n=n;remain.push(it);}continue;}
+          // doc ยังไม่ถึง server → เขียนเต็ม (พร้อมรูปถ้าอัปโหลดสำเร็จ)
+          const data={};
+          for(const k of Object.keys(it.d)){
+            if(k==='__photos'||k==='__ph')continue; // ไม่เขียน base64/flag ลง Firestore
+            const v=it.d[k];
+            data[k]=(v&&typeof v==='object'&&v.__ts)?firebase.firestore.Timestamp.fromMillis(v.__ts):v;
+          }
+          if(_photoUrls.length){data.photoUrl=_photoUrls[0];data.photoUrls=_photoUrls;}
+          const r=await _race(ref.set(data,{merge:true}),8000);
+          if(r==='ok'){
+            sent++;_flushedSub=data;
+            // เขียนข้อความสำเร็จแต่รูปอัปโหลดล้ม → คิวเติมรูปภายหลัง (W4-1)
+            if(!_photoUrls.length&&it.d.__photos&&it.d.__photos.length){
+              const n=(it.n||0)+1;
+              if(n<=5)remain.push({p:it.p,d:{userId:it.d.userId,__photos:it.d.__photos},n,at:it.at});
+            }
+          }else remain.push(it);
+          continue;
         }
+        // ---- non-submissions (healthLogs / weeklyChecks / plans / savedMenus) ----
         const data={};
         for(const k of Object.keys(it.d)){
           const v=it.d[k];
           data[k]=(v&&typeof v==='object'&&v.__ts)?firebase.firestore.Timestamp.fromMillis(v.__ts):v;
         }
-        const wp=ref.set(data,{merge:true});
-        wp.catch(()=>{});
-        const r=await Promise.race([wp.then(()=>'ok'),new Promise(res=>setTimeout(()=>res(null),8000))]);
+        const r=await _race(ref.set(data,{merge:true}),8000);
         if(r==='ok')sent++;else remain.push(it);
       }catch(_){remain.push(it);}
+    }
+    // W4: sync มื้ออาหารสำเร็จ → ส่ง feedback card ย้อนหลัง (รอข้อมูลนักเรียนโหลดก่อน ให้ยอดรวมถูก)
+    if(_flushedSub&&typeof sendFeedbackCard==='function'&&typeof liff!=='undefined'){
+      (async()=>{try{
+        for(let i=0;i<20&&typeof _loadingStudentData!=='undefined'&&_loadingStudentData;i++)await new Promise(r=>setTimeout(r,500));
+        if(liff.isInClient()&&!_flushedSub.isTest)sendFeedbackCard({mode:_flushedSub.mode,handData:_flushedSub.handData,labelData:_flushedSub.labelData,weighData:_flushedSub.weighData,photoUrl:_flushedSub.photoUrl||null});
+      }catch(_){}})();
     }
     // W3-3: merge กับ entry ใหม่ที่ถูกเพิ่มระหว่าง flush — ไม่ clobber
     try{
@@ -4316,8 +4381,15 @@ async function submitMeal(){
     _setP.catch(()=>{}); // กัน unhandled rejection กรณี timeout ชนะ race
     const _wres=await Promise.race([_setP.then(()=>'ok'),new Promise(r=>setTimeout(()=>r('timeout'),6000))]);
     // W3: timeout → เก็บสำรองใน localStorage (Firestore queue อย่างเดียวหายได้) | สำเร็จ → ล้าง backup path นี้
-    if(_wres==='timeout')_queueBackup('submissions/'+docRef.id,{..._basePayload,createdAt:{__ts:Date.now()}});
-    else _dropBackup('submissions/'+docRef.id);
+    if(_wres==='timeout'){
+      const _bk={..._basePayload,createdAt:{__ts:Date.now()}};
+      // W4: รูปยังไม่ได้อัปโหลด (ออฟไลน์) → แนบ base64 ใน backup แล้วค่อยอัปโหลดตอน sync (จำกัด ~1.8MB กัน localStorage เต็ม)
+      if(!photoUrls.length&&photoBase64List.length){
+        const _totalLen=photoBase64List.reduce((a,b)=>a+(b?b.length:0),0);
+        if(_totalLen<1800000)_bk.__photos=photoBase64List.slice(0,3);
+      }
+      _queueBackup('submissions/'+docRef.id,_bk);
+    }else _dropBackup('submissions/'+docRef.id);
     // update cache locally (ไม่ต้อง re-query)
     const _now=Date.now();
     const newSubLocal={id:docRef.id,userId:user.userId,mode:curMode,mealDate:selectedDate,handData,labelData,weighData,photoUrl,photoUrls:photoUrls.length>0?photoUrls:null,status:'pending',createdAt:{seconds:Math.floor(_now/1000),nanoseconds:0,toDate:()=>new Date(_now)}};
