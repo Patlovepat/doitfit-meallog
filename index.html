@@ -885,7 +885,7 @@ db.enablePersistence({synchronizeTabs:true}).catch(e=>{console.warn('Persistence
 // ===== AUTO ERROR REPORTING → Firestore errorLogs =====
 // JS error ที่เกิดบนเครื่องลูกค้าจะถูกส่งเข้า collection 'errorLogs' อัตโนมัติ
 // ดูได้ใน Firebase Console → Firestore → errorLogs (เรียงตาม at ล่าสุด)
-const APP_VERSION='v26-2026-08-09'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
+const APP_VERSION='v29-2026-08-10'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
 const _errLogged=new Set();let _errCount=0;
 function _reportError(type,msg,stack,src){
   try{
@@ -4007,7 +4007,7 @@ function buildDBContext(text){
     const row=dbLookup(food);
     if(row&&!seen.has(row[0])){seen.add(row[0]);refs.push(`${row[0]}(${row[1]})→C${row[2]}P${row[3]}F${row[4]} ${row[5]}kcal`);}
   }
-  return refs;
+  return refs.slice(0,8); // SPEED: จำกัด 8 อ้างอิง — prompt สั้นลง ตอบเร็วขึ้น (มื้อปกติไม่เกิน 8 รายการ ความแม่นยำไม่ลด)
 }
 // WEIGH (AI only)
 async function callGeminiAI(){
@@ -4024,7 +4024,15 @@ async function callGeminiAI(){
   }
   const btn=document.getElementById('ai-calc-btn');
   btn.disabled=true;btn.textContent='⏳ กำลังวิเคราะห์...';
-  document.getElementById('ai-result-area').style.display='none';
+  // SPEED(รู้สึก): โชว์ skeleton ทันที แทนซ่อนพื้นที่ผลลัพธ์เฉยๆ
+  const _area=document.getElementById('ai-result-area');
+  _area.innerHTML=`<div style="padding:18px 12px;font-family:'Prompt',sans-serif">
+    <div class="df-spin sm"></div>
+    <div style="text-align:center;color:var(--gray);font-size:12px;margin-bottom:10px">🥗 AI นักโภชนาการกำลังวิเคราะห์...</div>
+    <div class="df-skel" style="height:44px;margin-bottom:8px"></div>
+    <div class="df-skel" style="height:44px"></div>
+  </div>`;
+  _area.style.display='block';
   // ดึงค่าอ้างอิงจาก DB สำหรับอาหารที่พิมพ์มา
   const dbRefs=buildDBContext(text);
   const dbSection=dbRefs.length>0?`\n\n[ค่าอ้างอิง Database USDA+Mahidol — ค่าต่อ serving ที่ระบุในวงเล็บ ต้อง scale ตามกรัมที่ผู้ใช้บอก]\n${dbRefs.join('\n')}`:'';
@@ -4084,7 +4092,16 @@ async function callGeminiAI(){
 function renderAIResult(data){
   const area=document.getElementById('ai-result-area');
   if(!data||!data.items){area.innerHTML='<div class="ai-error">ไม่สามารถวิเคราะห์ได้ค่ะ</div>';area.style.display='block';return;}
-  const rows=data.items.map((it,i)=>`<div class="ai-item-row" data-idx="${i}">
+  // EDGE: ลบครบทุกรายการ → เคลียร์ state กันส่งมื้อ 0 kcal
+  if(!data.items.length){
+    aiParsedData=null;
+    area.innerHTML='<div class="ai-error">ลบครบทุกรายการแล้วค่ะ — พิมพ์อาหารแล้วกด ✨ คำนวณใหม่นะคะ</div>';
+    area.style.display='block';
+    const _bs=document.getElementById('btn-save-weigh');if(_bs)_bs.style.display='none';
+    return;
+  }
+  const _hint=`<div style="font-size:10.5px;color:var(--gray);margin-bottom:6px">✏️ แก้ปริมาณหรือตัวเลขได้เลย — ระบบ<b>บันทึกและคำนวณใหม่ให้อัตโนมัติ</b> ไม่ต้องกดปุ่มเพิ่มค่ะ</div>`;
+  const rows=_hint+data.items.map((it,i)=>`<div class="ai-item-row" data-idx="${i}">
     <div class="ai-item-name">${escHtml(it.name||'')}<br><input type="text" class="ai-amount-input" value="${escHtml(it.amount||'')}" placeholder="ปริมาณ" onchange="updateAIAmount(${i},this.value)"></div>
     <div class="ai-item-mac" style="display:flex;align-items:center;gap:2px;flex-shrink:0">
       C<input type="number" class="ai-edit-input" value="${it.c}" step="0.1" min="0" oninput="updateAIItem(${i},'c',this.value)">
@@ -4112,6 +4129,7 @@ function updateAIItem(idx,field,val){
 function deleteAIItem(idx){
   if(!aiParsedData)return;
   aiParsedData.items.splice(idx,1);
+  recalcAITotal(); // FIX: เดิมลบรายการแล้วแคลรวมไม่ลด — ลืมคำนวณ total ใหม่
   renderAIResult(aiParsedData);
 }
 function _aiExtractUnit(s){
@@ -4141,6 +4159,7 @@ function updateAIAmount(idx,val){
   it.amount=val;
   recalcAITotal();
   renderAIResult(aiParsedData);
+  showToast('✅ ปรับปริมาณแล้ว — คำนวณสารอาหารใหม่ให้อัตโนมัติค่ะ',2200); // UX: บอกชัดว่าเซฟแล้ว
 }
 function recalcAITotal(){
   if(!aiParsedData)return;
@@ -4878,11 +4897,7 @@ function renderCoach(){
     loadStudentList();
     return;
   }
-  if(filterBar)filterBar.style.display='flex';
-  // update active filter button states
-  document.querySelectorAll('.cf-btn').forEach(b=>b.classList.remove('active'));
-  const activeBtn=document.getElementById('cfb-'+coachFilter);
-  if(activeBtn)activeBtn.classList.add('active');
+  if(filterBar)filterBar.style.display='none'; // F-G2: ซ่อนแถบ filter — ซ้ำซ้อนกับ tab รออนุมัติ/อนุมัติแล้ว
   // determine list based on tab + filter
   let list;
   if(coachFilter==='pending') list=pending;
@@ -4988,9 +5003,10 @@ function buildStudentCard(u,MON){
           ${streak>0?`<span class="stu-streak">🔥 ${streak} วัน</span>`:''}
           ${showTestiBadge?`<span class="stu-testimonial-badge">⭐ ขอ Review</span>`:''}
         </div>
-        <div style="font-size:11px;color:var(--gray);margin-top:2px">avg ${avgKcal} kcal/วัน · log ${uniqueDays} วัน</div>
+        <div style="font-size:11px;color:var(--gray);margin-top:2px">avg ${avgKcal} kcal/วัน <span style="font-size:9px">(สัปดาห์นี้)</span> · log ${uniqueDays} วัน</div>
       </div>
     </div>
+    <div style="font-size:9px;color:#9CA3AF;margin-bottom:3px">📅 สัปดาห์นี้ (จ–อา)</div>
     <div style="display:flex;gap:5px;margin-bottom:8px">${dotsHtml}</div>
     <div style="font-size:11px;color:var(--primary);font-weight:600;text-align:right">ดูประวัติ →</div>
   </div>`;
