@@ -873,6 +873,9 @@ firebase.initializeApp({
   appId:"1:74004444026:web:218ce2da01b51acc4b5cc3"
 });
 const db = firebase.firestore();
+// W6: LINE webview (iOS) ขึ้นชื่อเรื่องบล็อก streaming ของ Firestore ทำให้ query ค้างทั้งที่เน็ตดี
+// auto-detect จะสลับไปใช้ long-polling ให้อัตโนมัติเมื่อจำเป็น — ต้องตั้งก่อนใช้ Firestore ครั้งแรก
+db.settings({experimentalAutoDetectLongPolling:true,merge:true});
 const storage = firebase.storage();
 // Firebase Anonymous Auth — ให้ทุก user มี auth token สำหรับ Firestore Rules
 firebase.auth().signInAnonymously().catch(e=>console.warn('anon auth:',e));
@@ -882,7 +885,7 @@ db.enablePersistence({synchronizeTabs:true}).catch(e=>{console.warn('Persistence
 // ===== AUTO ERROR REPORTING → Firestore errorLogs =====
 // JS error ที่เกิดบนเครื่องลูกค้าจะถูกส่งเข้า collection 'errorLogs' อัตโนมัติ
 // ดูได้ใน Firebase Console → Firestore → errorLogs (เรียงตาม at ล่าสุด)
-const APP_VERSION='v22-2026-08-05'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
+const APP_VERSION='v26-2026-08-09'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
 const _errLogged=new Set();let _errCount=0;
 function _reportError(type,msg,stack,src){
   try{
@@ -905,7 +908,11 @@ function _reportError(type,msg,stack,src){
   }catch(_){}
 }
 window.addEventListener('error',e=>{_reportError('js-error',e.message,e.error&&e.error.stack,(e.filename||'')+':'+(e.lineno||0));});
-window.addEventListener('unhandledrejection',e=>{const r=e.reason||{};_reportError('promise',r.message||String(r),r.stack,'');});
+window.addEventListener('unhandledrejection',e=>{
+  const r=e.reason||{};const m=r.message||String(r);
+  // 'idb-known' = บั๊ก IndexedDB ของ iOS LINE webview (รู้จักแล้ว มี W3 backup กันข้อมูลหายอยู่) — ข้ามแถวนี้ได้เวลาไล่ดู
+  _reportError(/in-progress transaction|indexeddb|idbdatabase/i.test(m)?'idb-known':'promise',m,r.stack,'');
+});
 
 const _REMOVED=[
   {name:'ข้าวขาวสุก',c:28,p:2.7,f:0.3,src:'th'},
@@ -2797,7 +2804,12 @@ function _queueBackup(path,data){
   try{_put(data);}
   catch(_){
     // W4: localStorage เต็ม (รูปใหญ่เกิน) → ลองใหม่แบบไม่มีรูป — อย่างน้อยข้อความต้องรอด
-    try{if(data&&data.__photos){const d2={...data};delete d2.__photos;_put(d2);}}catch(__){}
+    try{
+      if(data&&data.__photos){
+        const d2={...data};delete d2.__photos;_put(d2);
+        if(typeof _reportError==='function')_reportError('photo-backup-drop','localStorage เต็ม — เก็บรูปใน backup ไม่ได้','',path); // W5: จับสาเหตุรูปหาย
+      }
+    }catch(__){}
   }
 }
 function _dropBackup(path){ // เรียกเมื่อ write path เดิมสำเร็จ — กัน backup เก่าไปทับข้อมูลใหม่
@@ -2816,7 +2828,7 @@ async function _flushBackupQueue(){
     if(!q.length)return;
     const remain=[];let sent=0;let _flushedSub=null;
     const _upPhotos=async(photos,uid)=>{ // W4: อัปโหลดรูปที่ค้างจาก backup ขึ้น Storage
-      const urls=[];
+      const urls=[];let _lastErr=null;
       for(let i=0;i<photos.length;i++){
         try{
           const sref=storage.ref(`photos/${uid}/${Date.now()}_bk${i}.jpg`);
@@ -2825,8 +2837,10 @@ async function _flushBackupQueue(){
             new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),20000))
           ]);
           if(u)urls.push(u);
-        }catch(_){}
+        }catch(e){_lastErr=e&&e.message;}
       }
+      // W5: อัปโหลดล้มทั้งหมด → รายงานเข้า errorLogs ให้เห็นสาเหตุจริง
+      if(!urls.length&&photos.length&&typeof _reportError==='function')_reportError('photo-flush-fail',_lastErr||'upload failed','','flush');
       return urls;
     };
     const _race=(pr,ms)=>{pr.catch(()=>{});return Promise.race([pr.then(()=>'ok'),new Promise(res=>setTimeout(()=>res(null),ms))]);};
@@ -2892,18 +2906,25 @@ async function _flushBackupQueue(){
         if(r==='ok')sent++;else remain.push(it);
       }catch(_){remain.push(it);}
     }
-    // W4: sync มื้ออาหารสำเร็จ → ส่ง feedback card ย้อนหลัง (รอข้อมูลนักเรียนโหลดก่อน ให้ยอดรวมถูก)
+    // W4: sync มื้ออาหารสำเร็จ → ส่ง feedback card ย้อนหลัง
+    // A7: รอทั้ง loadStudentData จบ "และ" studentSubsCache พร้อม — ไม่งั้นแถบยอดรวมวันใน card เป็น 0
     if(_flushedSub&&typeof sendFeedbackCard==='function'&&typeof liff!=='undefined'){
       (async()=>{try{
-        for(let i=0;i<20&&typeof _loadingStudentData!=='undefined'&&_loadingStudentData;i++)await new Promise(r=>setTimeout(r,500));
+        for(let i=0;i<30;i++){
+          const loading=(typeof _loadingStudentData!=='undefined'&&_loadingStudentData);
+          const noData=(typeof studentSubsCache!=='undefined'&&studentSubsCache===null);
+          if(!loading&&!noData)break;
+          await new Promise(r=>setTimeout(r,500));
+        }
         if(liff.isInClient()&&!_flushedSub.isTest)sendFeedbackCard({mode:_flushedSub.mode,handData:_flushedSub.handData,labelData:_flushedSub.labelData,weighData:_flushedSub.weighData,photoUrl:_flushedSub.photoUrl||null});
       }catch(_){}})();
     }
-    // W3-3: merge กับ entry ใหม่ที่ถูกเพิ่มระหว่าง flush — ไม่ clobber
+    // W3-3 + A5: merge คิวตอนจบ — เก็บ entry ที่ "ใหม่กว่า snapshot" ไว้เสมอ (ผู้ใช้เซฟ path เดิมซ้ำระหว่าง flush)
     try{
       let endQ=[];try{endQ=JSON.parse(localStorage.getItem('_dfq')||'[]');}catch(_){}
-      const newDuring=endQ.filter(x=>!q.some(y=>y.p===x.p));
-      localStorage.setItem('_dfq',JSON.stringify([...remain,...newDuring]));
+      const newDuring=endQ.filter(x=>{const o=q.find(y=>y.p===x.p);return !o||x.at>o.at;});
+      const remainF=remain.filter(r=>!newDuring.some(x=>x.p===r.p)); // path ที่มีตัวใหม่กว่า → ใช้ตัวใหม่
+      localStorage.setItem('_dfq',JSON.stringify([...remainF,...newDuring]));
     }catch(_){}
     if(sent>0&&!remain.length){try{showToast('✅ ส่งข้อมูลที่ค้างไว้ '+sent+' รายการเรียบร้อยแล้วค่ะ',3500);}catch(_){}}
   }finally{_dfqFlushing=false;}
@@ -2911,6 +2932,8 @@ async function _flushBackupQueue(){
 window.addEventListener('online',()=>setTimeout(_flushBackupQueue,1500));
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)setTimeout(_flushBackupQueue,1000);});
 setTimeout(_flushBackupQueue,4000); // ตอนเปิดแอป — ส่งของที่ค้างจากรอบก่อน
+// W5: retry ทุก 60 วิ ตอนแอปเปิดอยู่ — เดิมถ้า flush รอบแรกพลาด (เน็ตเพิ่งกลับมา) ต้องรอสลับแอปเท่านั้น
+setInterval(()=>{try{if(localStorage.getItem('_dfq')!=='[]'&&localStorage.getItem('_dfq'))_flushBackupQueue();}catch(_){}},60000);
 // ถ้า GEMINI_KEY null (init fetch ล้มเหลว) → retry on-demand: server (10s) → Firestore offline cache
 async function _ensureGeminiKey(){
   if(GEMINI_KEY)return true;
@@ -2951,7 +2974,7 @@ let _photoProcessing=false;
 let selectedDate=todayStr();
 
 // HEALTH LOG STATE
-let hlSleep=7.0, hlStress=2, hlSteps=8000, hlCardio=0, hlMuscle='none', hlWeightMin=30;
+let hlSleep=7.0, hlStress=2, hlSteps=8000, hlCardio=0, hlMuscle='none', hlWeightMin=30, hlFat=0; // hlFat=0 หมายถึงไม่ได้วัดวันนี้
 
 // HAND STATE
 let carbSlots=[{id:0,density:'normal',qty:1.5}];let carbSlotNextId=1;
@@ -3242,9 +3265,10 @@ function renderHealthLog(){
       hlCardio=typeof entry.cardio==='number'?entry.cardio:0;
       hlMuscle=entry.muscleGroup||'none';
       hlWeightMin=typeof entry.weightMin==='number'?entry.weightMin:30;
+      hlFat=typeof entry.fatPct==='number'?entry.fatPct:0; // F-HL: %ไขมัน
     } else {
       // No saved log for this date — reset to defaults so previous date values don't bleed over
-      hlSleep=7.0;hlStress=2;hlSteps=8000;hlCardio=0;hlMuscle='none';hlWeightMin=30;
+      hlSleep=7.0;hlStress=2;hlSteps=8000;hlCardio=0;hlMuscle='none';hlWeightMin=30;hlFat=0;
     }
   }
   const el=document.getElementById('health-log-content');
@@ -3318,6 +3342,18 @@ function renderHealthLog(){
         </div>
         <div class="hl-hint">ปรับทีละ 5 นาที หรือพิมพ์เองได้</div>
       </div>
+    </div>
+
+    <!-- BODY FAT % (F-HL: ไม่บังคับกรอก) -->
+    <div class="hl-card">
+      <div class="hl-title">🔥 %ไขมัน <span style="font-size:11px;font-weight:400;color:var(--gray)">(กรอกเฉพาะวันที่วัด)</span></div>
+      <div class="hl-stepper">
+        <button onclick="adjHL('fat',-0.5)">−</button>
+        <input class="hl-input" id="hl-fat" type="number" value="${hlFat||''}" placeholder="—" step="0.1" min="0" max="60" oninput="hlFat=parseFloat(this.value)||0">
+        <span class="hl-unit">%</span>
+        <button onclick="adjHL('fat',0.5)">+</button>
+      </div>
+      <div class="hl-hint">ไม่วัดวันนี้ เว้นว่างไว้ได้เลยค่ะ</div>
     </div>
 
     <div style="padding:0 12px 16px">
@@ -3433,6 +3469,7 @@ function adjHL(key,delta){
   else if(key==='steps'){hlSteps=Math.max(0,hlSteps+delta);const el=document.getElementById('hl-steps');if(el)el.value=hlSteps;}
   else if(key==='cardio'){hlCardio=Math.max(0,hlCardio+delta);const el=document.getElementById('hl-cardio');if(el)el.value=hlCardio;}
   else if(key==='weight'){hlWeightMin=Math.max(0,hlWeightMin+delta);const el=document.getElementById('hl-weight');if(el)el.value=hlWeightMin;}
+  else if(key==='fat'){hlFat=Math.max(0,Math.round((hlFat+delta)*10)/10);const el=document.getElementById('hl-fat');if(el)el.value=hlFat||'';} // F-HL
 }
 async function saveHealthLog(){
   const _hlBtn=document.querySelector('button[onclick="saveHealthLog()"]');
@@ -3441,14 +3478,14 @@ async function saveHealthLog(){
     // W1: race 6s — timeout = คิวไว้ในเครื่องแล้ว จะซิงค์เอง ถือเป็นสำเร็จ + W3 backup
     const _hlPath=`healthLogs/${user.userId}/days/${selectedDate}`;
     const _hlBase={sleep:hlSleep, stress:hlStress, steps:hlSteps, cardio:hlCardio,
-      muscleGroup:hlMuscle, weightMin:hlMuscle==='none'?0:hlWeightMin};
+      muscleGroup:hlMuscle, weightMin:hlMuscle==='none'?0:hlWeightMin, fatPct:hlFat||0}; // F-HL
     const _p=db.doc(_hlPath).set({..._hlBase,updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
     _p.catch(()=>{});
     const _r=await Promise.race([_p.then(()=>'ok'),new Promise(r=>setTimeout(()=>r('timeout'),6000))]);
     if(_r==='timeout')_queueBackup(_hlPath,{..._hlBase,updatedAt:{__ts:Date.now()}}); // W3
     else _dropBackup(_hlPath);
     // Update local cache so switching tabs & dates shows the latest saved values
-    if(dashCache&&dashCache[3]){dashCache[3][selectedDate]={sleep:hlSleep,stress:hlStress,steps:hlSteps,cardio:hlCardio,muscleGroup:hlMuscle,weightMin:hlMuscle==='none'?0:hlWeightMin};}
+    if(dashCache&&dashCache[3]){dashCache[3][selectedDate]={sleep:hlSleep,stress:hlStress,steps:hlSteps,cardio:hlCardio,muscleGroup:hlMuscle,weightMin:hlMuscle==='none'?0:hlWeightMin,fatPct:hlFat||0};} // F-HL
     showToast(_r==='timeout'?'📡 เน็ตช้า — บันทึกไว้ในเครื่องแล้ว จะซิงค์อัตโนมัติค่ะ':'✅ บันทึกข้อมูลสุขภาพแล้วค่ะ',_r==='timeout'?4000:2500);
     if(_r!=='timeout')sendHealthLogCard(); // F3: ส่ง LINE card (ข้ามตอนเน็ตช้า — LINE ก็ส่งไม่ได้อยู่ดี)
   }catch(e){showToast('⚠️ บันทึกไม่ได้: '+e.message,4000);} // W2: toast แทน alert
@@ -3470,6 +3507,7 @@ async function sendHealthLogCard(){
     if(hlSteps>0)row('👟','ก้าวเดิน',hlSteps.toLocaleString()+' ก้าว');
     if(hlCardio>0)row('🏃','คาร์ดิโอ',hlCardio+' นาที');
     if(hlMuscle&&hlMuscle!=='none')row('🏋️','เวทเทรนนิ่ง',(MUSCLE_TH[hlMuscle]||hlMuscle)+(hlWeightMin>0?` ${hlWeightMin} นาที`:''));
+    if(hlFat>0)row('🔥','%ไขมัน',hlFat+'%'); // F-HL
     if(!rows.length)return; // ไม่กรอกอะไรเลย → ไม่ส่ง card
     const dateLabel=formatDateTH(selectedDate);
     await liff.sendMessages([{
@@ -4352,7 +4390,8 @@ async function submitMeal(){
     }
     // อัปโหลดรูปไป Firebase Storage (สูงสุด 3 รูป, timeout 20s ต่อรูป)
     let photoUrl=null, photoUrls=[];
-    if(photoBase64List.length>0){
+    // W5: ออฟไลน์ชัดเจน → ข้ามอัปโหลดเลย (ไม่ต้องรอ 20s) รูปจะเข้า backup แล้วอัปโหลดตอนเน็ตกลับมา
+    if(photoBase64List.length>0&&navigator.onLine!==false){
       btn.textContent='📷 กำลังอัปโหลดรูป...'; // W1: progress text
       const uploadOne=async(b64,i)=>{
         try{
@@ -4403,6 +4442,9 @@ async function submitMeal(){
     if(bss)bss.style.display=(curMode==='restaurant')?'none':'inline-block';
     if(_wres==='timeout'){
       showToast('📡 เน็ตช้า — บันทึกไว้ในเครื่องแล้ว จะส่งให้โค้ชอัตโนมัติเมื่อเน็ตกลับมาค่ะ',4500); // W1
+      // W5: เขียนสถานะบนหน้า success ด้วย (toast หายใน 4.5 วิ — ข้อความนี้อยู่ถาวร)
+      const _sm=document.getElementById('success-msg');
+      if(_sm)_sm.innerHTML='📡 เน็ตช้า — บันทึกไว้ในเครื่องแล้ว<br><b>จะส่งให้โค้ชอัตโนมัติเมื่อเน็ตกลับมาค่ะ</b><br><small style="color:#6B7280">เปิดแอปอีกครั้งตอนมีเน็ต เพื่อให้ระบบส่งข้อมูล'+(photoBase64List.length?'และรูป':'')+'</small>';
     }else if(!testMode){
       sendFeedbackCard({mode:curMode,handData,labelData,weighData,photoUrl}); // ไม่ส่ง LINE card ใน test mode / เน็ตช้า
     }
@@ -4846,6 +4888,27 @@ function renderCoach(){
   if(coachFilter==='pending') list=pending;
   else list=coachTab==='pending'?pending:done;
   if(!list.length){container.innerHTML='<div class="empty-state"><div class="es-icon">'+(coachFilter==='pending'||coachTab==='pending'?'🎉':'📭')+'</div><p>'+(coachFilter==='pending'||coachTab==='pending'?'ไม่มีรายการรอค่ะ':'ยังไม่มีประวัติ')+'</p></div>';return;}
+  // F-G1: หน้ารออนุมัติ — จัดกลุ่มตามนักเรียน ให้โค้ชไล่เคลียร์ทีละคน (ประวัติยังเรียงตามเวลาเหมือนเดิม)
+  if(coachFilter==='pending'||coachTab==='pending'){
+    const groups={},order=[];
+    list.forEach(s=>{if(!groups[s.userId]){groups[s.userId]=[];order.push(s.userId);}groups[s.userId].push(s);});
+    // เรียงกลุ่ม: คนที่ส่งล่าสุดอยู่บนสุด
+    order.sort((a,b)=>Math.max(...groups[b].map(s=>s.createdAt?.seconds||0))-Math.max(...groups[a].map(s=>s.createdAt?.seconds||0)));
+    container.innerHTML=order.map(uid=>{
+      // ในกลุ่ม: มื้อเก่าก่อน → อนุมัติตามลำดับที่นักเรียนกินจริง
+      const subs=groups[uid].slice().sort((a,b)=>(a.createdAt?.seconds||0)-(b.createdAt?.seconds||0));
+      const u0=subs[0];
+      const av=u0.pictureUrl
+        ?`<img src="${u0.pictureUrl}" style="width:28px;height:28px;border-radius:50%;object-fit:cover">`
+        :`<div style="width:28px;height:28px;border-radius:50%;background:var(--light);display:flex;align-items:center;justify-content:center;font-size:14px">👤</div>`;
+      return`<div style="display:flex;align-items:center;gap:8px;margin:16px 2px 8px;padding-bottom:7px;border-bottom:2px solid var(--border)">
+        ${av}
+        <span style="font-size:14px;font-weight:700;font-family:'Prompt',sans-serif;color:var(--text)">${escHtml(u0.displayName||'นักเรียน')}</span>
+        <span style="background:#FEF3C7;color:#92400E;border-radius:10px;padding:1px 9px;font-size:11px;font-weight:700">${subs.length} รายการ</span>
+      </div>`+subs.map(s=>buildCard(s)).join('');
+    }).join('');
+    return;
+  }
   container.innerHTML=list.map(s=>buildCard(s)).join('');
 }
 function setCoachFilter(f){
@@ -6019,6 +6082,7 @@ function buildLifestyleSection(MON, TH_SHORT, healthLogs){
   const cardioArr=MON.map(d=>healthLogs[d]?.cardio??null);
   const weightArr=MON.map(d=>healthLogs[d]?.muscleGroup==='none'?0:(healthLogs[d]?.weightMin??null));
   const weightGrpArr=MON.map(d=>healthLogs[d]?.muscleGroup||null);
+  const fatArr=MON.map(d=>(healthLogs[d]?.fatPct>0)?healthLogs[d].fatPct:null); // F-HL: 0 = ไม่ได้วัด → ไม่แสดงแท่ง
 
   function numAvg(arr){const v=arr.filter(x=>x!==null&&x>0);return v.length?v.reduce((a,b)=>a+b,0)/v.length:0;}
   function calcBarH(val,min,max){if(val===null)return 0;const r=Math.max(0,Math.min(1,(val-min)/(max-min)));return Math.max(4,r*BAR_H);}
@@ -6059,6 +6123,11 @@ function buildLifestyleSection(MON, TH_SHORT, healthLogs){
   const avgSleep=numAvg(sleepArr).toFixed(1);
   const avgSteps=numAvg(stepsArr)>=1000?(numAvg(stepsArr)/1000).toFixed(1)+'k':Math.round(numAvg(stepsArr));
   const avgCardio=Math.round(numAvg(cardioArr));
+  // F-HL: %ไขมัน — โชว์การ์ดเฉพาะเมื่อมีการวัดในสัปดาห์นี้ + แสดงค่าล่าสุด
+  const _fatVals=fatArr.filter(v=>v!==null);
+  const hasFat=_fatVals.length>0;
+  const latestFat=hasFat?_fatVals[_fatVals.length-1]:null;
+  const fatBars=hasFat?makeBars(fatArr,{min:10,max:45,color:'linear-gradient(to top,#BE185D,#F472B6)',iconFn:()=>'',fmtFn:v=>v+'%'}):'';
 
   return`<div class="sd-section" style="margin-top:10px">
     <div class="sd-section-title">🏃 Lifestyle 7 วันล่าสุด</div>
@@ -6098,6 +6167,12 @@ function buildLifestyleSection(MON, TH_SHORT, healthLogs){
       <div class="ls-bars">${weightBars}</div>
       <div style="font-size:9px;color:#9CA3AF;margin-top:7px">🦵 ขา · 💪 อก/แขน · 🔙 หลัง · 🦾 บ่า · 🔥 Core · 🏋️ เต็มตัว</div>
     </div>
+
+    ${hasFat?`<div class="ls-chart-card">
+      <div class="ls-ch"><span class="ls-ctitle">🔥 %ไขมัน</span><span class="ls-cavg">ล่าสุด ${latestFat}%</span></div>
+      <div class="ls-bars">${fatBars}</div>
+      <div class="ls-scale-lbl">สเกล 10–45% · แสดงเฉพาะวันที่วัด</div>
+    </div>`:''}
 
     <div style="background:var(--light);border:1.5px solid var(--border);border-radius:12px;padding:11px 13px">
       <div style="font-size:11px;font-weight:700;color:var(--primary-dark);margin-bottom:8px">สรุปค่าเฉลี่ยสัปดาห์นี้</div>
