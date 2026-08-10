@@ -885,7 +885,7 @@ db.enablePersistence({synchronizeTabs:true}).catch(e=>{console.warn('Persistence
 // ===== AUTO ERROR REPORTING → Firestore errorLogs =====
 // JS error ที่เกิดบนเครื่องลูกค้าจะถูกส่งเข้า collection 'errorLogs' อัตโนมัติ
 // ดูได้ใน Firebase Console → Firestore → errorLogs (เรียงตาม at ล่าสุด)
-const APP_VERSION='v31-2026-08-10'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
+const APP_VERSION='v34-2026-08-11'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
 const _errLogged=new Set();let _errCount=0;
 function _reportError(type,msg,stack,src){
   try{
@@ -911,7 +911,7 @@ window.addEventListener('error',e=>{_reportError('js-error',e.message,e.error&&e
 window.addEventListener('unhandledrejection',e=>{
   const r=e.reason||{};const m=r.message||String(r);
   // 'idb-known' = บั๊ก IndexedDB ของ iOS LINE webview (รู้จักแล้ว มี W3 backup กันข้อมูลหายอยู่) — ข้ามแถวนี้ได้เวลาไล่ดู
-  _reportError(/in-progress transaction|indexeddb|idbdatabase/i.test(m)?'idb-known':'promise',m,r.stack,'');
+  _reportError(/in-progress transaction|indexed ?database|idbdatabase|idbtransaction|idbobjectstore/i.test(m)?'idb-known':'promise',m,r.stack,'');
 });
 
 const _REMOVED=[
@@ -2826,7 +2826,7 @@ async function _flushBackupQueue(){
   try{
     let q=[];try{q=JSON.parse(localStorage.getItem('_dfq')||'[]');}catch(_){q=[];}
     if(!q.length)return;
-    const remain=[];let sent=0;let _flushedSub=null;
+    const remain=[];let sent=0;let _flushedSub=null;let _flushedWC=null;
     const _upPhotos=async(photos,uid)=>{ // W4: อัปโหลดรูปที่ค้างจาก backup ขึ้น Storage
       const urls=[];let _lastErr=null;
       for(let i=0;i<photos.length;i++){
@@ -2903,7 +2903,10 @@ async function _flushBackupQueue(){
           data[k]=(v&&typeof v==='object'&&v.__ts)?firebase.firestore.Timestamp.fromMillis(v.__ts):v;
         }
         const r=await _race(ref.set(data,{merge:true}),8000);
-        if(r==='ok')sent++;else remain.push(it);
+        if(r==='ok'){
+          sent++;
+          if(it.p.indexOf('weeklyChecks/')===0&&data.date)_flushedWC=data; // F-WC: sync ผลการวัดสำเร็จ → ส่ง card ย้อนหลัง
+        }else remain.push(it);
       }catch(_){remain.push(it);}
     }
     // W4: sync มื้ออาหารสำเร็จ → ส่ง feedback card ย้อนหลัง
@@ -2918,6 +2921,10 @@ async function _flushBackupQueue(){
         }
         if(liff.isInClient()&&!_flushedSub.isTest)sendFeedbackCard({mode:_flushedSub.mode,handData:_flushedSub.handData,labelData:_flushedSub.labelData,weighData:_flushedSub.weighData,photoUrl:_flushedSub.photoUrl||null});
       }catch(_){}})();
+    }
+    // F-WC: card ผลการวัดย้อนหลังหลัง sync สำเร็จ
+    if(_flushedWC&&typeof sendWeeklyCheckCard==='function'&&typeof liff!=='undefined'){
+      (async()=>{try{if(liff.isInClient())sendWeeklyCheckCard(_flushedWC);}catch(_){}})();
     }
     // W3-3 + A5: merge คิวตอนจบ — เก็บ entry ที่ "ใหม่กว่า snapshot" ไว้เสมอ (ผู้ใช้เซฟ path เดิมซ้ำระหว่าง flush)
     try{
@@ -3478,6 +3485,39 @@ async function saveHealthLog(){
   finally{if(_hlBtn){_hlBtn.disabled=false;_hlBtn.textContent='💾 บันทึกข้อมูลสุขภาพวันนี้';}}
 }
 
+// F-WC: card ผลการวัด — แสดงเฉพาะช่องที่กรอก (กรอกบางช่องได้ ไม่บังคับครบ)
+async function sendWeeklyCheckCard(entry){
+  try{
+    if(typeof liff==='undefined'||!liff.isInClient())return;
+    const rows=[];
+    const row=(emoji,label,val)=>rows.push({"type":"box","layout":"horizontal","margin":"sm","contents":[
+      {"type":"text","text":`${emoji} ${label}`,"size":"sm","color":"#555555","flex":1},
+      {"type":"text","text":String(val),"size":"sm","color":"#111111","weight":"bold","align":"end","flex":1}
+    ]});
+    if(entry.weight_kg!=null)row('⚖️','น้ำหนัก',entry.weight_kg+' kg');
+    if(entry.bodyFat_pct!=null)row('🔥','%ไขมัน',entry.bodyFat_pct+'%');
+    if(entry.muscle_mass_kg!=null)row('💪','กล้ามเนื้อ',entry.muscle_mass_kg+' kg');
+    if(entry.waist_cm!=null)row('📏','รอบเอว',entry.waist_cm+' cm');
+    if(entry.hip_cm!=null)row('🍑','สะโพก',entry.hip_cm+' cm');
+    if(entry.chest_cm!=null)row('🫁','อก',entry.chest_cm+' cm');
+    if(entry.arm_left_cm!=null||entry.arm_right_cm!=null)
+      row('💪','แขน ซ/ข',[entry.arm_left_cm,entry.arm_right_cm].map(v=>v==null?'—':v).join(' / ')+' cm');
+    if(entry.thigh_left_cm!=null||entry.thigh_right_cm!=null)
+      row('🦵','ต้นขา ซ/ข',[entry.thigh_left_cm,entry.thigh_right_cm].map(v=>v==null?'—':v).join(' / ')+' cm');
+    if(!rows.length)return;
+    await liff.sendMessages([{
+      "type":"flex","altText":"📏 บันทึกผลการวัดแล้วค่ะ",
+      "contents":{"type":"bubble","size":"kilo",
+        "header":{"type":"box","layout":"vertical","backgroundColor":"#7C3AED","paddingAll":"14px","contents":[
+          {"type":"text","text":"📏 ผลการวัดร่างกาย","color":"#FFFFFF","weight":"bold","size":"md"},
+          {"type":"text","text":formatDateTH(entry.date||selectedDate),"color":"#EDE9FE","size":"xs","margin":"xs"}
+        ]},
+        "body":{"type":"box","layout":"vertical","paddingAll":"14px","contents":rows}
+      }
+    }]);
+  }catch(e){console.log('weekly check card err',e);}
+}
+
 // F3: Health Log card — แสดงเฉพาะช่องที่กรอก (นักเรียนกรอกบางช่องได้ ไม่บังคับครบ)
 async function sendHealthLogCard(){
   try{
@@ -3534,6 +3574,7 @@ async function saveWeeklyCheck(){
     if(_r==='timeout')_queueBackup(_wcPath,{...entry,submittedAt:{__ts:Date.now()}}); // W3
     else _dropBackup(_wcPath);
     showToast(_r==='timeout'?'📡 เน็ตช้า — บันทึกไว้ในเครื่องแล้ว จะซิงค์อัตโนมัติค่ะ':'✅ บันทึกผลการวัดแล้วค่ะ',_r==='timeout'?4000:2500);
+    if(_r!=='timeout')sendWeeklyCheckCard(entry); // F-WC: card สรุปผลการวัด (ข้ามตอนเน็ตช้า)
     _myProgressCache=null; // invalidate cache เพื่อ fetch ใหม่พร้อมข้อมูลล่าสุด (pending write โผล่ใน cache query ด้วย)
     loadMyProgress(); // refresh chart
   }catch(e){showToast('⚠️ บันทึกไม่ได้: '+e.message,4000);} // W2: toast แทน alert
