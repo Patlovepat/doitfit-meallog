@@ -885,7 +885,7 @@ db.enablePersistence({synchronizeTabs:true}).catch(e=>{console.warn('Persistence
 // ===== AUTO ERROR REPORTING → Firestore errorLogs =====
 // JS error ที่เกิดบนเครื่องลูกค้าจะถูกส่งเข้า collection 'errorLogs' อัตโนมัติ
 // ดูได้ใน Firebase Console → Firestore → errorLogs (เรียงตาม at ล่าสุด)
-const APP_VERSION='v29-2026-08-10'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
+const APP_VERSION='v31-2026-08-10'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
 const _errLogged=new Set();let _errCount=0;
 function _reportError(type,msg,stack,src){
   try{
@@ -2974,7 +2974,7 @@ let _photoProcessing=false;
 let selectedDate=todayStr();
 
 // HEALTH LOG STATE
-let hlSleep=7.0, hlStress=2, hlSteps=8000, hlCardio=0, hlMuscle='none', hlWeightMin=30, hlFat=0; // hlFat=0 หมายถึงไม่ได้วัดวันนี้
+let hlSleep=7.0, hlStress=2, hlSteps=8000, hlCardio=0, hlMuscle='none', hlWeightMin=30;
 
 // HAND STATE
 let carbSlots=[{id:0,density:'normal',qty:1.5}];let carbSlotNextId=1;
@@ -3265,10 +3265,9 @@ function renderHealthLog(){
       hlCardio=typeof entry.cardio==='number'?entry.cardio:0;
       hlMuscle=entry.muscleGroup||'none';
       hlWeightMin=typeof entry.weightMin==='number'?entry.weightMin:30;
-      hlFat=typeof entry.fatPct==='number'?entry.fatPct:0; // F-HL: %ไขมัน
     } else {
       // No saved log for this date — reset to defaults so previous date values don't bleed over
-      hlSleep=7.0;hlStress=2;hlSteps=8000;hlCardio=0;hlMuscle='none';hlWeightMin=30;hlFat=0;
+      hlSleep=7.0;hlStress=2;hlSteps=8000;hlCardio=0;hlMuscle='none';hlWeightMin=30;
     }
   }
   const el=document.getElementById('health-log-content');
@@ -3342,18 +3341,6 @@ function renderHealthLog(){
         </div>
         <div class="hl-hint">ปรับทีละ 5 นาที หรือพิมพ์เองได้</div>
       </div>
-    </div>
-
-    <!-- BODY FAT % (F-HL: ไม่บังคับกรอก) -->
-    <div class="hl-card">
-      <div class="hl-title">🔥 %ไขมัน <span style="font-size:11px;font-weight:400;color:var(--gray)">(กรอกเฉพาะวันที่วัด)</span></div>
-      <div class="hl-stepper">
-        <button onclick="adjHL('fat',-0.5)">−</button>
-        <input class="hl-input" id="hl-fat" type="number" value="${hlFat||''}" placeholder="—" step="0.1" min="0" max="60" oninput="hlFat=parseFloat(this.value)||0">
-        <span class="hl-unit">%</span>
-        <button onclick="adjHL('fat',0.5)">+</button>
-      </div>
-      <div class="hl-hint">ไม่วัดวันนี้ เว้นว่างไว้ได้เลยค่ะ</div>
     </div>
 
     <div style="padding:0 12px 16px">
@@ -3469,7 +3456,6 @@ function adjHL(key,delta){
   else if(key==='steps'){hlSteps=Math.max(0,hlSteps+delta);const el=document.getElementById('hl-steps');if(el)el.value=hlSteps;}
   else if(key==='cardio'){hlCardio=Math.max(0,hlCardio+delta);const el=document.getElementById('hl-cardio');if(el)el.value=hlCardio;}
   else if(key==='weight'){hlWeightMin=Math.max(0,hlWeightMin+delta);const el=document.getElementById('hl-weight');if(el)el.value=hlWeightMin;}
-  else if(key==='fat'){hlFat=Math.max(0,Math.round((hlFat+delta)*10)/10);const el=document.getElementById('hl-fat');if(el)el.value=hlFat||'';} // F-HL
 }
 async function saveHealthLog(){
   const _hlBtn=document.querySelector('button[onclick="saveHealthLog()"]');
@@ -3478,14 +3464,14 @@ async function saveHealthLog(){
     // W1: race 6s — timeout = คิวไว้ในเครื่องแล้ว จะซิงค์เอง ถือเป็นสำเร็จ + W3 backup
     const _hlPath=`healthLogs/${user.userId}/days/${selectedDate}`;
     const _hlBase={sleep:hlSleep, stress:hlStress, steps:hlSteps, cardio:hlCardio,
-      muscleGroup:hlMuscle, weightMin:hlMuscle==='none'?0:hlWeightMin, fatPct:hlFat||0}; // F-HL
+      muscleGroup:hlMuscle, weightMin:hlMuscle==='none'?0:hlWeightMin};
     const _p=db.doc(_hlPath).set({..._hlBase,updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
     _p.catch(()=>{});
     const _r=await Promise.race([_p.then(()=>'ok'),new Promise(r=>setTimeout(()=>r('timeout'),6000))]);
     if(_r==='timeout')_queueBackup(_hlPath,{..._hlBase,updatedAt:{__ts:Date.now()}}); // W3
     else _dropBackup(_hlPath);
     // Update local cache so switching tabs & dates shows the latest saved values
-    if(dashCache&&dashCache[3]){dashCache[3][selectedDate]={sleep:hlSleep,stress:hlStress,steps:hlSteps,cardio:hlCardio,muscleGroup:hlMuscle,weightMin:hlMuscle==='none'?0:hlWeightMin,fatPct:hlFat||0};} // F-HL
+    if(dashCache&&dashCache[3]){dashCache[3][selectedDate]={sleep:hlSleep,stress:hlStress,steps:hlSteps,cardio:hlCardio,muscleGroup:hlMuscle,weightMin:hlMuscle==='none'?0:hlWeightMin};}
     showToast(_r==='timeout'?'📡 เน็ตช้า — บันทึกไว้ในเครื่องแล้ว จะซิงค์อัตโนมัติค่ะ':'✅ บันทึกข้อมูลสุขภาพแล้วค่ะ',_r==='timeout'?4000:2500);
     if(_r!=='timeout')sendHealthLogCard(); // F3: ส่ง LINE card (ข้ามตอนเน็ตช้า — LINE ก็ส่งไม่ได้อยู่ดี)
   }catch(e){showToast('⚠️ บันทึกไม่ได้: '+e.message,4000);} // W2: toast แทน alert
@@ -3507,7 +3493,6 @@ async function sendHealthLogCard(){
     if(hlSteps>0)row('👟','ก้าวเดิน',hlSteps.toLocaleString()+' ก้าว');
     if(hlCardio>0)row('🏃','คาร์ดิโอ',hlCardio+' นาที');
     if(hlMuscle&&hlMuscle!=='none')row('🏋️','เวทเทรนนิ่ง',(MUSCLE_TH[hlMuscle]||hlMuscle)+(hlWeightMin>0?` ${hlWeightMin} นาที`:''));
-    if(hlFat>0)row('🔥','%ไขมัน',hlFat+'%'); // F-HL
     if(!rows.length)return; // ไม่กรอกอะไรเลย → ไม่ส่ง card
     const dateLabel=formatDateTH(selectedDate);
     await liff.sendMessages([{
@@ -3728,6 +3713,25 @@ function buildProgressSection(weeklyChecks, userId){
     </div>${pairedHtml}`;
   }).join('');
 
+  // F-HL2: องค์ประกอบร่างกาย — %ไขมัน (ลด=ดี, สีเขียว) + มวลกล้ามเนื้อ (เพิ่ม=ดี, สีเขียว)
+  const bodyRows=[
+    {key:'bodyFat_pct',label:'🔥 %ไขมัน',unit:'%',goodDown:true,color:'#DB2777'},
+    {key:'muscle_mass_kg',label:'💪 กล้ามเนื้อ',unit:'kg',goodDown:false,color:'#059669'},
+  ].map(({key,label,unit,goodDown,color})=>{
+    const vals=entries.map(e=>e[key]).filter(v=>v!=null);
+    if(!vals.length)return'';
+    const spark=buildSpark(vals,color,false,70,16);
+    const chg=pct(vals[0],vals[vals.length-1]);
+    const good=chg!==null&&(goodDown?chg<0:chg>0);
+    const chgHtml=(chg===null||chg===0)?'':`<span style="font-size:10px;font-weight:600;color:${good?'#059669':'#DC2626'}">${chg<0?'▼':'▲'}${Math.abs(chg)}%</span>`;
+    return`<div style="display:flex;align-items:center;gap:7px;padding:5px 0;border-bottom:1px solid #F3F4F6">
+      <span style="font-size:11px;color:var(--text);width:74px;flex-shrink:0">${label}</span>
+      <svg viewBox="0 0 70 16" width="70" height="16" style="flex-shrink:0">${spark}</svg>
+      <span style="font-size:10px;color:var(--gray);flex:1">${vals[0]}→${vals[vals.length-1]} ${unit}</span>
+      ${chgHtml}
+    </div>`;
+  }).join('');
+
   const stallBadge=isStall
     ?`<span style="background:#FEF2F2;color:#DC2626;border-radius:6px;padding:3px 8px;font-size:10px;font-weight:600">⚠ Stall 2+ สัปดาห์</span>`
     :`<span style="background:#ECFDF5;color:#059669;border-radius:6px;padding:3px 8px;font-size:10px;font-weight:600">✓ ลดดี</span>`;
@@ -3744,6 +3748,10 @@ function buildProgressSection(weeklyChecks, userId){
       </div>
       <svg viewBox="0 0 200 28" width="100%" height="28" style="display:block;margin-top:4px">${wSpark}</svg>
     </div>
+    ${bodyRows?`<div style="background:white;border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px">
+      <div style="font-size:11px;font-weight:600;color:var(--gray);margin-bottom:4px">🧬 องค์ประกอบร่างกาย</div>
+      ${bodyRows}
+    </div>`:''}
     ${measRows?`<div style="background:white;border:1px solid var(--border);border-radius:10px;padding:12px">
       <div style="font-size:11px;font-weight:600;color:var(--gray);margin-bottom:4px">📐 สัดส่วน</div>
       ${measRows}
@@ -6098,7 +6106,6 @@ function buildLifestyleSection(MON, TH_SHORT, healthLogs){
   const cardioArr=MON.map(d=>healthLogs[d]?.cardio??null);
   const weightArr=MON.map(d=>healthLogs[d]?.muscleGroup==='none'?0:(healthLogs[d]?.weightMin??null));
   const weightGrpArr=MON.map(d=>healthLogs[d]?.muscleGroup||null);
-  const fatArr=MON.map(d=>(healthLogs[d]?.fatPct>0)?healthLogs[d].fatPct:null); // F-HL: 0 = ไม่ได้วัด → ไม่แสดงแท่ง
 
   function numAvg(arr){const v=arr.filter(x=>x!==null&&x>0);return v.length?v.reduce((a,b)=>a+b,0)/v.length:0;}
   function calcBarH(val,min,max){if(val===null)return 0;const r=Math.max(0,Math.min(1,(val-min)/(max-min)));return Math.max(4,r*BAR_H);}
@@ -6139,11 +6146,6 @@ function buildLifestyleSection(MON, TH_SHORT, healthLogs){
   const avgSleep=numAvg(sleepArr).toFixed(1);
   const avgSteps=numAvg(stepsArr)>=1000?(numAvg(stepsArr)/1000).toFixed(1)+'k':Math.round(numAvg(stepsArr));
   const avgCardio=Math.round(numAvg(cardioArr));
-  // F-HL: %ไขมัน — โชว์การ์ดเฉพาะเมื่อมีการวัดในสัปดาห์นี้ + แสดงค่าล่าสุด
-  const _fatVals=fatArr.filter(v=>v!==null);
-  const hasFat=_fatVals.length>0;
-  const latestFat=hasFat?_fatVals[_fatVals.length-1]:null;
-  const fatBars=hasFat?makeBars(fatArr,{min:10,max:45,color:'linear-gradient(to top,#BE185D,#F472B6)',iconFn:()=>'',fmtFn:v=>v+'%'}):'';
 
   return`<div class="sd-section" style="margin-top:10px">
     <div class="sd-section-title">🏃 Lifestyle 7 วันล่าสุด</div>
@@ -6183,12 +6185,6 @@ function buildLifestyleSection(MON, TH_SHORT, healthLogs){
       <div class="ls-bars">${weightBars}</div>
       <div style="font-size:9px;color:#9CA3AF;margin-top:7px">🦵 ขา · 💪 อก/แขน · 🔙 หลัง · 🦾 บ่า · 🔥 Core · 🏋️ เต็มตัว</div>
     </div>
-
-    ${hasFat?`<div class="ls-chart-card">
-      <div class="ls-ch"><span class="ls-ctitle">🔥 %ไขมัน</span><span class="ls-cavg">ล่าสุด ${latestFat}%</span></div>
-      <div class="ls-bars">${fatBars}</div>
-      <div class="ls-scale-lbl">สเกล 10–45% · แสดงเฉพาะวันที่วัด</div>
-    </div>`:''}
 
     <div style="background:var(--light);border:1.5px solid var(--border);border-radius:12px;padding:11px 13px">
       <div style="font-size:11px;font-weight:700;color:var(--primary-dark);margin-bottom:8px">สรุปค่าเฉลี่ยสัปดาห์นี้</div>
