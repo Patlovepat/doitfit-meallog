@@ -886,7 +886,7 @@ db.enablePersistence({synchronizeTabs:true}).catch(e=>{console.warn('Persistence
 // ===== AUTO ERROR REPORTING → Firestore errorLogs =====
 // JS error ที่เกิดบนเครื่องลูกค้าจะถูกส่งเข้า collection 'errorLogs' อัตโนมัติ
 // ดูได้ใน Firebase Console → Firestore → errorLogs (เรียงตาม at ล่าสุด)
-const APP_VERSION='v38-2026-08-11'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
+const APP_VERSION='v40-2026-08-11'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
 const _errLogged=new Set();let _errCount=0;
 function _reportError(type,msg,stack,src){
   try{
@@ -3153,6 +3153,7 @@ function startStudent(){
   initFruitGrid();
   updateHandSummary();
   buildDateStrip();
+  _bootMenusLocal(); // SPEED: เมนูโปรดขึ้นทันทีจาก snapshot ในเครื่อง
   loadStudentData(); // โหลด submissions + targets + savedMenus ในรอบเดียว
 }
 let _loadingStudentData=false;
@@ -3185,7 +3186,7 @@ async function loadStudentData(){
     applyTargets(td);
     if(td&&td.exists){const d=td.data();studentProgramData={programStart:d.programStart||'',programWeeks:d.programWeeks||12,pausedDays:d.pausedDays||0,isPaused:d.isPaused||false,discountCode:d.discountCode||'',discountPercent:d.discountPercent||0};}
     // NW1: ถ้าผลมาจาก offline cache แล้วว่างเปล่า → อย่าทับ ปล่อย null ให้ loadSavedMenus retry ได้
-    if(savedSnap&&!(savedSnap.metadata&&savedSnap.metadata.fromCache&&savedSnap.empty)){savedMenusCache=savedSnap.docs.map(d=>({id:d.id,...d.data()}));}
+    if(savedSnap&&!(savedSnap.metadata&&savedSnap.metadata.fromCache&&savedSnap.empty)){savedMenusCache=savedSnap.docs.map(d=>({id:d.id,...d.data()}));_persistMenus();}
     renderStreak();
     renderTodayProgress();
     refreshAllChips();
@@ -4288,6 +4289,19 @@ async function compressPhoto(file){
 
 // SAVED MENUS
 let savedMenusCache=null;
+// SPEED: snapshot เมนูโปรดใน localStorage — โชว์ทันทีตอนเปิดแอป (0 วิ) แล้ว refresh จาก server เงียบๆ
+// key ผูกกับ userId — กันเมนูข้ามบัญชีบนเครื่องเดียวกัน (เช่นโค้ชเทสหลาย account)
+function _menuKey(){return '_dfm_'+((typeof user!=='undefined'&&user&&user.userId)||'');}
+function _persistMenus(){try{if(savedMenusCache)localStorage.setItem(_menuKey(),JSON.stringify(savedMenusCache));}catch(_){}}
+function _bootMenusLocal(){
+  try{
+    if(savedMenusCache!==null)return; // มีข้อมูลสดแล้ว ไม่ทับ
+    const s=localStorage.getItem(_menuKey());
+    if(!s)return;
+    const arr=JSON.parse(s);
+    if(Array.isArray(arr)&&arr.length){savedMenusCache=arr;refreshAllChips();}
+  }catch(_){}
+}
 async function loadSavedMenus(){
   if(!user)return[];
   try{
@@ -4298,6 +4312,7 @@ async function loadSavedMenus(){
     if(!snap||(snap.metadata&&snap.metadata.fromCache&&snap.empty))return savedMenusCache||[];
     savedMenusCache=snap.docs.map(d=>({id:d.id,...d.data()}))
       .sort((a,b)=>{const at=a.createdAt?.seconds||0,bt=b.createdAt?.seconds||0;return bt-at;});
+    _persistMenus();
     return savedMenusCache;
   }catch(e){console.warn('loadSavedMenus',e);savedMenusCache=savedMenusCache||[];return savedMenusCache;}
 }
@@ -4339,7 +4354,7 @@ async function deleteSavedMenu(id){
   try{
     const _r=await _fsWrite(db.collection('users').doc(user.userId).collection('savedMenus').doc(id).delete()); // W1
     if(_r==='timeout'){
-      if(savedMenusCache)savedMenusCache=savedMenusCache.filter(m=>m.id!==id); // ลบจาก local ทันที
+      if(savedMenusCache){savedMenusCache=savedMenusCache.filter(m=>m.id!==id);_persistMenus();} // ลบจาก local ทันที
       refreshAllChips();
       showToast('📡 เน็ตช้า — ลบไว้ในเครื่องแล้ว จะซิงค์อัตโนมัติค่ะ',4000);
     }else{
@@ -4390,7 +4405,7 @@ async function saveCurrentMenu(){
     else _dropBackup(_smPath);
     if(_r==='timeout'){
       // เพิ่มเข้า local cache ทันที ไม่ต้องรอ server reload
-      if(savedMenusCache)savedMenusCache.unshift({id:_ref.id,...data,createdAt:{seconds:Math.floor(Date.now()/1000)}});
+      if(savedMenusCache){savedMenusCache.unshift({id:_ref.id,...data,createdAt:{seconds:Math.floor(Date.now()/1000)}});_persistMenus();}
       refreshAllChips();
       showToast('📡 เน็ตช้า — บันทึกเมนูไว้ในเครื่องแล้ว จะซิงค์อัตโนมัติค่ะ',4000);
     }else{
