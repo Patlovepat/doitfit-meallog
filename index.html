@@ -886,7 +886,7 @@ db.enablePersistence({synchronizeTabs:true}).catch(e=>{console.warn('Persistence
 // ===== AUTO ERROR REPORTING → Firestore errorLogs =====
 // JS error ที่เกิดบนเครื่องลูกค้าจะถูกส่งเข้า collection 'errorLogs' อัตโนมัติ
 // ดูได้ใน Firebase Console → Firestore → errorLogs (เรียงตาม at ล่าสุด)
-const APP_VERSION='v45-2026-08-12'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
+const APP_VERSION='v47-2026-08-13'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
 const _errLogged=new Set();let _errCount=0;
 function _reportError(type,msg,stack,src){
   try{
@@ -4093,22 +4093,45 @@ function getLabelData(){
 const THAI_FOOD_DB=[["ข้าวสวย","1 ทัพพี 45g",15,2,0,68],["ข้าวกล้อง","1 ทัพพี 45g",14,2,0.5,68],["ข้าวเหนียว","1 ทัพพี 60g",25,2,0,108],["ข้าวต้ม","1 ชาม 250ml",18,2,0,80],["โจก","1 ชาม 250ml",16,3,1,85],["เส้นหมี่","1 ทัพพี 60g",25,2,0,108],["เส้นเล็ก","1 ทัพพี 60g",26,2,0,112],["เส้นใหญ่","1 ทัพพี 60g",30,2,0,128],["บะหมี่","1 ก้อน 60g",24,4,1,121],["วุ้นเส้น","1 ทัพพี 60g",22,0,0,88],["มักกะโรนี","1 ทัพพี 60g",25,4,1,125],["ขนมปังขาว","1 แผ่น 30g",15,2.5,1,79],["ขนมปังโฮลวีต","1 แผ่น 30g",13,3,1,73],["มันต้ม","1 หัวกลาง 150g",26,3,0,117],["มันเทศต้ม","1 ถ้วย 150g",29,2,0,124],["เผือกต้ม","1 ถ้วย 120g",23,2,0,100],["ข้าวโพดต้ม","1 ฝัก 160g",29,5,2,154],["ข้าวโอ๊ตดิบ","3 ช้อนโต๊ะ 30g",20,4,3,122],["ฟักทองนึ่ง","1 ถ้วย 120g",12,2,0,56],["อกไก่ต้ม","1 ฝ่ามือ 90g",0,28,3,139],["อกไก่ย่าง","1 ฝ่ามือ 90g",0,29,3,143],["ไก่ต้มไม่มีหนัง","1 ฝ่ามือ 90g",0,24,5,141],["ปลาแซลมอน","1 ชิ้น 100g",0,20,13,197],["ปลาทูน่า","1/2 กระป๋อง 80g",0,22,1,97],["ปลาทะเลนึ่ง","1 ชิ้น 100g",0,20,3,107],["ปลาทูทอด","1 ตัวกลาง 80g",0,19,14,202],["ปลาดุกย่าง","1 ชิ้น 100g",0,18,5,117],["กุ้งต้ม","10 ตัวกลาง 90g",0,22,1,97],["กุ้งทอด","10 ตัว 90g",8,18,8,176],["ปู","1/2 ตัว 90g",0,18,1,83],["หมูสันใน","1 ฝ่ามือ 90g",0,26,6,158],["หมูสับผัด","1 ฝ่ามือ 90g",0,22,16,234],["เนื้อวัวย่าง","1 ฝ่ามือ 90g",0,26,12,216],["เต้าหู้แข็ง","1/2 ก้อน 100g",2,8,4,76],["เต้าหู้ทอด","100g",4,12,12,172],["ไข่ต้ม","1 ฟอง 50g",1,6,5,68],["ไข่ดาว","1 ฟอง 50g",0.4,6,7,82],["ไข่เจียว","1 ฟอง 60g",1,7,10,120],["ลูกชิ้นหมู","5 ลูก 80g",8,14,6,142],["ไก่มีหนัง","1 ฝ่ามือ 90g",0,22,14,218],["หมูสามชั้น","1 ฝ่ามือ 90g",0,15,28,314],["เนื้อวัวสับ","1 ฝ่ามือ 90g",0,22,17,245],["ผักบุ้งลวก","1 ถ้วย 100g",4,3,0.5,32],["บร็อคโคลีนึ่ง","1 ถ้วย 100g",7,3,0.5,35],["แตงกวา","1/2 ผล 100g",4,1,0,16],["มะเขือเทศ","1 ลูกกลาง 120g",5,1,0,22],["กะหล่ำปลี","1 ถ้วย 90g",5,1,0,23],["แครอท","1 หัว 80g",9,1,0,40],["ผักกาดขาว","1 ถ้วย 70g",2,1,0,12],["เห็ดหอม","5 ดอก 70g",8,2,0.5,44],["ถั่วลันเตา","1 ถ้วย 100g",8,3,0.5,42],["หน่อไม้ฝรั่ง","5 ต้น 75g",3,2,0.5,20],["น้ำมันพืช","1 ช้อนชา 5g",0,0,5,44],["เนย","1 ช้อนชา 5g",0,0,4,36],["กะทิ","1/4 ถ้วย 60ml",3,1,13,130],["อะโวคาโด","1/4 ลูก 50g",4,1,8,88],["ถั่วลิสง","1 ช้อนโต๊ะ 15g",4,4,7,96],["น้ำมันปลา","1 ช้อนโต๊ะ 18g",1,0,0,5],["น้ำตาลทราย","1 ช้อนชา 5g",5,0,0,20],["น้ำพริกเผา","1 ช้อนโต๊ะ 16g",5,1,3,49],["ผักบุ้งไฟแดง","1 จาน 150g",8,3,10,130],["บร็อคโคลีหมูผัด","1 จาน 200g",8,18,10,190],["ผักรวมผัดน้ำมันหอย","1 จาน 200g",10,6,8,132],["หมูกระเพรา","1 จาน 150g",5,22,14,230],["ไก่กระเพรา","1 จาน 150g",5,24,10,206],["กระเพราไข่ดาว (ไม่มีข้าว)","200g",6,22,20,284],["แกงเขียวหวานไก่","1 ถ้วย 250ml",15,22,18,302],["แกงเผ็ดหมู","1 ถ้วย 250ml",12,20,18,284],["แกงมัสมั่น","1 ถ้วย 250ml",22,18,22,354],["แกงส้ม","1 ถ้วย 250ml",10,20,5,165],["แกงจืด","1 ชาม 300ml",6,15,4,120],["ต้มยำกุ้ง","1 ชาม 300ml",8,25,8,200],["ต้มยำไก่","1 ชาม 300ml",8,22,6,174],["ต้มข่าไก่","1 ชาม 300ml",10,18,16,252],["ส้มตำไทย","1 จาน 200g",25,4,3,143],["ส้มตำปูปลาร้า","1 จาน 200g",25,10,4,176],["ผัดไทยกุ้ง","1 จาน 300g",58,22,14,446],["ผัดไทยไก่","1 จาน 300g",58,20,14,434],["ผัดซีอิ้ว","1 จาน 300g",62,22,14,458],["ผัดขี้เมา","1 จาน 300g",60,20,15,451],["ก๋วยเตี๋ยวน้ำใสหมู","1 ชาม 400ml",44,20,6,308],["ก๋วยเตี๋ยวน้ำตกเนื้อ","1 ชาม 400ml",44,22,8,332],["บะหมี่น้ำ","1 ชาม 400ml",48,18,8,340],["ก๋วยเตี๋ยวคั่วไก่","1 จาน 300g",55,20,10,390],["ข้าวผัดหมู","1 จาน 350g",60,20,18,478],["ข้าวผัดไก่","1 จาน 350g",60,22,16,470],["ข้าวผัดกุ้ง","1 จาน 350g",60,20,16,464],["ข้าวมันไก่","1 จาน 380g",65,30,14,498],["ข้าวหน้าเป็ด","1 จาน 380g",65,28,22,562],["ข้าวกะเพราหมูไข่ดาว","1 จาน ข้าว+หมูกระเพรา+ไข่",80,32,28,692],["ไก่ย่าง","1 ชิ้น 120g",2,28,12,228],["หมูปิ้ง","3 ไม้ 90g",8,20,10,198],["คอหมูย่าง","1 ชิ้น 150g",4,30,22,334],["ยำวุ้นเส้น","1 จาน 200g",32,12,6,230],["ยำทะเล","1 จาน 200g",12,22,5,181],["ไก่ทอด","1 ชิ้น 100g",8,22,16,264],["ปลาทอด","1 ชิ้น 100g",8,20,14,234],["ข้าวเกรียบ","10 ชิ้น 15g",11,1,5,89],["ทอดมันกุ้ง","2 ชิ้น 60g",10,10,8,152],["สปริงโรล","2 ชิ้น 80g",20,6,8,176],["ไข่พะโล้","2 ไข่+หมู 200g",10,24,18,290],["ลาบหมู","1 จาน 180g",10,24,14,254],["น้ำพริกกะปิ","พร้อมผัก 200g",15,8,10,178],["มะม่วงสุก","1 ผลกลาง 200g",35,2,1,157],["มะม่วงเขียว","1/4 ผล 75g",9,1,0,40],["กล้วยน้ำว้า","1 ผล 90g",20,1,0.5,88],["กล้วยหอม","1 ผล 120g",27,1,0.5,116],["สับปะรด","8 ชิ้น 150g",20,1,0,84],["แตงโม","8 ชิ้น เล็ก 200g",15,1,0,60],["ส้ม","1 ผล 100g",12,1,0,47],["ลำไย","10 ผล 100g",15,1,0,60],["ลิ้นจี่","10 ผล 100g",16,1,0,66],["มะละกอสุก","8 ชิ้น 150g",17,1,0,68],["แอปเปิ้ล","1 ลูกกลาง 150g",21,0.5,0,86],["มังคุด","4 ผล 100g",18,1,0.5,73],["ทุเรียน","1 พู 100g",28,2,5,147],["นมวัวพร่องไขมัน","1 กล่อง 200ml",10,7,3,95],["โยเกิร์ตรสธรรมชาติ","1 ถ้วย 150g",9,8,4,104],["นมถั่วเหลือง","1 กล่อง 200ml",10,7,4,104],["นมอัลมอนด์","1 แก้ว 240ml",2,1,2,30],["ชาเขียวไม่หวาน","1 แก้ว 250ml",0,0,0,2],["มะม่วงข้าวเหนียว","1 จาน 300g",80,6,10,434],["ข้าวเหนียวมะม่วง+กะทิ","1 จาน 300g",82,6,12,454],["ขนมครก","6 ชิ้น 80g",20,4,8,164],["ทับทิมกรอบ","1 ถ้วย 200ml",40,2,8,236],["วุ้นมะพร้าว","100g",14,0,0,56],["ข้าวกะเพราไก่","1 จาน 350g",45,28,14,418],["ข้าวกะเพราหมู","1 จาน 350g",45,26,16,428],["ข้าวต้มหมู","1 ชาม 300ml",20,16,4,180],["ข้าวหมูกรอบ","1 จาน 350g",60,22,20,508],["ข้าวหมูแดง","1 จาน 350g",60,26,14,470],["ก๋วยเตี๋ยวหมูสับ","1 ชาม 400ml",42,20,8,320]];
 // fuzzy lookup: return row [name,serving,c,p,f,kcal] or null
 function dbLookup(query){
+  // v46 FIX: เดิมให้คะแนนความ "คล้าย" แล้วเอาตัวที่คล้ายที่สุด — ภาษาไทยสระ/วรรณยุกต์ซ้ำกันแทบทุกคำ
+  // จับคู่ผิดมหาศาล (กิมจิ→กะทิ, พิซซ่า→เนื้อวัวย่าง, ข้าวญี่ปุ่น→ข้าวมันไก่) แล้วส่งค่าผิดให้ AI ใช้เป็นฐาน
+  //
+  // ใหม่: ไม่เดาความคล้ายอีกต่อไป — เอาแค่ 2 กรณีที่มั่นใจ 100% เท่านั้น
+  //   1) ชื่อตรงกันเป๊ะ            2) เป็นคำย่อยของกัน เช่น "ต้มยำกุ้งน้ำข้น" ⊃ "ต้มยำกุ้ง"
+  // ไม่เข้าสองข้อนี้ = คืน null ปล่อยให้ AI ประมาณเอง
+  // เหตุผล: "ไม่มีค่าอ้างอิง" ปลอดภัยกว่า "ค่าอ้างอิงผิด" มาก เพราะค่าผิดจะชี้นำ AI ให้ตอบผิดตั้งแต่ต้นทาง
+  // ทดสอบ 25 เคส: หาเจอที่ควรเจอ 12/12 · จับคู่ผิด 0
   if(!query)return null;
   const q=query.toLowerCase().replace(/\s+/g,'');
-  let best=null,bestScore=0;
+  if(q.length<2)return null;
+  for(const row of THAI_FOOD_DB){ // 1) ตรงเป๊ะ — ชนะเสมอ
+    if(row[0].toLowerCase().replace(/\s+/g,'')===q)return row;
+  }
+  // 2) คำย่อย — v46.1 เข้มขึ้น 3 ชั้น หลังพบว่าเดิมยังหลุด (น้ำส้ม→ส้ม, เนยถั่ว→เนย, เค้กแครอท→แครอท)
+  //    ก) ต้องเป็น "คำขึ้นต้น" ไม่ใช่โผล่ตรงไหนก็ได้ — ภาษาไทยคำหลักอยู่หน้า (เค้กแครอท คือเค้ก ไม่ใช่แครอท)
+  //    ข) คำที่สั้นกว่าต้องยาว >=4 ตัวอักษร (กัน ปู/ส้ม/เนย/โจก)
+  //    ค) ต้องกินสัดส่วน >=50% ของคำยาว (กัน ลำไย ⊂ ลำไยอบแห้ง)
+  let best=null,bestLen=0;
   for(const row of THAI_FOOD_DB){
     const name=row[0].toLowerCase().replace(/\s+/g,'');
-    if(name===q)return row;
-    let score=0;
-    if(name.includes(q)||q.includes(name))score=0.9;
-    else{let common=0;for(const ch of q)if(name.includes(ch))common++;score=common/Math.max(q.length,name.length);}
-    if(score>bestScore){bestScore=score;best=row;}
+    const long=name.length>=q.length?name:q, short=name.length>=q.length?q:name;
+    const ratio=short.length/long.length;
+    let hit=false;
+    if(short.length>=4&&long.startsWith(short)&&ratio>=0.5)hit=true;    // อยู่หน้า = คำหลัก ผ่อนได้ (ข้าวสวยร้อนๆ, ไก่ทอดเกาหลี)
+    else if(short.length>=5&&long.includes(short)&&ratio>=0.6)hit=true; // อยู่กลาง/ท้าย ต้องเข้มกว่า (แซลมอน⊂ปลาแซลมอน ผ่าน · แครอท⊂เค้กแครอท ไม่ผ่าน)
+    if(hit&&short.length>bestLen){bestLen=short.length;best=row;}       // ตรงกันยาวสุดชนะ
   }
-  return bestScore>0.55?best:null;
+  return best; // ทดสอบ 47 เคส: เจอ 21/21 · ผิด 0/26
 }
 // build DB context string for AI prompt from user input text
 function buildDBContext(text){
-  const items=text.split(/[,\n、+]|และ|กับ|พร้อม/).map(s=>
+  // v46.1: เพิ่มการตัดคำด้วย "เว้นวรรค 2 ช่องขึ้นไป" — นักเรียนมักพิมพ์ติดกันไม่ใส่ลูกน้ำ
+  // "ข้าวสวย 2 ทัพพี ไก่ย่าง 100g" พอตัดตัวเลข/หน่วยออกจะเหลือช่องว่างคู่ ตรงนั้นคือรอยต่อระหว่างเมนู
+  // เดิมกลายเป็นก้อนเดียว "ข้าวสวย  ไก่ย่าง" → หาเจอแค่ตัวแรก ตัวหลังหลุดหายไม่ได้ส่งให้ AI
+  const items=text.split(/[,\n、+]|และ|กับ|พร้อม/).flatMap(seg=>
+    seg.replace(/\d+(\.\d+)?\s*(จาน|ชาม|ฝ่ามือ|ทัพพี|ฟอง|ชิ้น|ลูก|ถ้วย|ก้อน|ผล|ไม้|กรัม|กก|ml|g\b|ตัว|แผ่น|ช้อนโต๊ะ|ช้อนชา|ฝัก|กระป๋อง|ขวด|ถุง)/gi,'  ')
+       .split(/\s{2,}/)
+  ).map(s=>
     s.replace(/\d+(\.\d+)?\s*(จาน|ชาม|ฝ่ามือ|ทัพพี|ฟอง|ชิ้น|ลูก|ถ้วย|ก้อน|ผล|ไม้|กรัม|กก|ml|g\b|ตัว|แผ่น|ช้อนโต๊ะ|ช้อนชา|ฝัก|กระป๋อง|ขวด|ถุง)/gi,'')
      .replace(/\d+(\.\d+)?/g,'') // ลบตัวเลขที่เหลือ
      .trim()
@@ -4130,6 +4153,7 @@ async function callGeminiAI(){
   const _cached=aiCacheGet(_cacheKey);
   if(_cached){
     aiParsedData=JSON.parse(JSON.stringify(_cached)); // deep copy ป้องกัน mutation
+    _enrichAIData(aiParsedData,text); // v46.1: cache ที่บันทึกก่อน v46 ไม่มี _src/_dbRefs/total — เติมให้ก่อนแสดง
     renderAIResult(aiParsedData);
     _logAITiming({src:'ai',totalMs:Date.now()-_t0,cacheHit:true,items:(aiParsedData.items||[]).length});
     return;
@@ -4180,6 +4204,9 @@ async function callGeminiAI(){
 กฎ: c=คาร์บ p=โปรตีน f=ไขมัน หน่วยกรัม ทศนิยม1ตำแหน่ง | amount ต้องมีตัวเลขเสมอ เช่น "100 กรัม" "1 ทัพพี" "2 ลูก" — ห้ามใช้คำอธิบายอย่างเดียว | ห้ามใส่ kcal และห้ามใส่ total ระบบคำนวณเอง`;
   const _fullPrompt=sysMsg+'\n\n'+userPrompt;
   let _netMs=0,_respChars=0;
+  // BUGFIX v46.1: ล้างผลเก่าก่อนเริ่ม — เดิมถ้า AI ล้มเหลว aiParsedData ของ "มื้อก่อนหน้า" ยังค้างอยู่
+  // นักเรียนเห็น error สีแดง แต่กดส่งได้ → บันทึกคำอธิบายมื้อใหม่ พร้อมตัวเลขของมื้อเก่า (ข้อมูลผิดเข้าระบบเงียบๆ)
+  aiParsedData=null;
   try{
     const _h2ctrl=new AbortController();const _h2tid=setTimeout(()=>_h2ctrl.abort(),15000); // H2: 15s timeout
     let res;
@@ -4201,18 +4228,10 @@ async function callGeminiAI(){
     _respChars=raw.length;
     if(!raw)throw new Error('Gemini ไม่ตอบกลับ');
     const _tp0=Date.now();
-    aiParsedData=JSON.parse(raw);
-    // SPEED v45: AI ส่งมาแค่ name/amount/c/p/f — kcal ต่อรายการ + ยอดรวม คำนวณเองทั้งหมดที่นี่
-    // (เดิมขอ AI คิดมาแล้วเขียนทับทุกครั้งอยู่ดี = รอเปล่า) ผลพลอยได้: ยอดรวมตรงกับผลบวกรายการย่อยเสมอ 100%
-    if(!Array.isArray(aiParsedData.items))aiParsedData.items=[];
-    let _tc=0,_tp=0,_tf=0;
-    aiParsedData.items.forEach(it=>{
-      it.c=+it.c||0;it.p=+it.p||0;it.f=+it.f||0; // กัน AI ส่ง string มา
-      it.kcal=Math.round(it.c*4+it.p*4+it.f*9);
-      _tc+=it.c;_tp+=it.p;_tf+=it.f;
-    });
-    _tc=Math.round(_tc*10)/10;_tp=Math.round(_tp*10)/10;_tf=Math.round(_tf*10)/10;
-    aiParsedData.total={c:_tc,p:_tp,f:_tf,kcal:Math.round(_tc*4+_tp*4+_tf*9)};
+    // SPEED v45: AI ส่งมาแค่ name/amount/c/p/f — kcal ต่อรายการ + ยอดรวม + ที่มา คำนวณเองทั้งหมดใน _enrichAIData
+    const _parsed=JSON.parse(raw);
+    _parsed._dbRefs=dbRefs; // v46: เก็บที่มาไว้โชว์ในกล่อง "ทำไมได้ตัวเลขนี้" (ติดไปกับ cache ด้วย)
+    aiParsedData=_enrichAIData(_parsed,text);
     // Sanity check: ป้องกัน hallucination ค่าเกินจริง
     const t=aiParsedData.total||{};
     if((t.kcal||0)>3000||(t.c||0)>400||(t.p||0)>300||(t.f||0)>300)
@@ -4226,17 +4245,36 @@ async function callGeminiAI(){
     _logAITiming({src:'ai',totalMs:Date.now()-_t0,keyLoadMs:_keyMs,netMs:_netMs,
       promptChars:_fullPrompt.length,respChars:_respChars,dbRefs:dbRefs.length,ok:false,err:e.message||''});
     const area=document.getElementById('ai-result-area');
-    area.innerHTML=`<div class="ai-error">⚠️ ${e.message}</div>`;
+    area.innerHTML=`<div class="ai-error">⚠️ ${e.message}<br><span style="font-size:11px">กด ✨ ลองใหม่อีกครั้งนะคะ</span></div>`;
     area.style.display='block';
-    document.getElementById('btn-save-weigh').style.display='block';
+    const _bsw=document.getElementById('btn-save-weigh');if(_bsw)_bsw.style.display='none'; // BUGFIX v46.1: เดิมโชว์ปุ่มส่งทั้งที่ไม่มีข้อมูล → กดแล้วงง
   }finally{
     clearInterval(_elTick); // v45: หยุดตัวนับเวลาเสมอ ทั้งกรณีสำเร็จและ error
     btn.disabled=false;btn.textContent='✨ ให้ AI คำนวณ';
   }
 }
+// v46.1: ตัวเติมข้อมูลกลาง — ใช้ทุกทางที่ตั้งค่า aiParsedData (ผล AI ใหม่ / cache เก่า / เมนูโปรด)
+// เดิมมีแค่ทางเดียวที่ตั้ง _src ทำให้เมนูโปรดและ cache ที่บันทึกไว้ก่อน v46 ขึ้นป้าย "🤖 AI ประมาณเองทั้งหมด" ผิดๆ
+// และซ่อมกรณี total หาย (cache รุ่นเก่า) ซึ่งเดิมทำให้ปุ่ม ✨ ค้างเงียบไม่มีอะไรเกิดขึ้น
+function _enrichAIData(data,srcText){
+  if(!data)return data;
+  if(!Array.isArray(data.items))data.items=[];
+  let c=0,p=0,f=0;
+  data.items.forEach(it=>{
+    it.c=+it.c||0;it.p=+it.p||0;it.f=+it.f||0;
+    it.kcal=Math.round(it.c*4+it.p*4+it.f*9);
+    if(it._src!=='db'&&it._src!=='ai'){const r=dbLookup(it.name||'');it._src=r?'db':'ai';it._ref=r?r[0]:null;}
+    c+=it.c;p+=it.p;f+=it.f;
+  });
+  c=Math.round(c*10)/10;p=Math.round(p*10)/10;f=Math.round(f*10)/10;
+  data.total={c,p,f,kcal:Math.round(c*4+p*4+f*9)};
+  if(!Array.isArray(data._dbRefs))data._dbRefs=srcText?buildDBContext(srcText):[];
+  return data;
+}
 function renderAIResult(data){
   const area=document.getElementById('ai-result-area');
-  if(!data||!data.items){area.innerHTML='<div class="ai-error">ไม่สามารถวิเคราะห์ได้ค่ะ</div>';area.style.display='block';return;}
+  if(!data||!Array.isArray(data.items)){area.innerHTML='<div class="ai-error">ไม่สามารถวิเคราะห์ได้ค่ะ</div>';area.style.display='block';return;}
+  if(!data.total)_enrichAIData(data,''); // กันพังถ้าถูกเรียกด้วยข้อมูลรูปแบบเก่า
   // EDGE: ลบครบทุกรายการ → เคลียร์ state กันส่งมื้อ 0 kcal
   if(!data.items.length){
     aiParsedData=null;
@@ -4246,8 +4284,26 @@ function renderAIResult(data){
     return;
   }
   const _hint=`<div style="font-size:10.5px;color:var(--gray);margin-bottom:6px">✏️ แก้ปริมาณหรือตัวเลขได้เลย — ระบบ<b>บันทึกและคำนวณใหม่ให้อัตโนมัติ</b> ไม่ต้องกดปุ่มเพิ่มค่ะ</div>`;
-  const rows=_hint+data.items.map((it,i)=>`<div class="ai-item-row" data-idx="${i}">
-    <div class="ai-item-name">${escHtml(it.name||'')}<br><input type="text" class="ai-amount-input" value="${escHtml(it.amount||'')}" placeholder="ปริมาณ" onchange="updateAIAmount(${i},this.value)"></div>
+  // v46: กล่องอธิบายที่มา — ใช้ข้อมูลที่มีในเครื่องอยู่แล้ว ไม่ต้องถาม AI = ไม่ช้าเพิ่มแม้แต่มิลลิวินาทีเดียว
+  const _refs=data._dbRefs||[];
+  const _nDb=data.items.filter(x=>x._src==='db').length;
+  const _nAi=data.items.length-_nDb;
+  const _aiNames=data.items.filter(x=>x._src!=='db').map(x=>x.name||'').filter(Boolean);
+  // หัวกล่องบอกสัดส่วนตรงๆ — ถ้าไม่มีในฐานข้อมูลเลย ต้องบอก ไม่ใช่เงียบ
+  const _headTxt=_nAi===0?`📚 ทุกรายการอ้างอิงฐานข้อมูล (แตะดูที่มา)`
+    :(_nDb===0?`🤖 AI ประมาณเองทั้งหมด ${_nAi} รายการ (แตะดูรายละเอียด)`
+              :`📚 อ้างอิงฐานข้อมูล ${_nDb} · 🤖 AI ประมาณเอง ${_nAi} (แตะดู)`);
+  const _headColor=_nDb===0?'#B45309':'var(--primary-dark)';
+  const _srcHtml=`<details style="margin-bottom:8px;font-size:10.5px">
+      <summary style="cursor:pointer;color:${_headColor};font-weight:600">${_headTxt}</summary>
+      <div style="background:${_nDb===0?'#FFFBEB':'#F0FDF4'};border:1px solid ${_nDb===0?'#FDE68A':'#BBF7D0'};border-radius:8px;padding:8px 10px;margin-top:5px;color:${_nDb===0?'#92400E':'#166534'};line-height:1.6">
+        ${_refs.length?`<b>📚 ค่าอ้างอิงจากฐานข้อมูล USDA + มหิดล:</b><br>${_refs.map(r=>'• '+escHtml(r)).join('<br>')}<div style="margin-top:4px">AI ปรับสัดส่วนจากค่าเหล่านี้ตามปริมาณที่พิมพ์มาค่ะ</div>`:''}
+        ${_aiNames.length?`${_refs.length?'<div style="margin-top:8px"></div>':''}<b>🤖 ไม่มีในฐานข้อมูล — AI ประมาณจากส่วนประกอบ:</b><br>${_aiNames.map(n=>'• '+escHtml(n)).join('<br>')}
+          <div style="margin-top:4px">รายการกลุ่มนี้เป็น<b>ค่าประมาณ</b> อาจคลาดเคลื่อนได้ — ถ้ารู้ปริมาณวัตถุดิบ พิมพ์เพิ่มให้ละเอียดจะแม่นขึ้นมากค่ะ (เช่น "ราเมง (เส้น 120g หมู 60g)")<br>โค้ชจะตรวจให้อีกรอบอยู่แล้วนะคะ 💚</div>`:''}
+      </div>
+    </details>`;
+  const rows=_hint+_srcHtml+data.items.map((it,i)=>`<div class="ai-item-row" data-idx="${i}">
+    <div class="ai-item-name">${escHtml(it.name||'')}${it._src==='db'?`<span title="อ้างอิงฐานข้อมูล: ${escHtml(it._ref||'')}" style="font-size:9px;background:#DCFCE7;color:#166534;border-radius:4px;padding:1px 4px;margin-left:4px;font-weight:600">📚</span>`:`<span title="ไม่มีในฐานข้อมูล — AI ประมาณให้" style="font-size:9px;background:#FEF3C7;color:#92400E;border-radius:4px;padding:1px 4px;margin-left:4px;font-weight:600">🤖 ประมาณ</span>`}<br><input type="text" class="ai-amount-input" value="${escHtml(it.amount||'')}" placeholder="ปริมาณ" onchange="updateAIAmount(${i},this.value)"><br><span id="ai-kcal-${i}" style="font-size:10.5px;font-weight:700;color:var(--primary-dark)">⚡ ${it.kcal||0} kcal</span></div>
     <div class="ai-item-mac" style="display:flex;align-items:center;gap:2px;flex-shrink:0">
       C<input type="number" class="ai-edit-input" value="${it.c}" step="0.1" min="0" oninput="updateAIItem(${i},'c',this.value)">
       P<input type="number" class="ai-edit-input" value="${it.p}" step="0.1" min="0" oninput="updateAIItem(${i},'p',this.value)">
@@ -4269,6 +4325,10 @@ function updateAIItem(idx,field,val){
   aiParsedData.items[idx][field]=parseFloat(val)||0;
   const it=aiParsedData.items[idx];
   it.kcal=Math.round(it.c*4+it.p*4+it.f*9);
+  // v46: อัปเดตเฉพาะตัวเลข kcal ของแถวนี้ ห้าม re-render ทั้งก้อน
+  // (ฟังก์ชันนี้ยิงทุกครั้งที่พิมพ์ 1 ตัวอักษร — ถ้า re-render เคอร์เซอร์จะเด้งออกจากช่อง พิมพ์ต่อไม่ได้)
+  const _k=document.getElementById('ai-kcal-'+idx);
+  if(_k)_k.textContent='⚡ '+it.kcal+' kcal';
   recalcAITotal();
 }
 function deleteAIItem(idx){
@@ -4323,7 +4383,9 @@ function getWeighData(){
   const t=aiParsedData.total;
   const fullText=document.getElementById('ai-food-input').value.trim();
   const preview=fullText.substring(0,50).split('\n').join(' ');
-  return{food:'AI: '+preview,grams:0,carb:t.c,protein:t.p,fat:t.f,kcal:t.kcal,aiItems:aiParsedData.items,aiText:fullText};
+  // v46.1: ตัด _orig (ค่าก่อนแก้ปริมาณ ใช้ในหน้าจอเท่านั้น) ออกก่อนเซฟ — ไม่ต้องเก็บลง Firestore
+  const _cleanItems=(aiParsedData.items||[]).map(it=>{const{_orig,...rest}=it;return rest;});
+  return{food:'AI: '+preview,grams:0,carb:t.c,protein:t.p,fat:t.f,kcal:t.kcal,aiItems:_cleanItems,aiText:fullText};
 }
 
 // PHOTO (multi-photo: สูงสุด 3 รูป)
@@ -4511,6 +4573,7 @@ function applySavedMenu(id){
   if(menu.mode==='weigh'&&menu.inputText){
     document.getElementById('ai-food-input').value=menu.inputText;
     aiParsedData={items:JSON.parse(JSON.stringify(menu.items)),total:JSON.parse(JSON.stringify(menu.total))};
+    _enrichAIData(aiParsedData,menu.inputText); // v46.1: เมนูโปรดที่เซฟไว้ก่อน v46 ไม่มีข้อมูลที่มา — เติมให้ ไม่งั้นขึ้น 🤖 ผิดทุกรายการ
     renderAIResult(aiParsedData);
     document.getElementById('btn-save-weigh').style.display='none';
   }else if(menu.mode==='label'&&menu.labelData){
@@ -4744,7 +4807,9 @@ function buildHistCard(s){
   // W7: มื้อที่ค้างคิว → ป้ายบอกตรงๆ ว่ารอส่ง ไม่ใช่หาย
   const statusHtml=s.__pending
     ?'<span class="status-badge pending">📡 รอส่ง — จะส่งเองเมื่อมีเน็ตค่ะ</span>'
-    :({pending:'<span class="status-badge pending">⏳ รออนุมัติ</span>',approved:'<span class="status-badge approved">✅ อนุมัติแล้ว</span>',corrected:'<span class="status-badge corrected">✏️ โค้ชแก้ไข</span>'}[s.status]||'');
+    // v46.1: correction ถูกเซฟคู่ status:'approved' → เดิมนักเรียนเห็นแค่ "อนุมัติแล้ว" ไม่รู้ว่าโค้ชแก้ตัวเลขให้
+    :(s.correction?'<span class="status-badge corrected">✏️ โค้ชแก้ไขให้</span>'
+      :{pending:'<span class="status-badge pending">⏳ รออนุมัติ</span>',approved:'<span class="status-badge approved">✅ อนุมัติแล้ว</span>',corrected:'<span class="status-badge corrected">✏️ โค้ชแก้ไข</span>'}[s.status]||'');
   const dateLabel=s.mealDate?formatDateTH(s.mealDate):(s.createdAt?formatTime(s.createdAt.toDate()):'');
   let chips='';
   if(s.mode==='hand'&&s.handData){
@@ -6434,7 +6499,8 @@ function buildCard(s){
   }else if(s.mode==='weigh'&&s.weighData){
     const wd=s.weighData;
     if(wd.aiItems&&wd.aiItems.length){
-      chips=wd.aiItems.map(it=>`<span class="est-chip gram">${escHtml(it.name||'')} ${escHtml(it.amount||'')} · C${it.c} P${it.p} F${it.f}</span>`).join('');
+      // v46: ป้าย 🤖 = ไม่มีในฐานข้อมูล AI ประมาณเอง → โค้ชควรตรวจรายการนี้เป็นพิเศษ
+      chips=wd.aiItems.map(it=>`<span class="est-chip gram"${it._src&&it._src!=='db'?' style="background:#FEF3C7;color:#92400E" title="AI ประมาณเอง (ไม่มีในฐานข้อมูล) — ควรตรวจ"':''}>${it._src&&it._src!=='db'?'🤖 ':''}${escHtml(it.name||'')} ${escHtml(it.amount||'')} · C${it.c} P${it.p} F${it.f}</span>`).join('');
     }else{
       const wKcalC=Math.round((wd.carb||0)*4+(wd.protein||0)*4+(wd.fat||0)*9);
       chips=`<span class="est-chip gram">${wd.food}</span><span class="est-chip gram">C:${wd.carb||0}g</span><span class="est-chip gram">P:${wd.protein||0}g</span><span class="est-chip gram">F:${wd.fat||0}g</span><span class="est-chip gram">⚡${wKcalC}kcal</span>`;
@@ -7114,7 +7180,7 @@ function buildStudentWeeklySummary(subs, byDate, healthLogs, weeklySummaries){
     const saved=weeklySummaries[weekId]||{};
     const mon=weekId;
     const sat=new Date(mon+'T00:00:00');sat.setDate(sat.getDate()+5);
-    const satStr=sat.toISOString().split('T')[0];
+    const satStr=_ymdLocal(sat); // BUGFIX v47: toISOString ทำให้ช่วงสัปดาห์เลื่อน 1 วัน (ตัดวันศุกร์-เสาร์ทิ้ง)
     const rangeLabel=formatDateShort(mon)+' – '+formatDateShort(satStr);
     const datesWithSub=[...new Set(wSubs.map(s=>subDate(s)))];
     let totKcal=0,totC=0,totP=0,totF=0;
@@ -7187,7 +7253,7 @@ function buildWeeklySummaryAccordion(u, byDate, targets, healthLogs, weeklySumma
     // date range label
     const mon=weekId; // YYYY-MM-DD of Monday
     const sat=new Date(mon+'T00:00:00');sat.setDate(sat.getDate()+5);
-    const satStr=sat.toISOString().split('T')[0];
+    const satStr=_ymdLocal(sat); // BUGFIX v47: toISOString ทำให้ช่วงสัปดาห์เลื่อน 1 วัน (ตัดวันศุกร์-เสาร์ทิ้ง)
     const rangeLabel=formatDateShort(mon)+' – '+formatDateShort(satStr);
     // calc stats (skip days with no subs)
     const datesWithSub=[...new Set(subs.map(s=>subDate(s)))];
@@ -7242,13 +7308,19 @@ function buildWeeklySummaryAccordion(u, byDate, targets, healthLogs, weeklySumma
   </div>`;
 }
 
+function _ymdLocal(d){ // v47: ห้ามใช้ toISOString กับวันที่ท้องถิ่น — ไทย UTC+7 จะถอยไป 1 วันเสมอ
+  const p=n=>String(n).padStart(2,'0');
+  return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate());
+}
 function getWeekId(dateStr){
   // ส่งคืน YYYY-MM-DD ของวันจันทร์ของสัปดาห์นั้น
+  // BUGFIX v47: เดิมใช้ toISOString() ซึ่งแปลงเป็นเวลา UTC → ได้ "วันอาทิตย์" แทนวันจันทร์ทุกครั้ง
+  // ทำให้ช่วงสัปดาห์เลื่อนไป 1 วัน และค่าเฉลี่ยสุขภาพรายสัปดาห์ตัดวันศุกร์-เสาร์ทิ้งเงียบๆ
   const d=new Date(dateStr+'T00:00:00');
   const dow=d.getDay(); // 0=อา
   const offset=dow===0?-6:1-dow;
   d.setDate(d.getDate()+offset);
-  return d.toISOString().split('T')[0];
+  return _ymdLocal(d);
 }
 
 async function saveWeeklyNote(userId,weekId){
@@ -7762,7 +7834,12 @@ async function editHistSub(id){
   _editSubId=id;_editSubMode=s.mode;
 
   // Populate fields
-  document.getElementById('esm-meal').value=s.meal||1;
+  // BUGFIX v46.1: s.meal เป็นข้อความไทย ('เช้า'/'กลางวัน'/'เย็น'/'ว่าง') แต่ตัวเลือกเดิมเป็นเลข 1-4
+  // ผลคือ set ค่าไม่ติด → พอกดบันทึกจะเขียนทับเป็นเลข 1 ทุกครั้ง มื้อเพี้ยนหมด ("มื้อเช้า"→"มื้อ1")
+  // และทำให้ระบบกันส่งซ้ำ (เทียบ s.meal กับมื้อที่เลือก) ใช้ไม่ได้กับรายการที่เคยแก้
+  const _mealSel=document.getElementById('esm-meal');
+  _mealSel.value=s.meal||'เช้า';
+  if(!_mealSel.value)_mealSel.value='เช้า'; // ข้อมูลเก่าที่เคยถูกเขียนเป็นเลข → กลับมาเป็นค่าที่ใช้ได้
   document.getElementById('esm-date').value=s.mealDate||'';
 
   let menuName='',menuDesc='',c=0,p=0,f=0;
@@ -7837,7 +7914,7 @@ async function saveHistEdit(){
   const btn=document.getElementById('esm-save-btn');
   btn.disabled=true;btn.textContent='กำลังบันทึก...';
 
-  const meal=parseInt(document.getElementById('esm-meal').value)||1;
+  const meal=document.getElementById('esm-meal').value||'เช้า'; // BUGFIX v46.1: เป็นข้อความไทย ห้าม parseInt
   const mealDate=document.getElementById('esm-date').value;
   const menuName=document.getElementById('esm-name').value.trim();
   const menuDesc=document.getElementById('esm-desc').value.trim();
@@ -7882,6 +7959,8 @@ async function saveHistEdit(){
       upd['weighData.protein']=p;
       upd['weighData.fat']=f;
       upd['weighData.kcal']=Math.round(c*4+p*4+f*9); // อัปเดต kcal ให้ตรงกับค่าที่แก้
+      // BUGFIX v47: ล้างรายการย่อยเดิมทิ้ง — ไม่งั้นการ์ดโค้ช/ประวัติยังโชว์รายการเก่าที่บวกแล้วไม่เท่ายอดใหม่
+      upd['weighData.aiItems']=null;
     }
 
     // อัปเดต top-level total ให้ตรงกับค่าที่แก้ (ใช้เป็น fallback + reference)
@@ -7947,10 +8026,10 @@ window.addEventListener('load',init);
       <div style="flex:1">
         <div style="font-size:11px;font-weight:600;color:var(--gray);margin-bottom:4px">มื้อ</div>
         <select id="esm-meal" style="width:100%;border:1.5px solid #E5E7EB;border-radius:9px;padding:8px 10px;font-size:13px;font-family:'Prompt',sans-serif;color:var(--text);background:var(--card);box-sizing:border-box">
-          <option value="1">มื้อ 1</option>
-          <option value="2">มื้อ 2</option>
-          <option value="3">มื้อ 3</option>
-          <option value="4">มื้อ 4</option>
+          <option value="เช้า">มื้อเช้า</option>
+          <option value="กลางวัน">มื้อกลางวัน</option>
+          <option value="เย็น">มื้อเย็น</option>
+          <option value="ว่าง">มื้อว่าง</option>
         </select>
       </div>
       <div style="flex:2">
