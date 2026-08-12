@@ -886,7 +886,7 @@ db.enablePersistence({synchronizeTabs:true}).catch(e=>{console.warn('Persistence
 // ===== AUTO ERROR REPORTING → Firestore errorLogs =====
 // JS error ที่เกิดบนเครื่องลูกค้าจะถูกส่งเข้า collection 'errorLogs' อัตโนมัติ
 // ดูได้ใน Firebase Console → Firestore → errorLogs (เรียงตาม at ล่าสุด)
-const APP_VERSION='v44-2026-08-12'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
+const APP_VERSION='v45-2026-08-12'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
 const _errLogged=new Set();let _errCount=0;
 function _reportError(type,msg,stack,src){
   try{
@@ -906,6 +906,37 @@ function _reportError(type,msg,stack,src){
       online:navigator.onLine,
       at:firebase.firestore.FieldValue.serverTimestamp()
     }).catch(()=>{}); // fire-and-forget — ห้าม throw เอง
+  }catch(_){}
+}
+// ===== AI TIMING (v45) — วัดเวลาจริงที่ AI ใช้ เพื่อรู้ว่า "ช้า" ช้าที่ตรงไหน =====
+// เก็บลง Firestore `aiTiming` — ดูได้ที่ Firebase Console เหมือน errorLogs
+// keyLoadMs = เวลาโหลด Gemini key | netMs = เวลารอ API ตอบ | parseMs = เวลาแปลงผล | totalMs = รวมทั้งหมดที่นักเรียนต้องรอ
+let _aiTimeCount=0;
+function _logAITiming(d){
+  try{
+    if(_aiTimeCount>=30)return; // cap 30/session กัน spam
+    _aiTimeCount++;
+    db.collection('aiTiming').add({
+      src:d.src||'ai',                 // ai = ช่องคำนวณอาหาร, plan = วางแผนมื้อ
+      totalMs:Math.round(d.totalMs||0),
+      keyLoadMs:Math.round(d.keyLoadMs||0),
+      netMs:Math.round(d.netMs||0),
+      parseMs:Math.round(d.parseMs||0),
+      promptChars:d.promptChars||0,    // prompt ยาวไป = ช้า
+      respChars:d.respChars||0,
+      dbRefs:d.dbRefs||0,              // จำนวนรายการอ้างอิงที่แนบไป
+      items:d.items||0,
+      vision:!!d.vision,               // true = ส่งรูปเข้า AI ด้วย (ใช้เทียบว่าโหมดรูปช้ากว่าโหมดพิมพ์แค่ไหน)
+      imgKB:Math.round(d.imgKB||0),
+      cacheHit:!!d.cacheHit,           // true = ไม่ได้ยิง API เลย (เร็วมาก)
+      ok:d.ok!==false,
+      err:(d.err||'').slice(0,150),
+      userId:(typeof user!=='undefined'&&user&&user.userId)||null,
+      online:navigator.onLine,
+      conn:(navigator.connection&&navigator.connection.effectiveType)||null, // 4g/3g/slow-2g — บอกว่าช้าที่เน็ตนักเรียนไหม
+      ver:APP_VERSION,
+      at:firebase.firestore.FieldValue.serverTimestamp()
+    }).catch(()=>{}); // fire-and-forget — ห้ามให้กระทบ flow นักเรียน
   }catch(_){}
 }
 window.addEventListener('error',e=>{_reportError('js-error',e.message,e.error&&e.error.stack,(e.filename||'')+':'+(e.lineno||0));});
@@ -4091,28 +4122,43 @@ function buildDBContext(text){
 }
 // WEIGH (AI only)
 async function callGeminiAI(){
+  const _t0=Date.now(); // v45: จับเวลาตั้งแต่นักเรียนกดปุ่ม
   const text=document.getElementById('ai-food-input').value.trim();
   if(!text){showToast('กรุณาพิมพ์รายการอาหารก่อนค่ะ');return;}
-  if(!await _ensureGeminiKey()){showToast('⚠️ โหลด AI key ไม่ได้ค่ะ กรุณาเช็คเน็ตแล้วลองใหม่',3500);return;}
-  // เช็ค cache ก่อน disable ปุ่ม — cache hit ไม่ต้องยิง API
+  // เช็ค cache ก่อน — cache hit ไม่ต้องโหลด key ไม่ต้องยิง API (v45: ย้ายมาก่อน _ensureGeminiKey เพื่อไม่เสียเวลารอ key ฟรีๆ)
   const _cacheKey=text.toLowerCase().replace(/\s+/g,' ');
   const _cached=aiCacheGet(_cacheKey);
   if(_cached){
     aiParsedData=JSON.parse(JSON.stringify(_cached)); // deep copy ป้องกัน mutation
     renderAIResult(aiParsedData);
+    _logAITiming({src:'ai',totalMs:Date.now()-_t0,cacheHit:true,items:(aiParsedData.items||[]).length});
     return;
   }
+  const _tk0=Date.now();
+  if(!await _ensureGeminiKey()){
+    _logAITiming({src:'ai',totalMs:Date.now()-_t0,keyLoadMs:Date.now()-_tk0,ok:false,err:'key-load-failed'});
+    showToast('⚠️ โหลด AI key ไม่ได้ค่ะ กรุณาเช็คเน็ตแล้วลองใหม่',3500);return;
+  }
+  const _keyMs=Date.now()-_tk0;
   const btn=document.getElementById('ai-calc-btn');
   btn.disabled=true;btn.textContent='⏳ กำลังวิเคราะห์...';
   // SPEED(รู้สึก): โชว์ skeleton ทันที แทนซ่อนพื้นที่ผลลัพธ์เฉยๆ
   const _area=document.getElementById('ai-result-area');
   _area.innerHTML=`<div style="padding:18px 12px;font-family:'Prompt',sans-serif">
     <div class="df-spin sm"></div>
-    <div style="text-align:center;color:var(--gray);font-size:12px;margin-bottom:10px">🥗 AI นักโภชนาการกำลังวิเคราะห์...</div>
+    <div style="text-align:center;color:var(--gray);font-size:12px;margin-bottom:2px">🥗 AI นักโภชนาการกำลังวิเคราะห์...</div>
+    <div id="ai-elapsed" style="text-align:center;color:var(--gray);font-size:11px;margin-bottom:10px">0.0 วินาที</div>
     <div class="df-skel" style="height:44px;margin-bottom:8px"></div>
     <div class="df-skel" style="height:44px"></div>
   </div>`;
   _area.style.display='block';
+  // v45: ตัวนับเวลาบนหน้าจอ — นักเรียนเห็นว่าระบบยังทำงานอยู่ (รอแบบรู้ว่านานแค่ไหน รู้สึกสั้นกว่ารอแบบไม่รู้)
+  const _elTick=setInterval(()=>{
+    const el=document.getElementById('ai-elapsed');
+    if(!el)return;
+    const sec=(Date.now()-_t0)/1000;
+    el.textContent=sec.toFixed(1)+' วินาที'+(sec>8?' — เน็ตช้าหน่อยนะคะ รออีกนิดค่ะ':'');
+  },100);
   // ดึงค่าอ้างอิงจาก DB สำหรับอาหารที่พิมพ์มา
   const dbRefs=buildDBContext(text);
   const dbSection=dbRefs.length>0?`\n\n[ค่าอ้างอิง Database USDA+Mahidol — ค่าต่อ serving ที่ระบุในวงเล็บ ต้อง scale ตามกรัมที่ผู้ใช้บอก]\n${dbRefs.join('\n')}`:'';
@@ -4121,7 +4167,7 @@ async function callGeminiAI(){
 1. ถ้ามีค่าจาก Database ให้ใช้เป็นฐาน แต่ต้อง scale สัดส่วนตามปริมาณที่ผู้ใช้ระบุ เช่น DB บอก กุ้งต้ม(90g)→P22 ถ้าผู้ใช้บอก 130g → P≈31.8 (ใส่ตัวเลขผลลัพธ์ใน JSON เท่านั้น ห้ามใส่สูตรหรือ function call)
 2. ถ้าไม่มีใน Database ให้ประมาณจากส่วนประกอบ ใช้ค่ากลางที่สมเหตุสมผล
 3. ห้าม hallucinate ค่าเกินจริง
-4. kcal ต้องเท่ากับ c×4+p×4+f×9 ปัดเป็นจำนวนเต็ม (ใส่ตัวเลขเท่านั้น ห้ามใส่สูตร)
+4. ห้ามคำนวณ kcal หรือยอดรวม — ระบบคำนวณเอง ตอบแค่ c/p/f ต่อรายการพอ (SPEED v45: ตัดออกเพื่อให้คำตอบสั้นลง ~25%)
 5. ถ้าผู้ใช้ไม่ระบุปริมาณ ให้ใช้ขนาด serving ใน Database หรือขนาดปกติร้านอาหารไทย
 6. ถ้าไม่ระบุวิธีปรุง ให้ใช้ค่ากลาง — ไก่ไม่ระบุ=ย่าง/นึ่ง (ไม่ใช่ทอด), ปลาไม่ระบุ=นึ่ง (ไม่ใช่ทอด), หมูไม่ระบุ=ย่าง/ต้ม (ไม่ใช่สามชั้น)
 7. ถ้าผู้ใช้ระบุวัตถุดิบดิบแล้วบอกว่า "ผัด" ให้บวกน้ำมัน 1 ช้อนชา (F5 kcal44) ต่อการผัด 1 ครั้ง เว้นแต่ผู้ใช้บอก "ไม่ใช้น้ำมัน" / "ต้ม" / "นึ่ง"
@@ -4130,42 +4176,61 @@ async function callGeminiAI(){
   const userPrompt=`รายการอาหาร: ${text}${dbSection}
 
 ตอบด้วย JSON เท่านั้น:
-{"items":[{"name":"ชื่ออาหาร","amount":"จำนวน+หน่วย","c":0.0,"p":0.0,"f":0.0,"kcal":0}],"total":{"c":0.0,"p":0.0,"f":0.0,"kcal":0}}
-กฎ: c=คาร์บ p=โปรตีน f=ไขมัน หน่วยกรัม ทศนิยม1ตำแหน่ง kcal=c*4+p*4+f*9 (ปัดเป็นจำนวนเต็ม ใส่ตัวเลขเท่านั้น) | amount ต้องมีตัวเลขเสมอ เช่น "100 กรัม" "1 ทัพพี" "2 ลูก" — ห้ามใช้คำอธิบายอย่างเดียว`;
+{"items":[{"name":"ชื่ออาหาร","amount":"จำนวน+หน่วย","c":0.0,"p":0.0,"f":0.0}]}
+กฎ: c=คาร์บ p=โปรตีน f=ไขมัน หน่วยกรัม ทศนิยม1ตำแหน่ง | amount ต้องมีตัวเลขเสมอ เช่น "100 กรัม" "1 ทัพพี" "2 ลูก" — ห้ามใช้คำอธิบายอย่างเดียว | ห้ามใส่ kcal และห้ามใส่ total ระบบคำนวณเอง`;
+  const _fullPrompt=sysMsg+'\n\n'+userPrompt;
+  let _netMs=0,_respChars=0;
   try{
     const _h2ctrl=new AbortController();const _h2tid=setTimeout(()=>_h2ctrl.abort(),15000); // H2: 15s timeout
     let res;
+    const _tn0=Date.now();
     try{
       res=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent',{
         method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':GEMINI_KEY},
         body:JSON.stringify({
-          contents:[{parts:[{text:sysMsg+'\n\n'+userPrompt}]}],
+          contents:[{parts:[{text:_fullPrompt}]}],
           generationConfig:{temperature:0.1,responseMimeType:'application/json'}
         }),
         signal:_h2ctrl.signal
       });
     }finally{clearTimeout(_h2tid);}
     const data=await res.json();
+    _netMs=Date.now()-_tn0; // v45: เวลารอ API ล้วนๆ (ไม่รวมโหลด key / ประมวลผล)
     if(data.error)throw new Error(data.error.message||JSON.stringify(data.error));
     const raw=data.candidates?.[0]?.content?.parts?.[0]?.text||'';
+    _respChars=raw.length;
     if(!raw)throw new Error('Gemini ไม่ตอบกลับ');
+    const _tp0=Date.now();
     aiParsedData=JSON.parse(raw);
-    // Normalize kcal ทุก item ให้ตรงสูตร — AI อาจคืนค่าไม่ตรง
-    (aiParsedData.items||[]).forEach(it=>{it.kcal=Math.round((it.c||0)*4+(it.p||0)*4+(it.f||0)*9);});
-    if(aiParsedData.total){const t=aiParsedData.total;t.kcal=Math.round((t.c||0)*4+(t.p||0)*4+(t.f||0)*9);}
+    // SPEED v45: AI ส่งมาแค่ name/amount/c/p/f — kcal ต่อรายการ + ยอดรวม คำนวณเองทั้งหมดที่นี่
+    // (เดิมขอ AI คิดมาแล้วเขียนทับทุกครั้งอยู่ดี = รอเปล่า) ผลพลอยได้: ยอดรวมตรงกับผลบวกรายการย่อยเสมอ 100%
+    if(!Array.isArray(aiParsedData.items))aiParsedData.items=[];
+    let _tc=0,_tp=0,_tf=0;
+    aiParsedData.items.forEach(it=>{
+      it.c=+it.c||0;it.p=+it.p||0;it.f=+it.f||0; // กัน AI ส่ง string มา
+      it.kcal=Math.round(it.c*4+it.p*4+it.f*9);
+      _tc+=it.c;_tp+=it.p;_tf+=it.f;
+    });
+    _tc=Math.round(_tc*10)/10;_tp=Math.round(_tp*10)/10;_tf=Math.round(_tf*10)/10;
+    aiParsedData.total={c:_tc,p:_tp,f:_tf,kcal:Math.round(_tc*4+_tp*4+_tf*9)};
     // Sanity check: ป้องกัน hallucination ค่าเกินจริง
     const t=aiParsedData.total||{};
     if((t.kcal||0)>3000||(t.c||0)>400||(t.p||0)>300||(t.f||0)>300)
       throw new Error('ค่าสารอาหารผิดปกติ (AI ให้ค่าเกินจริง) กรุณาลองพิมพ์ใหม่ให้ละเอียดขึ้น');
     aiCacheSet(_cacheKey,aiParsedData); // เก็บ cache หลังผ่าน sanity check แล้วเท่านั้น
     renderAIResult(aiParsedData);
+    _logAITiming({src:'ai',totalMs:Date.now()-_t0,keyLoadMs:_keyMs,netMs:_netMs,parseMs:Date.now()-_tp0,
+      promptChars:_fullPrompt.length,respChars:_respChars,dbRefs:dbRefs.length,items:(aiParsedData.items||[]).length,ok:true});
   }catch(e){
     if(/api.?key/i.test(e.message||'')){GEMINI_KEY=null;try{localStorage.removeItem('_dfk');}catch(_){}} // key ถูก rotate → ล้างแล้วโหลดใหม่ครั้งหน้า
+    _logAITiming({src:'ai',totalMs:Date.now()-_t0,keyLoadMs:_keyMs,netMs:_netMs,
+      promptChars:_fullPrompt.length,respChars:_respChars,dbRefs:dbRefs.length,ok:false,err:e.message||''});
     const area=document.getElementById('ai-result-area');
     area.innerHTML=`<div class="ai-error">⚠️ ${e.message}</div>`;
     area.style.display='block';
     document.getElementById('btn-save-weigh').style.display='block';
   }finally{
+    clearInterval(_elTick); // v45: หยุดตัวนับเวลาเสมอ ทั้งกรณีสำเร็จและ error
     btn.disabled=false;btn.textContent='✨ ให้ AI คำนวณ';
   }
 }
@@ -5823,7 +5888,11 @@ async function runPlanAI(){
   const photoSrc=(photoImg?.src&&photoImg.src.startsWith('data:'))?photoImg.src:null;
   const query=text||(name?`${name} 1 จาน`:'');
   if(!query&&!photoSrc){showToast('พิมพ์ชื่อเมนูหรือถ่ายรูปก่อนนะคะ');return;}
+  const _pt0=Date.now(); // v45: จับเวลา (โหมดนี้ส่งรูปได้ด้วย — ใช้วัดว่า vision ช้ากว่าพิมพ์แค่ไหน)
+  const _ptk0=Date.now();
   if(!await _ensureGeminiKey()){showToast('⚠️ โหลด AI key ไม่ได้ค่ะ กรุณาเช็คเน็ตแล้วลองใหม่',3500);return;}
+  const _pKeyMs=Date.now()-_ptk0;
+  let _pNetMs=0,_pImgKB=photoSrc?Math.round(photoSrc.length*0.75/1024):0;
   const btn=document.getElementById('btn-plan-ai');
   if(btn){btn.textContent='⏳ AI กำลังคิด...';btn.disabled=true;}
   try{
@@ -5841,6 +5910,7 @@ async function runPlanAI(){
     parts.push({text:prompt});
     const _h3ctrl=new AbortController();const _h3tid=setTimeout(()=>_h3ctrl.abort(),15000); // H3: 15s timeout
     let res;
+    const _ptn0=Date.now();
     try{
       res=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent',{
         method:'POST',
@@ -5853,6 +5923,7 @@ async function runPlanAI(){
       });
     }finally{clearTimeout(_h3tid);}
     const data=await res.json();
+    _pNetMs=Date.now()-_ptn0;
     if(data.error)throw new Error(data.error.message||'Gemini error');
     const raw=data.candidates?.[0]?.content?.parts?.[0]?.text||'{}';
     const match=raw.match(/\{[\s\S]*?\}/);
@@ -5867,8 +5938,12 @@ async function runPlanAI(){
       resultText.innerHTML=`<strong>${escHtml(planAIData.name)}</strong><br>C ${planAIData.c}g · P ${planAIData.p}g · F ${planAIData.f}g · ⚡ ${kcal} kcal`;
     }
     const ni=document.getElementById('plan-name');if(ni&&!ni.value)ni.value=planAIData.name;
+    _logAITiming({src:'plan',totalMs:Date.now()-_pt0,keyLoadMs:_pKeyMs,netMs:_pNetMs,promptChars:prompt.length,
+      vision:isVision,imgKB:_pImgKB,items:1,ok:true});
   }catch(e){
     if(/api.?key/i.test(e.message||'')){GEMINI_KEY=null;try{localStorage.removeItem('_dfk');}catch(_){}} // key ถูก rotate → ล้างแล้วโหลดใหม่ครั้งหน้า
+    _logAITiming({src:'plan',totalMs:Date.now()-_pt0,keyLoadMs:_pKeyMs,netMs:_pNetMs,
+      vision:!!photoSrc,imgKB:_pImgKB,ok:false,err:e.message||''});
     showToast('AI คำนวณไม่ได้: '+e.message);
   }
   if(btn){btn.textContent='✨ AI คำนวณ';btn.disabled=false;}
