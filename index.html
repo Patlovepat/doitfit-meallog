@@ -886,7 +886,7 @@ db.enablePersistence({synchronizeTabs:true}).catch(e=>{console.warn('Persistence
 // ===== AUTO ERROR REPORTING → Firestore errorLogs =====
 // JS error ที่เกิดบนเครื่องลูกค้าจะถูกส่งเข้า collection 'errorLogs' อัตโนมัติ
 // ดูได้ใน Firebase Console → Firestore → errorLogs (เรียงตาม at ล่าสุด)
-const APP_VERSION='v42-2026-08-12'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
+const APP_VERSION='v43-2026-08-12'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
 const _errLogged=new Set();let _errCount=0;
 function _reportError(type,msg,stack,src){
   try{
@@ -4601,7 +4601,7 @@ function showSuccess(mode,handData,labelData,weighData){
       const fnames=FRUIT_ITEMS.filter(f=>(hd.fruits||{})[f.id]>0).map(f=>f.emoji+f.name).join(' · ');
       chips+=`<span class="chip">🍎 ${fnames} (${hd.fruitLadles} ทัพพี)</span>`;
     }
-    chips+=`<span class="chip">⚡ ${hd.totalKcal} kcal</span>`;
+    chips+=`<span class="chip">⚡ ${s.correction?`<del style="opacity:.55">${hd.totalKcal}</del> ${getSubMacros(s).kcal}`:hd.totalKcal} kcal</span>`;
   }else if(mode==='label'&&labelData){
     chips+=`<span class="chip">คาร์บ ${labelData.carb.toFixed(1)}g</span><span class="chip">โปรตีน ${labelData.protein.toFixed(1)}g</span><span class="chip">ไขมัน ${labelData.fat.toFixed(1)}g</span>`;
   }else if(mode==='weigh'&&weighData){
@@ -6347,7 +6347,7 @@ function buildCard(s){
     if(hd.eggWhite>0)chips+=`<span class="est-chip">ไข่ขาว×${hd.eggWhite}</span>`;
     chips+=`<span class="est-chip">${cookL}${hd.visibleFat>0?' +น้ำมัน'+hd.visibleFat+'ช':''}</span>`;
     if(hd.avo>0)chips+=`<span class="est-chip">🥑×${hd.avo}</span>`;
-    chips+=`<span class="est-chip">⚡ ${hd.totalKcal} kcal</span>`;
+    chips+=`<span class="est-chip">⚡ ${s.correction?`<del style="opacity:.55">${hd.totalKcal}</del> ${getSubMacros(s).kcal}`:hd.totalKcal} kcal</span>`;
   }else if(s.mode==='label'&&s.labelData){
     chips=`<span class="est-chip gram">คาร์บ ${s.labelData.carb.toFixed(1)}g</span><span class="est-chip gram">โปรตีน ${s.labelData.protein.toFixed(1)}g</span><span class="est-chip gram">ไขมัน ${s.labelData.fat.toFixed(1)}g</span>`;
   }else if(s.mode==='weigh'&&s.weighData){
@@ -6443,6 +6443,7 @@ function buildCorrPanel(s,cs){
     const ckBtn=(m,lbl,sub)=>`<button class="cook-btn${m===cookMethod?' active':''}" data-ck="${m}" onclick="setHCorrCookM('${s.id}','${m}')">${lbl}<span class="dens-kcal">${sub}</span></button>`;
     return`<div class="correction-panel">
 ${_modeSwitchRow}<h4>✏️ แก้ค่า — Hand Portion</h4>
+${s.correction?`<div style="background:#FEF3C7;border:1px solid #FDE68A;border-radius:8px;padding:6px 10px;margin-bottom:8px;font-size:11px;color:#92400E;line-height:1.6">✅ <b>ค่าที่โค้ชแก้ไว้ล่าสุด: C ${s.correction.carb} · P ${s.correction.protein} · F ${s.correction.fat}</b><br>ฟอร์มด้านล่างเริ่มจากค่าดั้งเดิมของนักเรียน — ปรับใหม่แล้วกดบันทึกทับได้เลยค่ะ</div>`:''}
 <div style="margin-bottom:10px">
   <div class="hmb-subtitle" style="margin-bottom:5px">🌾 คาร์บ — ความหนาแน่น</div>
   <div class="dens-grid" style="margin-bottom:8px">${['veggie','light','normal','dense','heavy'].map(dBtn).join('')}</div>
