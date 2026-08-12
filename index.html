@@ -886,7 +886,7 @@ db.enablePersistence({synchronizeTabs:true}).catch(e=>{console.warn('Persistence
 // ===== AUTO ERROR REPORTING → Firestore errorLogs =====
 // JS error ที่เกิดบนเครื่องลูกค้าจะถูกส่งเข้า collection 'errorLogs' อัตโนมัติ
 // ดูได้ใน Firebase Console → Firestore → errorLogs (เรียงตาม at ล่าสุด)
-const APP_VERSION='v43-2026-08-12'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
+const APP_VERSION='v44-2026-08-12'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
 const _errLogged=new Set();let _errCount=0;
 function _reportError(type,msg,stack,src){
   try{
@@ -4601,7 +4601,7 @@ function showSuccess(mode,handData,labelData,weighData){
       const fnames=FRUIT_ITEMS.filter(f=>(hd.fruits||{})[f.id]>0).map(f=>f.emoji+f.name).join(' · ');
       chips+=`<span class="chip">🍎 ${fnames} (${hd.fruitLadles} ทัพพี)</span>`;
     }
-    chips+=`<span class="chip">⚡ ${s.correction?`<del style="opacity:.55">${hd.totalKcal}</del> ${getSubMacros(s).kcal}`:hd.totalKcal} kcal</span>`;
+    chips+=`<span class="chip">⚡ ${hd.totalKcal} kcal</span>`; // BUGFIX v44: 's' ไม่มีใน scope นี้ (showSuccess ไม่มี submission object) — เดิม throw ReferenceError ทุกครั้งที่ส่ง hand mode → block sendFeedbackCard + ขึ้น toast "ส่งไม่สำเร็จ" ทั้งที่ save ไปแล้วจริง
   }else if(mode==='label'&&labelData){
     chips+=`<span class="chip">คาร์บ ${labelData.carb.toFixed(1)}g</span><span class="chip">โปรตีน ${labelData.protein.toFixed(1)}g</span><span class="chip">ไขมัน ${labelData.fat.toFixed(1)}g</span>`;
   }else if(mode==='weigh'&&weighData){
@@ -4690,10 +4690,13 @@ function buildHistCard(s){
     else{chips=`<span class="chip">${DL[hd.carbDensity]||'🟡'} ${hd.carb}มือ</span>`;if(hd.carb2>0)chips+=`<span class="chip">+${hd.carb2}มือ</span>`;}
     chips+=`<span class="chip">โปรตีน ${hd.protein}ฝ่ามือ</span>`;
     if(hd.eggWhole>0)chips+=`<span class="chip">🥚×${hd.eggWhole}</span>`;
-    chips+=`<span class="chip">⚡ ${hd.totalKcal} kcal</span>`;
+    chips+=`<span class="chip">⚡ ${s.correction?`<del style="opacity:.55">${hd.totalKcal}</del> ${getSubMacros(s).kcal}`:hd.totalKcal} kcal</span>`; // BUGFIX v44: chip เดิมไม่เคยแสดงค่าที่โค้ชแก้ — ใช้ getSubMacros ให้ตรงกับ buildCard (ฝั่งโค้ช)
   }else if(s.mode==='label'&&s.labelData){
-    chips=`<span class="chip">C ${(s.labelData.carb||0).toFixed(1)}g</span><span class="chip">P ${(s.labelData.protein||0).toFixed(1)}g</span><span class="chip">F ${(s.labelData.fat||0).toFixed(1)}g</span>`; // NB4: null-safe
-    chips+=`<span class="chip">⚡ ${Math.round((s.labelData.carb||0)*4+(s.labelData.protein||0)*4+(s.labelData.fat||0)*9)} kcal</span>`;
+    const _lm44=getSubMacros(s);
+    chips=s.correction
+      ?`<span class="chip">C <del style="opacity:.55">${(s.labelData.carb||0).toFixed(1)}</del> ${_lm44.c}g</span><span class="chip">P <del style="opacity:.55">${(s.labelData.protein||0).toFixed(1)}</del> ${_lm44.p}g</span><span class="chip">F <del style="opacity:.55">${(s.labelData.fat||0).toFixed(1)}</del> ${_lm44.f}g</span>`
+      :`<span class="chip">C ${(s.labelData.carb||0).toFixed(1)}g</span><span class="chip">P ${(s.labelData.protein||0).toFixed(1)}g</span><span class="chip">F ${(s.labelData.fat||0).toFixed(1)}g</span>`; // NB4: null-safe
+    chips+=`<span class="chip">⚡ ${s.correction?`<del style="opacity:.55">${Math.round((s.labelData.carb||0)*4+(s.labelData.protein||0)*4+(s.labelData.fat||0)*9)}</del> ${_lm44.kcal}`:Math.round((s.labelData.carb||0)*4+(s.labelData.protein||0)*4+(s.labelData.fat||0)*9)} kcal</span>`; // BUGFIX v44
   }else if(s.mode==='weigh'&&s.weighData){
     const wd=s.weighData;
     if(wd.aiItems&&wd.aiItems.length){
@@ -4714,7 +4717,7 @@ function buildHistCard(s){
   </div>`:'';
   const coachCommentHtml=s.coachComment?`<div class="hist-coach-comment">💬 ${escHtml(s.coachComment)}</div>`:'';
   let corrHtml='';
-  if(s.status==='corrected'&&s.correction){
+  if(s.correction){ // BUGFIX v44: correction มากับ status:'approved' ด้วย — เดิมเช็ค 'corrected' อย่างเดียว นักเรียนเลยไม่เห็นโน้ตที่โค้ชแก้
     corrHtml=`<div class="hist-corr">✏️ โค้ชแก้ไข: C ${s.correction.carb} · P ${s.correction.protein} · F ${s.correction.fat}${s.correction.note?'<br>💬 '+escHtml(s.correction.note):''}</div>`;
   }
   // ตรวจสอบว่ายังอยู่ใน 24h ไหม (สำหรับแสดงปุ่มแก้ไข)
@@ -6349,7 +6352,10 @@ function buildCard(s){
     if(hd.avo>0)chips+=`<span class="est-chip">🥑×${hd.avo}</span>`;
     chips+=`<span class="est-chip">⚡ ${s.correction?`<del style="opacity:.55">${hd.totalKcal}</del> ${getSubMacros(s).kcal}`:hd.totalKcal} kcal</span>`;
   }else if(s.mode==='label'&&s.labelData){
-    chips=`<span class="est-chip gram">คาร์บ ${s.labelData.carb.toFixed(1)}g</span><span class="est-chip gram">โปรตีน ${s.labelData.protein.toFixed(1)}g</span><span class="est-chip gram">ไขมัน ${s.labelData.fat.toFixed(1)}g</span>`;
+    const _lm44b=getSubMacros(s);
+    chips=s.correction
+      ?`<span class="est-chip gram">คาร์บ <del style="opacity:.55">${s.labelData.carb.toFixed(1)}</del> ${_lm44b.c}g</span><span class="est-chip gram">โปรตีน <del style="opacity:.55">${s.labelData.protein.toFixed(1)}</del> ${_lm44b.p}g</span><span class="est-chip gram">ไขมัน <del style="opacity:.55">${s.labelData.fat.toFixed(1)}</del> ${_lm44b.f}g</span>`
+      :`<span class="est-chip gram">คาร์บ ${s.labelData.carb.toFixed(1)}g</span><span class="est-chip gram">โปรตีน ${s.labelData.protein.toFixed(1)}g</span><span class="est-chip gram">ไขมัน ${s.labelData.fat.toFixed(1)}g</span>`; // BUGFIX v44: เดิมไม่แสดงค่าที่โค้ชแก้เหมือน hand mode
   }else if(s.mode==='weigh'&&s.weighData){
     const wd=s.weighData;
     if(wd.aiItems&&wd.aiItems.length){
@@ -7673,8 +7679,8 @@ async function editHistSub(id){
     return;
   }
 
-  // Guard 2: coach already corrected
-  if(s.status==='corrected'){
+  // Guard 2: coach already corrected — BUGFIX v44: correction ถูกเซฟคู่ status:'approved' ด้วย เช็คทั้งสองแบบ
+  if(s.status==='corrected'||s.correction){
     if(!confirm('⚠️ โค้ชเคย correct log นี้แล้ว\nถ้าแก้ไขตอนนี้ โค้ชจะต้อง review ใหม่\n\nแน่ใจไหมว่าจะแก้ไข?'))return;
   }
 
@@ -7687,16 +7693,16 @@ async function editHistSub(id){
   let menuName='',menuDesc='',c=0,p=0,f=0;
   if(s.mode==='hand'&&s.handData){
     menuName=s.handData.menuName||'';menuDesc=s.handData.menuDesc||'';
-    c=s.handData.totalCarb??0;p=s.handData.totalProtein??0;f=s.handData.totalFat??0;
   }else if(s.mode==='label'&&s.labelData){
     menuName=s.labelData.menuName||s.labelData.food||'';
     menuDesc=s.labelData.menuDesc||'';
-    c=s.labelData.carb||0;p=s.labelData.protein||0;f=s.labelData.fat||0;
   }else if(s.mode==='weigh'&&s.weighData){
     menuName=s.weighData.menuName||s.weighData.food||'';
     menuDesc=s.weighData.menuDesc||'';
-    c=s.weighData.carb||0;p=s.weighData.protein||0;f=s.weighData.fat||0;
   }
+  // BUGFIX v44: เดิมอ่านค่าดิบจาก handData/labelData/weighData เสมอ — ถ้าโค้ชเคย correct ไว้ก่อนหน้า ฟอร์มแก้ไขจะเริ่มจากเลขผิด (ไม่ใช่เลขที่แก้ล่าสุด)
+  const _m44=getSubMacros(s);
+  c=_m44.c;p=_m44.p;f=_m44.f;
 
   document.getElementById('esm-name').value=menuName;
   document.getElementById('esm-desc').value=menuDesc;
@@ -7807,8 +7813,10 @@ async function saveHistEdit(){
     upd.total={c,p,f,kcal:Math.round(c*4+p*4+f*9)};
 
     // ถ้าโค้ชเคย correct → reset กลับ pending ให้โค้ช review ใหม่
+    // BUGFIX v44: correction ของโค้ชถูกเซฟเป็น status:'approved'+correction (ไม่ใช่ 'corrected') — เดิมเช็คแค่ 'corrected'
+    // ทำให้ correction เก่าค้างอยู่และ override ค่าที่แก้ใหม่ (getSubMacros อ่าน correction ก่อนเสมอ) → แก้แล้วเหมือนไม่แก้
     const s=(histCache||studentSubsCache||[]).find(x=>x.id===_editSubId);
-    if(s&&s.status==='corrected'){upd.status='pending';upd.correction=null;}
+    if(s&&(s.status==='corrected'||s.correction)){upd.status='pending';upd.correction=null;}
 
     // Photo: อัปโหลดรูปใหม่ หรือลบรูปเดิม
     if(_editSubNewFile){
