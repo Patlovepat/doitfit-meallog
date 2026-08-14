@@ -886,7 +886,7 @@ db.enablePersistence({synchronizeTabs:true}).catch(e=>{console.warn('Persistence
 // ===== AUTO ERROR REPORTING → Firestore errorLogs =====
 // JS error ที่เกิดบนเครื่องลูกค้าจะถูกส่งเข้า collection 'errorLogs' อัตโนมัติ
 // ดูได้ใน Firebase Console → Firestore → errorLogs (เรียงตาม at ล่าสุด)
-const APP_VERSION='v49-2026-08-14'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
+const APP_VERSION='v51-2026-08-14'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
 const _errLogged=new Set();let _errCount=0;
 function _reportError(type,msg,stack,src){
   try{
@@ -3648,6 +3648,14 @@ async function saveWeeklyCheck(){
     showToast(_r==='timeout'?'📡 เน็ตช้า — บันทึกไว้ในเครื่องแล้ว จะซิงค์อัตโนมัติค่ะ':'✅ บันทึกผลการวัดแล้วค่ะ',_r==='timeout'?4000:2500);
     if(_r!=='timeout')sendWeeklyCheckCard(entry); // F-WC: card สรุปผลการวัด (ข้ามตอนเน็ตช้า)
     _myProgressCache=null; // invalidate cache เพื่อ fetch ใหม่พร้อมข้อมูลล่าสุด (pending write โผล่ใน cache query ด้วย)
+    // BUGFIX v50.1: ตั้งแต่ v50 ที่ dashCache อยู่ยาวทั้ง session ต้องอัปเดตผลการวัดเข้า cache ด้วย
+    // ไม่งั้นกราฟ "องค์ประกอบร่างกาย" บน Dashboard จะค้างค่าเก่าจนกว่าจะปิดเปิดแอปใหม่
+    if(dashCache&&Array.isArray(dashCache[4])){
+      const _e={id:selectedDate,...entry,submittedAt:{seconds:Math.floor(Date.now()/1000),toDate:()=>new Date()}};
+      const _i=dashCache[4].findIndex(x=>(x.id||x.date)===selectedDate);
+      if(_i>=0)dashCache[4][_i]={...dashCache[4][_i],..._e};else dashCache[4].push(_e); // v50.1: merge ไม่ใช่ทับ — ช่องที่เว้นว่างไว้ค่าเดิมต้องอยู่ (Firestore ใช้ merge:true)
+      dashCache[4].sort((a,b)=>String(a.date||a.id).localeCompare(String(b.date||b.id)));
+    }
     loadMyProgress(); // refresh chart
   }catch(e){showToast('⚠️ บันทึกไม่ได้: '+e.message,4000);} // W2: toast แทน alert
   finally{if(_wcBtn){_wcBtn.disabled=false;_wcBtn.textContent='📏 บันทึกผลการวัด';}}
@@ -3677,12 +3685,12 @@ async function loadMyProgress(){
   }
   try{
     const _mpt=ms=>new Promise(r=>setTimeout(()=>r(null),ms));
-    const q=db.collection('weeklyChecks').doc(user.userId).collection('entries').orderBy('date','asc').limit(20);
+    const q=db.collection('weeklyChecks').doc(user.userId).collection('entries').orderBy('date','desc').limit(20);
     let snap=await Promise.race([q.get().catch(()=>null),_mpt(8000)]);
     if(!snap){snap=await q.get({source:'cache'}).catch(()=>null);} // NW1: เน็ตช้า → อ่าน cache ในเครื่อง
     if(existing)existing.remove();
     if(!snap){return;} // timeout + ไม่มี cache
-    const entries=snap.docs.map(d=>({id:d.id,...d.data()}));
+    const entries=snap.docs.map(d=>({id:d.id,...d.data()})).reverse(); // BUGFIX v50.1: query เปลี่ยนเป็น desc (เอา 20 ครั้งล่าสุด) แล้วกลับลำดับเป็นเก่า→ใหม่ ให้กราฟวาดถูกทาง
     // NW1: อย่า cache ผลว่างที่มาจาก offline cache — ให้ fetch ใหม่ครั้งหน้า
     if(!(snap.metadata&&snap.metadata.fromCache&&snap.empty))_myProgressCache=entries;
     if(!entries.length)return;
@@ -4696,12 +4704,17 @@ async function submitMeal(){
     }else _dropBackup('submissions/'+docRef.id);
     // update cache locally (ไม่ต้อง re-query)
     const _now=Date.now();
-    const newSubLocal={id:docRef.id,userId:user.userId,meal:curMeal,mode:curMode,mealDate:selectedDate,handData,labelData,weighData,photoUrl,photoUrls:photoUrls.length>0?photoUrls:null,status:'pending',createdAt:{seconds:Math.floor(_now/1000),nanoseconds:0,toDate:()=>new Date(_now)}}; // D-GUARD: เพิ่ม meal ให้ guard จับได้
-    studentTodaySubs.push(newSubLocal);
+    // BUGFIX v50.1: ใส่ isTest ด้วย — เดิมสำเนาในเครื่องไม่มีธงนี้ ทำให้มื้อทดสอบถูกนับเป็นมื้อจริงจนกว่าจะปิดเปิดแอป
+    const newSubLocal={id:docRef.id,userId:user.userId,meal:curMeal,mode:curMode,mealDate:selectedDate,handData,labelData,weighData,photoUrl,photoUrls:photoUrls.length>0?photoUrls:null,status:'pending',isTest:testMode||false,createdAt:{seconds:Math.floor(_now/1000),nanoseconds:0,toDate:()=>new Date(_now)}}; // D-GUARD: เพิ่ม meal ให้ guard จับได้
     if(studentSubsCache)studentSubsCache.unshift(newSubLocal);
-    renderDailyProgress();
+    // BUGFIX v50.1: เดิม push เข้าแถบ "วันนี้" ทุกกรณี — บันทึกย้อนหลังให้เมื่อวาน แถบวันนี้ก็เด้งขึ้นตาม (ตัวเลขผิด)
+    if(selectedDate===todayStr()){
+      if(studentSubsCache)renderTodayProgress(); // สร้างรายการวันนี้ใหม่จากข้อมูลจริง (กรองมื้อทดสอบ + วันที่ให้เอง)
+      else{studentTodaySubs.push(newSubLocal);renderDailyProgress();} // cache ล่ม → ต้อง push เอง ไม่งั้น Card ไม่มียอดรวม
+    }else renderDailyProgress();
     histCache=null; // invalidate history cache (force re-sort)
-    dashCache=null; // invalidate dashboard cache
+    // SPEED v49.1: ไม่ล้าง dashCache แล้ว — มื้อใหม่ถูก unshift เข้า studentSubsCache ซึ่ง Dashboard หยิบไปใช้ตอนเปิดอยู่แล้ว
+    // (เดิมส่งมื้อ 1 ครั้ง = เปิด Dashboard ครั้งถัดไปต้องยิง 4 query ใหม่หมด รอ 8 วิได้เลยตอนเน็ตช้า)
     showSuccess(curMode,handData,labelData,weighData);
     const bss=document.getElementById('btn-save-success');
     if(bss)bss.style.display=(curMode==='restaurant')?'none':'inline-block';
@@ -4884,16 +4897,17 @@ async function deleteHistSub(id){
     const _pTarget=(studentSubsCache||[]).find(x=>x.id===id);
     if(_pTarget&&_pTarget.__pending){
       _dropBackup('submissions/'+id);
-      studentSubsCache=studentSubsCache.filter(x=>x.id!==id);
-      histCache=null;dashCache=null;
+      const _i=studentSubsCache.findIndex(x=>x.id===id);if(_i>=0)studentSubsCache.splice(_i,1); // v49.1: ลบในที่ ไม่สร้าง array ใหม่
+      histCache=null; // ไม่ล้าง dashCache แล้ว — โหลดใหม่ทั้งชุดโดยไม่จำเป็น
       loadHistory();renderTodayProgress();
       showToast('ลบรายการที่รอส่งแล้วค่ะ');
       return;
     }
     const _r=await _fsWrite(db.collection('submissions').doc(id).delete()); // W1
     // NB1: filter แทน null — กัน today progress bar หายทั้งแถบ + history โหลดจาก cache ทันทีไม่ต้อง re-fetch
-    if(studentSubsCache)studentSubsCache=studentSubsCache.filter(s=>s.id!==id);
-    histCache=null;dashCache=null;
+    // SPEED v49.1: ลบในที่ (splice) แทนสร้าง array ใหม่ → dashCache ยังชี้ข้อมูลชุดเดิม ไม่ต้องยิง 4 query ใหม่
+    if(studentSubsCache){const _i2=studentSubsCache.findIndex(s=>s.id===id);if(_i2>=0)studentSubsCache.splice(_i2,1);}
+    histCache=null;
     loadHistory();
     renderTodayProgress(); // H1: was loadTodayProgress (undefined)
     if(_r==='timeout')showToast('📡 เน็ตช้า — ลบไว้ในเครื่องแล้ว จะซิงค์อัตโนมัติค่ะ',4000);
@@ -4922,15 +4936,24 @@ function getSubOrigMacros(s){
   return{c:Math.round(c),p:Math.round(p),f:Math.round(f)};
 }
 
-let dashCache=null;
+let dashCache=null,_dashCacheAt=0,_dashRefreshing=false; // v50.1: เวลาที่ cache ถูกสร้าง (ใช้ตัดสินว่าควรดึงใหม่เบื้องหลังไหม)
 let _myProgressCache=null; // cache ผลการวัด — invalidate เมื่อ saveWeeklyCheck สำเร็จ
-async function loadDashboard(forceRefresh=false){
+async function loadDashboard(forceRefresh=false,silent=false){ // v51: silent = ดึงใหม่เบื้องหลัง ห้ามล้างหน้าจอเป็นโครงโหลด
   const content=document.getElementById('dashboard-content');
   if(dashCache&&!forceRefresh){
+    // SPEED v49.1: ใช้รายการมื้อล่าสุดเสมอ แล้วใช้ผล query อื่น (สุขภาพ/วัดสัดส่วน/สรุปสัปดาห์) จาก cache ต่อ
+    // ข้อมูลพวกนั้นไม่เปลี่ยนเวลานักเรียนเพิ่ม/แก้/ลบมื้อ — เดิมล้างทิ้งทั้งชุดแล้วยิงใหม่ 4 query ทุกครั้ง
+    if(studentSubsCache)dashCache[0]=studentSubsCache;
     renderStudentDashboard(...dashCache);
+    // BUGFIX v50.1: cache อยู่ยาวทั้ง session → ถ้าโค้ชแก้เป้า/โน้ต/สรุปสัปดาห์ระหว่างนั้น นักเรียนจะไม่มีวันเห็น
+    // แก้ด้วยการ "แสดงของเก่าทันที แล้วแอบดึงใหม่เบื้องหลัง" — เร็วเหมือนเดิมแต่ข้อมูลไม่ค้าง (เกิน 90 วิถึงดึง)
+    if(Date.now()-(_dashCacheAt||0)>90000&&!_dashRefreshing){
+      _dashRefreshing=true;
+      setTimeout(()=>{loadDashboard(true,true).finally(()=>{_dashRefreshing=false;});},200); // silent=true: ผู้ใช้เห็นข้อมูลเดิมค้างอยู่ ไม่กระพริบเป็นหน้าโหลด
+    }
     return;
   }
-  content.innerHTML=`<div style="padding:24px 16px;font-family:'Prompt',sans-serif">
+  if(!silent)content.innerHTML=`<div style="padding:24px 16px;font-family:'Prompt',sans-serif">
     <div class="df-spin"></div>
     <div style="text-align:center;color:var(--gray);font-size:13px;margin-bottom:18px">กำลังโหลดข้อมูล...</div>
     <div class="df-skel" style="height:92px;margin-bottom:10px"></div>
@@ -4942,12 +4965,17 @@ async function loadDashboard(forceRefresh=false){
     const _qt=ms=>new Promise(r=>setTimeout(()=>r(null),ms));
     const _dqf=q=>Promise.race([q.get().catch(()=>null),_qt(8000)]).then(r=>r||q.get({source:'cache'}).catch(()=>null));
     const [hs,wc,ws,td2]=await Promise.all([
-      _dqf(db.collection('healthLogs').doc(user.userId).collection('days').where(firebase.firestore.FieldPath.documentId(),'>=',_hld(60))),
-      _dqf(db.collection('weeklyChecks').doc(user.userId).collection('entries').orderBy('date','asc').limit(20)),
+      // SPEED v49.1: 60→40 วัน — ประวัติมื้ออาหารดึงมาแค่ 30 รายการล่าสุด (ครอบคลุมสูงสุด 30 วัน) 40 วันจึงเหลือเฟือ
+      _dqf(db.collection('healthLogs').doc(user.userId).collection('days').where(firebase.firestore.FieldPath.documentId(),'>=',_hld(40))),
+      _dqf(db.collection('weeklyChecks').doc(user.userId).collection('entries').orderBy('date','desc').limit(20)),
       _dqf(db.collection('students').doc(user.userId).collection('weeklySummaries').orderBy('weekStart','desc').limit(8)),
       _dqf(db.collection('students').doc(user.userId)),
     ]);
     const subs=studentSubsCache||[];
+    // BUGFIX v50.1: เดิมใช้เป้าจากตัวแปรกลางอย่างเดียว — ถ้าตอนเปิดแอปดึงข้อมูลนักเรียนไม่ทัน (เน็ตช้า)
+    // เป้าจะเป็นค่าเริ่มต้น 1600 kcal แล้วถูกจำไว้ทั้ง session → แถบเป้าหมาย/กราฟทุกอันผิดหมด
+    // ตรงนี้เราดึง students doc มาอยู่แล้ว จึงอ่านเป้าจริงจากมันเลย แล้วอัปเดตตัวแปรกลางด้วย
+    if(td2&&td2.exists)applyTargets(td2);
     let targets={kcal:TARGETS.kcal,c:TARGETS.c,p:TARGETS.p,f:TARGETS.f};
     let coachNotes='';
     if(td2&&td2.exists){const dd=td2.data();if(dd.coachNotes)coachNotes=dd.coachNotes;}
@@ -4955,18 +4983,21 @@ async function loadDashboard(forceRefresh=false){
     if(hs)hs.docs.forEach(d=>{healthLogs[d.id]=d.data();});
     let weeklyChecks=[];
     if(wc)wc.docs.forEach(d=>{weeklyChecks.push({id:d.id,...d.data()});});
+    weeklyChecks.reverse(); // BUGFIX v50.1: query เปลี่ยนเป็น desc (เอา 20 ครั้งล่าสุด) แล้วกลับลำดับเป็นเก่า→ใหม่ ให้กราฟวาดถูกทาง
     let weeklySummaries={};
     if(ws)ws.docs.forEach(d=>{weeklySummaries[d.id]=d.data();});
     // NB7: cache เฉพาะตอนโหลดครบทุก query — ถ้าล้มบางส่วน render ที่มีแต่ไม่ cache ให้ครั้งหน้าดึงใหม่
     if(hs&&wc&&ws&&td2){
-      dashCache=[subs,targets,coachNotes,healthLogs,weeklyChecks,weeklySummaries];
+      dashCache=[subs,targets,coachNotes,healthLogs,weeklyChecks,weeklySummaries];_dashCacheAt=Date.now();
     }else{
+      // v51: ถ้าเป็นการดึงเบื้องหลัง แล้วได้ข้อมูลไม่ครบ → เก็บของเดิมที่ผู้ใช้ดูอยู่ไว้ ห้ามล้างทิ้งหรือวาดทับด้วยข้อมูลไม่ครบ
+      if(silent)return;
       dashCache=null;
       showToast('📡 ข้อมูลบางส่วนโหลดไม่สำเร็จ — เปิดหน้านี้ใหม่จะดึงให้อีกครั้งค่ะ',3500);
     }
     checkTestimonialEligibility(weeklyChecks).catch(()=>{});
     renderStudentDashboard(subs,targets,coachNotes,healthLogs,weeklyChecks,weeklySummaries);
-  }catch(e){content.innerHTML='<div style="padding:24px;text-align:center;color:#EF4444">โหลดไม่ได้: '+e.message+'</div>';}
+  }catch(e){if(!silent)content.innerHTML='<div style="padding:24px;text-align:center;color:#EF4444">โหลดไม่ได้: '+e.message+'</div>';} // v51: ดึงเบื้องหลังล้มเหลว ห้ามลบข้อมูลที่ผู้ใช้ดูอยู่ทิ้ง
 }
 
 function renderStudentDashboard(subs, targets, coachNotes, healthLogs, weeklyChecks, weeklySummaries={}){
@@ -5341,7 +5372,7 @@ async function prefetchStudent(userId){
       Promise.race([db.collection('students').doc(userId).get().catch(()=>null),_pft(8000)]),
       Promise.race([db.collection('healthLogs').doc(userId).collection('days').where(firebase.firestore.FieldPath.documentId(),'>=',_hld(30)).get().catch(()=>null),_pft(8000)]),
       Promise.race([db.collection('students').doc(userId).collection('weeklySummaries').orderBy('weekStart','desc').limit(4).get().catch(()=>null),_pft(8000)]),
-      Promise.race([db.collection('weeklyChecks').doc(userId).collection('entries').orderBy('date','asc').limit(20).get().catch(()=>null),_pft(8000)]),
+      Promise.race([db.collection('weeklyChecks').doc(userId).collection('entries').orderBy('date','desc').limit(20).get().catch(()=>null),_pft(8000)]),
     ]);
     let targets={kcal:1600,c:160,p:120,f:55};
     if(tdSnap&&tdSnap.exists){
@@ -5356,7 +5387,7 @@ async function prefetchStudent(userId){
     if(tdSnap&&hsSnap&&wsSnap&&wcSnap){
       let healthLogs={};hsSnap.docs.forEach(d=>{healthLogs[d.id]=d.data();});
       let weeklySummaries={};wsSnap.docs.forEach(d=>{weeklySummaries[d.id]=d.data();});
-      let weeklyChecks=[];wcSnap.docs.forEach(d=>{weeklyChecks.push({id:d.id,...d.data()});});
+      let weeklyChecks=[];wcSnap.docs.forEach(d=>{weeklyChecks.push({id:d.id,...d.data()});});weeklyChecks.reverse(); // BUGFIX v50.1: query เปลี่ยนเป็น desc (เอา 20 ครั้งล่าสุด) แล้วกลับลำดับเป็นเก่า→ใหม่ ให้กราฟวาดถูกทาง
       _sdCursors[userId]={
         lastHLDate:hsSnap.docs.length?hsSnap.docs.reduce((a,d)=>d.id<a?d.id:a,'9999-99-99'):null,
         hasMoreHL:!!(hsSnap.docs.length>0),
@@ -5432,7 +5463,7 @@ async function openStudentDetail(userId){
   const [hsSnap,wsSnap,wcSnap]=await Promise.all([
     _p2Q(db.collection('healthLogs').doc(userId).collection('days').where(firebase.firestore.FieldPath.documentId(),'>=',_hld(30))),
     _p2Q(db.collection('students').doc(userId).collection('weeklySummaries').orderBy('weekStart','desc').limit(4)),
-    _p2Q(db.collection('weeklyChecks').doc(userId).collection('entries').orderBy('date','asc').limit(20)),
+    _p2Q(db.collection('weeklyChecks').doc(userId).collection('entries').orderBy('date','desc').limit(20)),
   ]);
   if(!hsSnap)_hlE='timeout/เน็ตช้า';
   let healthLogs={};
@@ -5440,7 +5471,7 @@ async function openStudentDetail(userId){
   let weeklySummaries={};
   if(wsSnap)wsSnap.docs.forEach(d=>{weeklySummaries[d.id]=d.data();});
   let weeklyChecks=[];
-  if(wcSnap)wcSnap.docs.forEach(d=>{weeklyChecks.push({id:d.id,...d.data()});});
+  if(wcSnap){wcSnap.docs.forEach(d=>{weeklyChecks.push({id:d.id,...d.data()});});weeklyChecks.reverse();} // BUGFIX v50.1: query เปลี่ยนเป็น desc (เอา 20 ครั้งล่าสุด) แล้วกลับลำดับเป็นเก่า→ใหม่ ให้กราฟวาดถูกทาง
   _sdCursors[userId]={
     lastHLDate: hsSnap&&hsSnap.docs.length ? hsSnap.docs.reduce((a,d)=>d.id<a?d.id:a,'9999-99-99') : null,
     hasMoreHL: !!(hsSnap&&hsSnap.docs.length>0),
@@ -8026,7 +8057,7 @@ async function saveHistEdit(){
         upd.photoBase64=null;
       }catch(photoErr){console.log('edit photo upload skipped:',photoErr.message);}
     }else if(_editPhotoRemoved){
-      upd.photoUrl=null;upd.photoBase64=null;
+      upd.photoUrl=null;upd.photoBase64=null;upd.photoUrls=null; // BUGFIX v50.1: เดิมไม่ล้าง photoUrls → นักเรียนลบรูปแล้ว แต่การ์ดฝั่งโค้ชยังเห็นรูปเดิม
     }
 
     // ถ้าโค้ชกรอก feedback → ส่ง LINE แจ้งนักเรียน
@@ -8040,8 +8071,28 @@ async function saveHistEdit(){
 
     const _r=await _fsWrite(db.collection('submissions').doc(_editSubId).update(upd)); // W1
 
-    // Invalidate caches
-    histCache=null;studentSubsCache=null;dashCache=null;
+    // SPEED v49.1: เดิมล้าง studentSubsCache=null ทำให้ loadHistory() ต้องยิง query ใหม่ทั้งชุด
+    // (submissions 30 รายการ + students + savedMenus + ...) แค่เพราะแก้มื้อเดียว — ช้ามากบนมือถือ
+    // ตอนนี้แก้ข้อมูลในหน่วยความจำตรงๆ เพราะเรารู้อยู่แล้วว่าแก้อะไรไปบ้าง
+    let _tgt=(studentSubsCache||[]).find(x=>x.id===_editSubId);
+    // v50.1: ถ้ารายการไม่อยู่ใน cache (เปิดฟอร์มตอน cache ล่ม แล้วดึงจาก server ตรงๆ) ให้ใส่เข้าไปก่อน ไม่งั้นแก้แล้วไม่ขึ้นเลย
+    if(!_tgt&&studentSubsCache&&s){_tgt={...s};studentSubsCache.unshift(_tgt);}
+    if(_tgt){
+      Object.keys(upd).forEach(k=>{
+        if(k==='editedAt'||k==='editHistory')return; // ค่าเหล่านี้เป็น FieldValue ของ Firestore — จัดการแยกด้านล่าง
+        const v=upd[k];
+        if(v&&typeof v==='object'&&(v._methodName||v._delegate))return; // กันเผื่อ FieldValue อื่น
+        if(k.indexOf('.')>0){const[a,b]=k.split('.');_tgt[a]=_tgt[a]||{};_tgt[a][b]=v;}
+        else _tgt[k]=v;
+      });
+      if(histEntry){_tgt.editHistory=[...(_tgt.editHistory||[]),histEntry];}
+      _tgt.edited=true;
+    }else{
+      // หาไม่เจอจริงๆ → ยอมโหลดใหม่ (ช้ากว่าแต่ถูกต้อง) ดีกว่าปล่อยให้นักเรียนเห็นค่าเก่า
+      studentSubsCache=null;dashCache=null;
+    }
+    histCache=null; // แค่เรียงใหม่ ไม่ได้ยิง query
+    // ไม่ต้องล้าง dashCache — dashCache[0] ชี้ไปที่ array เดียวกับ studentSubsCache อยู่แล้ว ข้อมูลอัปเดตตามเอง
 
     closeEditSub();
     await loadHistory();
