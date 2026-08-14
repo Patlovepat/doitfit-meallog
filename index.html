@@ -886,7 +886,7 @@ db.enablePersistence({synchronizeTabs:true}).catch(e=>{console.warn('Persistence
 // ===== AUTO ERROR REPORTING → Firestore errorLogs =====
 // JS error ที่เกิดบนเครื่องลูกค้าจะถูกส่งเข้า collection 'errorLogs' อัตโนมัติ
 // ดูได้ใน Firebase Console → Firestore → errorLogs (เรียงตาม at ล่าสุด)
-const APP_VERSION='v47-2026-08-13'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
+const APP_VERSION='v49-2026-08-14'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
 const _errLogged=new Set();let _errCount=0;
 function _reportError(type,msg,stack,src){
   try{
@@ -3076,7 +3076,7 @@ const TARGETS={kcal:1600,c:160,p:120,f:55};
 const STREAK_MILESTONES=[3,7,14,21,30];
 
 function calcStreak(subs){
-  const dates=new Set(subs.map(s=>subDate(s)));
+  const dates=new Set(realSubs(subs).map(s=>subDate(s))); // v48.1: มื้อทดสอบต้องไม่ทำให้ streak 🔥 เพิ่มขึ้นหลอกๆ
   let streak=0,d=new Date();
   const _lp=n=>String(n).padStart(2,'0');
   while(true){
@@ -3089,7 +3089,7 @@ function calcStreak(subs){
 
 function getWeekDots(subs){
   const byDate={};
-  subs.forEach(s=>{const k=subDate(s);if(!byDate[k])byDate[k]=[];byDate[k].push(s);});
+  realSubs(subs).forEach(s=>{const k=subDate(s);if(!byDate[k])byDate[k]=[];byDate[k].push(s);}); // v47.1: ไม่นับมื้อทดสอบ
   const today=todayStr();
   const dots=[];
   const _lp2=n=>String(n).padStart(2,'0');
@@ -3261,9 +3261,13 @@ function applyTargets(doc){
   }
 }
 
+// v47.1: ตัวกรองกลาง — มื้อที่ถูกบันทึกตอน "โหมดทดสอบ" ต้องไม่ถูกนับรวมในแคลจริงของนักเรียน
+// BUGFIX: เดิม isTest ถูกเขียนลงฐานข้อมูลแต่ไม่เคยถูกกรองออกจากยอดรวมที่ไหนเลย (ใช้แค่โชว์ป้ายในการ์ดโค้ช)
+// ผลคือมื้อทดสอบไปโป่งอยู่ในแคลรวมของนักเรียน ทั้งในแอปและใน LINE card
+function realSubs(list){return (list||[]).filter(s=>!s.isTest||testMode);}
 function renderTodayProgress(){
   const today=todayStr();
-  studentTodaySubs=(studentSubsCache||[]).filter(s=>subDate(s)===today);
+  studentTodaySubs=realSubs(studentSubsCache).filter(s=>subDate(s)===today);
   renderDailyProgress();
 }
 function renderDailyProgress(){
@@ -3285,7 +3289,13 @@ function renderDailyProgress(){
 // STUDENT NAV
 function selStudentTab(tab, el){
   // L2: ล้าง aiParsedData เมื่อออกจาก log tab ป้องกัน submit ด้วยผล AI เก่า
-  if(studentTab==='log'&&tab!=='log')aiParsedData=null;
+  // BUGFIX v48.1: เดิมล้างแต่ข้อมูล ไม่ล้างหน้าจอ — นักเรียนกลับมาเห็นรายการค้างอยู่ แก้ตัวเลขก็ไม่มีอะไรเกิดขึ้น
+  // แล้วกดส่งขึ้นว่า "กรุณาให้ AI คำนวณก่อน" ทั้งที่ผลลัพธ์อยู่ตรงหน้า
+  if(studentTab==='log'&&tab!=='log'){
+    aiParsedData=null;
+    const _ar=document.getElementById('ai-result-area');if(_ar){_ar.innerHTML='';_ar.style.display='none';}
+    const _bw=document.getElementById('btn-save-weigh');if(_bw)_bw.style.display='none';
+  }
   studentTab=tab;
   document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
   if(el) el.classList.add('active');
@@ -4738,7 +4748,7 @@ function showSuccess(mode,handData,labelData,weighData){
   }
   if(photoBase64List.length>0)chips+=`<span class="chip">📸 ${photoBase64List.length>1?photoBase64List.length+' รูป':'มีรูป'}</span>`;
   // CARD-UX: สรุปรวมวันแบบเดียวกับ LINE card บนหน้านี้เลย — นักเรียนเห็นเสมอแม้ card ในแชทไม่เด้ง
-  const _sSubs=selectedDate===todayStr()?studentTodaySubs:(studentSubsCache||[]).filter(s=>subDate(s)===selectedDate);
+  const _sSubs=selectedDate===todayStr()?studentTodaySubs:realSubs(studentSubsCache).filter(s=>subDate(s)===selectedDate); // v47.1: ไม่นับมื้อทดสอบ
   let _sc=0,_sp=0,_sf=0,_sk=0;
   _sSubs.forEach(s=>{const m=getSubMacros(s);_sc+=m.c;_sp+=m.p;_sf+=m.f;_sk+=m.kcal;});
   const _pctK=Math.min(100,Math.round(_sk/TARGETS.kcal*100));
@@ -4963,7 +4973,7 @@ function renderStudentDashboard(subs, targets, coachNotes, healthLogs, weeklyChe
   const MON=getMonWeekDates();
   const TH_SHORT=['จ','อ','พ','พฤ','ศ','ส','อา'];
   const byDate={};
-  subs.forEach(s=>{const k=subDate(s);if(!byDate[k])byDate[k]=[];byDate[k].push(s);});
+  realSubs(subs).forEach(s=>{const k=subDate(s);if(!byDate[k])byDate[k]=[];byDate[k].push(s);}); // v48: ไม่นับมื้อทดสอบ
   const today=todayStr();
   const todaySubs=byDate[today]||[];
   let tot={kcal:0,c:0,p:0,f:0};
@@ -5242,7 +5252,7 @@ async function loadStudentList(){
 function buildStudentCard(u,MON){
   if(!MON)MON=getMonWeekDates(); // fallback ถ้าไม่ส่ง MON มา (Task #9: ปกติส่งจาก loadStudentList)
   const byDate={};
-  u.subs.forEach(s=>{const k=subDate(s);if(!byDate[k])byDate[k]=[];byDate[k].push(s);});
+  realSubs(u.subs).forEach(s=>{const k=subDate(s);if(!byDate[k])byDate[k]=[];byDate[k].push(s);}); // v48: ไม่นับมื้อทดสอบ
   const streak=calcStreak(u.subs);
   // week dots จ-อา
   const TH_SHORT=['จ','อ','พ','พฤ','ศ','ส','อา'];
@@ -5442,7 +5452,7 @@ async function openStudentDetail(userId){
   // อัปเดตเฉพาะ section ที่ต้องการ health data (ถ้ายังเปิดหน้านี้อยู่)
   if(currentStudentData&&currentStudentData.userId===userId){
     const MON=getMonWeekDates(),TH_SHORT=['จ','อ','พ','พฤ','ศ','ส','อา'];
-    const byDate={};u.subs.forEach(s=>{const k=subDate(s);if(!byDate[k])byDate[k]=[];byDate[k].push(s);});
+    const byDate={};realSubs(u.subs).forEach(s=>{const k=subDate(s);if(!byDate[k])byDate[k]=[];byDate[k].push(s);}); // v48
     const lsEl=document.getElementById('sd-lifestyle-'+userId);
     if(_hlE){if(lsEl)lsEl.innerHTML=`<div style="padding:16px;text-align:center;color:#EF4444;font-size:13px;font-family:'Prompt',sans-serif">📡 โหลด health log ไม่ได้ (${_hlE})<br><small style="color:#6B7280">ปิดหน้านี้แล้วเปิดใหม่อีกครั้งค่ะ</small></div>`;}
     else if(lsEl)lsEl.innerHTML=buildLifestyleSection(MON,TH_SHORT,healthLogs);
@@ -5455,7 +5465,7 @@ async function openStudentDetail(userId){
     const pgEl=document.getElementById('sd-progress-'+userId);
     if(pgEl)pgEl.innerHTML=buildProgressSection(weeklyChecks,userId);
   }
-  const byDateTmp={};u.subs.forEach(s=>{const k=subDate(s);if(!byDateTmp[k])byDateTmp[k]=[];byDateTmp[k].push(s);});
+  const byDateTmp={};realSubs(u.subs).forEach(s=>{const k=subDate(s);if(!byDateTmp[k])byDateTmp[k]=[];byDateTmp[k].push(s);}); // v48
   autoMarkMissedDays(userId,byDateTmp).catch(()=>{});
 }
 
@@ -5505,7 +5515,7 @@ async function loadMoreStudentHistory(userId){
   ).find(u=>u.userId===userId);
   if(!u){if(btn){btn.textContent='📅 ดูย้อนหลังเพิ่มเติม';btn.disabled=false;}return;} // NB5: คืนสภาพปุ่มก่อน return
   const byDate={};
-  u.subs.forEach(s=>{const k=subDate(s);if(!byDate[k])byDate[k]=[];byDate[k].push(s);});
+  realSubs(u.subs).forEach(s=>{const k=subDate(s);if(!byDate[k])byDate[k]=[];byDate[k].push(s);}); // v48: ไม่นับมื้อทดสอบ
   // re-render weekly section เฉพาะส่วนนั้น (ไม่ render ทั้งหน้า)
   const wsEl=document.getElementById('sd-weekly-'+userId);
   if(wsEl)wsEl.innerHTML=buildWeeklySummaryAccordion(u,byDate,cache.targets,cache.healthLogs,cache.weeklySummaries);
@@ -6288,7 +6298,7 @@ function renderStudentDetail(u, targets, healthLogs, weeklySummaries={}, weeklyC
   const MON=getMonWeekDates();
   const TH_SHORT=['จ','อ','พ','พฤ','ศ','ส','อา'];
   const byDate={};
-  u.subs.forEach(s=>{const k=subDate(s);if(!byDate[k])byDate[k]=[];byDate[k].push(s);});
+  realSubs(u.subs).forEach(s=>{const k=subDate(s);if(!byDate[k])byDate[k]=[];byDate[k].push(s);}); // v48: ไม่นับมื้อทดสอบ
 
   // --- PROGRAM ---
   const uid=u.userId;
@@ -7422,12 +7432,14 @@ let _testimonialInProgress=false; // NH1: ป้องกัน race condition �
 async function checkTestimonialEligibility(weeklyChecks){
   if(_testimonialInProgress)return; // NH1
   if(!weeklyChecks||weeklyChecks.length<2)return;
-  _testimonialInProgress=true;
+  // BUGFIX v48.1: เดิมตั้งธงก่อน return 2 จุดที่อยู่นอก try/finally → ธงค้าง true ตลอด session
+  // ผลคือนักเรียนที่ยังลดไม่ถึง 3% ตอนเปิดแอปครั้งแรก จะไม่มีทางได้การ์ดขอ testimonial อีกเลยในรอบนั้น
   const first=weeklyChecks[0].weight_kg;
   const last=weeklyChecks[weeklyChecks.length-1].weight_kg;
   if(!first||!last)return;
   const lossPct=(first-last)/first;
   if(lossPct<0.03)return; // ต้องลดอย่างน้อย 3%
+  _testimonialInProgress=true;
   try{
     // เช็คว่าเคยส่งแล้วหรือยัง
     const doc=await db.collection('students').doc(user.userId).get();
@@ -7500,12 +7512,12 @@ async function sendFeedbackCard(currentSub){
     // สำหรับวันอื่น ใช้ studentSubsCache filter ตามเดิม
     const subs=selectedDate===todayStr()
       ?studentTodaySubs
-      :(studentSubsCache||[]).filter(s=>subDate(s)===selectedDate);
+      :realSubs(studentSubsCache).filter(s=>subDate(s)===selectedDate); // v47.1: ไม่นับมื้อทดสอบ
     let totC=0,totP=0,totF=0,totKcal=0;
     subs.forEach(s=>{const m=getSubMacros(s);totC+=m.c;totP+=m.p;totF+=m.f;totKcal+=m.kcal;});
     totC=Math.round(totC);totP=Math.round(totP);totF=Math.round(totF);totKcal=Math.round(totKcal);
 
-    flex=buildFeedbackFlex(subs.length,totC,totP,totF,totKcal,currentSub);
+    flex=buildFeedbackFlex(subs.length,totC,totP,totF,totKcal,currentSub,subs);
     if(typeof liff!=='undefined'&&liff.isInClient()){
       await liff.sendMessages([flex]);
     }else{
@@ -7608,7 +7620,7 @@ function flexMacroRow(name, val, target, color){
   };
 }
 
-function buildFeedbackFlex(mealCount, totC, totP, totF, totKcal, currentSub){
+function buildFeedbackFlex(mealCount, totC, totP, totF, totKcal, currentSub, daySubs){
   currentSub=currentSub||{};
   const pctKcal=Math.round(totKcal/TARGETS.kcal*100);
   const smartMsg=calcSmartMsg(totC,totP,totF,totKcal);
@@ -7733,6 +7745,27 @@ function buildFeedbackFlex(mealCount, totC, totP, totF, totKcal, currentSub){
     {type:'box',layout:'vertical',margin:'lg',backgroundColor:'#F0FDF4',cornerRadius:'8px',paddingAll:'12px',
       contents:[{type:'text',text:smartMsg,size:'sm',color:'#166534',wrap:true}]}
   );
+  // v47.1: แจกแจงว่ายอดรวมวันนี้มาจากมื้อไหนบ้าง — ตอบคำถาม "ทำไมแคลพุ่ง" ได้ทันทีในการ์ด
+  // เดิมการ์ดบอกแค่ "วันนี้รวม 3 มื้อ" แต่ไม่บอกว่า 3 มื้อนั้นคืออะไร โค้ชกับนักเรียนเลยตรวจสอบไม่ได้
+  if(Array.isArray(daySubs)&&daySubs.length>1){
+    const MODE_ICON={hand:'👊',label:'🏷️',weigh:'✨'};
+    const rows=daySubs.slice(0,6).map(s=>{
+      const m=getSubMacros(s);
+      let nm=(s.handData&&s.handData.menuName)||(s.labelData&&(s.labelData.menuName||s.labelData.food))||(s.weighData&&(s.weighData.menuName||s.weighData.food))||'';
+      nm=String(nm).replace(/^AI:\s*/,'').slice(0,20)||('มื้อ'+(s.meal||''));
+      return{type:'box',layout:'horizontal',margin:'sm',contents:[
+        {type:'text',text:`${MODE_ICON[s.mode]||'•'} ${nm}`,size:'xxs',color:'#6B7280',flex:1,wrap:true},
+        {type:'text',text:`${m.kcal} kcal`,size:'xxs',color:'#374151',align:'end',flex:0}
+      ]};
+    });
+    bodyContents.push({type:'separator',margin:'lg'},
+      {type:'box',layout:'vertical',margin:'lg',contents:[
+        {type:'text',text:`🧾 ${daySubs.length} มื้อวันนี้ รวมเป็น ${totKcal.toLocaleString()} kcal`,size:'xs',weight:'bold',color:'#6B7280'},
+        ...rows,
+        ...(daySubs.length>6?[{type:'text',text:`+ อีก ${daySubs.length-6} มื้อ`,size:'xxs',color:'#9CA3AF',margin:'sm'}]:[]),
+        {type:'text',text:'ถ้าเห็นมื้อซ้ำ ลบได้ที่แท็บ "ประวัติ" นะคะ',size:'xxs',color:'#9CA3AF',margin:'sm',wrap:true}
+      ]});
+  }
 
   const bubble={
     type:'bubble',size:'kilo',
@@ -7812,7 +7845,13 @@ async function editHistSub(id){
   let s=(histCache||studentSubsCache||[]).find(x=>x.id===id);
   if(!s){
     // cache ว่าง (เพิ่งแก้ไขก่อนหน้า) — fetch โดยตรงจาก Firestore
-    try{const doc=await db.collection('submissions').doc(id).get();if(doc.exists)s={id:doc.id,...doc.data()};}catch(e){}
+    // v48.1: ใส่ timeout + fallback cache — เดิมถ้าเน็ตช้า ปุ่ม "แก้ไข" จะค้างเงียบไม่มีอะไรเกิดขึ้น
+    try{
+      const _p=db.collection('submissions').doc(id).get().catch(()=>null);
+      let doc=await Promise.race([_p,new Promise(r=>setTimeout(()=>r(null),6000))]);
+      if(!doc)doc=await db.collection('submissions').doc(id).get({source:'cache'}).catch(()=>null);
+      if(doc&&doc.exists)s={id:doc.id,...doc.data()};
+    }catch(e){}
     if(!s){showToast('ไม่พบข้อมูลค่ะ');return;}
   }
 
