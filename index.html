@@ -886,7 +886,7 @@ db.enablePersistence({synchronizeTabs:true}).catch(e=>{console.warn('Persistence
 // ===== AUTO ERROR REPORTING → Firestore errorLogs =====
 // JS error ที่เกิดบนเครื่องลูกค้าจะถูกส่งเข้า collection 'errorLogs' อัตโนมัติ
 // ดูได้ใน Firebase Console → Firestore → errorLogs (เรียงตาม at ล่าสุด)
-const APP_VERSION='v59-2026-08-16'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
+const APP_VERSION='v62-2026-08-16'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
 const _errLogged=new Set();let _errCount=0;
 function _reportError(type,msg,stack,src){
   try{
@@ -911,6 +911,28 @@ function _reportError(type,msg,stack,src){
 // ===== AI TIMING (v45) — วัดเวลาจริงที่ AI ใช้ เพื่อรู้ว่า "ช้า" ช้าที่ตรงไหน =====
 // เก็บลง Firestore `aiTiming` — ดูได้ที่ Firebase Console เหมือน errorLogs
 // keyLoadMs = เวลาโหลด Gemini key | netMs = เวลารอ API ตอบ | parseMs = เวลาแปลงผล | totalMs = รวมทั้งหมดที่นักเรียนต้องรอ
+// ===== DB GAP (v62) — เก็บว่านักเรียนกินอะไรที่ยังไม่มีในฐานข้อมูล =====
+// ใช้ชื่อที่ AI ระบุกลับมา (สะอาดกว่าคำที่นักเรียนพิมพ์) เฉพาะรายการที่ dbLookup หาไม่เจอ
+// เขียนแบบ "ยิงแล้วลืม" หลังนักเรียนเห็นผลลัพธ์ไปแล้ว → ไม่มีทางทำให้ช้าลง
+// เก็บเป็นตัวนับต่อชื่ออาหาร (increment) จะได้จัดอันดับได้ว่าควรเพิ่มอะไรก่อน
+let _dbMissCount=0;const _dbMissSeen=new Set();
+function _logDbMiss(names){
+  try{
+    if(!Array.isArray(names)||!names.length)return;
+    for(const raw of names){
+      if(_dbMissCount>=8)return; // cap ต่อ session กัน spam
+      const key=String(raw||'').trim().replace(/\s+/g,' ').slice(0,40);
+      if(key.length<2)continue;
+      if(_dbMissSeen.has(key))continue;
+      _dbMissSeen.add(key);_dbMissCount++;
+      db.collection('dbMisses').doc(encodeURIComponent(key)).set({
+        name:key,
+        count:firebase.firestore.FieldValue.increment(1),
+        lastAt:firebase.firestore.FieldValue.serverTimestamp()
+      },{merge:true}).catch(()=>{}); // ห้าม throw เอง
+    }
+  }catch(_){}
+}
 let _aiTimeCount=0;
 function _logAITiming(d){
   try{
@@ -926,6 +948,7 @@ function _logAITiming(d){
       respChars:d.respChars||0,
       dbRefs:d.dbRefs||0,              // จำนวนรายการอ้างอิงที่แนบไป
       items:d.items||0,
+      thinkLow:!!d.thinkLow, // v60: รอบนี้สั่งให้โมเดลคิดน้อยลงหรือเปล่า (ใช้เทียบว่าช่วยจริงไหม)
       vision:!!d.vision,               // true = ส่งรูปเข้า AI ด้วย (ใช้เทียบว่าโหมดรูปช้ากว่าโหมดพิมพ์แค่ไหน)
       imgKB:Math.round(d.imgKB||0),
       cacheHit:!!d.cacheHit,           // true = ไม่ได้ยิง API เลย (เร็วมาก)
@@ -4262,20 +4285,38 @@ async function callGeminiAI(){
   // นักเรียนเห็น error สีแดง แต่กดส่งได้ → บันทึกคำอธิบายมื้อใหม่ พร้อมตัวเลขของมื้อเก่า (ข้อมูลผิดเข้าระบบเงียบๆ)
   aiParsedData=null;
   try{
-    const _h2ctrl=new AbortController();const _h2tid=setTimeout(()=>_h2ctrl.abort(),15000); // H2: 15s timeout
-    let res;
+    // === SPEED v60 ===
+    // ข้อมูลจริงบอกว่า: คำตอบ 90 ตัวอักษร ใช้ 7.06 วิ · คำตอบ 190 ตัวอักษร ใช้ 7.64 วิ
+    // → มี "ค่าคงที่" ประมาณ 6.5 วิ ที่ไม่เกี่ยวกับความยาวคำตอบเลย (ตัดคำตอบสั้นลงจึงช่วยได้น้อยมาก)
+    // ค่าคงที่ก้อนนี้ส่วนใหญ่คือเวลาที่โมเดล "คิดในใจ" ก่อนตอบ → ลองสั่งให้คิดน้อยลง
+    // ถ้ารุ่นที่ใช้ไม่รองรับพารามิเตอร์นี้ จะจำไว้แล้วไม่ส่งอีก (ถอยกลับอัตโนมัติ ไม่พังแน่นอน)
+    // v61: ปิดไว้เป็นค่าเริ่มต้น — ความแม่นยำมาก่อนความเร็ว
+    // ยังไม่มีข้อมูลยืนยันว่าสั่งให้โมเดลคิดน้อยลงแล้วยังคำนวณสารอาหารแม่นเท่าเดิม
+    // จะเปิดใช้ก็ต่อเมื่อทดสอบความแม่นยำผ่านแล้วเท่านั้น (ตั้ง localStorage._dfthink='1' เพื่อทดลอง)
+    const _noThink=(()=>{try{return localStorage.getItem('_dfthink')!=='1';}catch(_){return true;}})();
+    const _mkBody=(withThink)=>{
+      const gc={temperature:0.1,responseMimeType:'application/json'};
+      if(withThink)gc.thinkingConfig={thinkingLevel:'low'};
+      return JSON.stringify({contents:[{parts:[{text:_fullPrompt}]}],generationConfig:gc});
+    };
+    const _callAI=async(withThink)=>{
+      const c=new AbortController();const t=setTimeout(()=>c.abort(),15000); // H2: 15s timeout
+      try{
+        return await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent',{
+          method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':GEMINI_KEY},
+          body:_mkBody(withThink),signal:c.signal
+        });
+      }finally{clearTimeout(t);}
+    };
     const _tn0=Date.now();
-    try{
-      res=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent',{
-        method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':GEMINI_KEY},
-        body:JSON.stringify({
-          contents:[{parts:[{text:_fullPrompt}]}],
-          generationConfig:{temperature:0.1,responseMimeType:'application/json'}
-        }),
-        signal:_h2ctrl.signal
-      });
-    }finally{clearTimeout(_h2tid);}
-    const data=await res.json();
+    let res=await _callAI(!_noThink);
+    let data=await res.json();
+    // รุ่นนี้ไม่รู้จักพารามิเตอร์ → จำไว้ แล้วยิงใหม่แบบเดิมทันที (นักเรียนไม่รู้สึกอะไร)
+    if(!_noThink&&data&&data.error&&/thinking|unknown name|invalid json payload|not supported/i.test(data.error.message||'')){
+      try{localStorage.setItem('_dfnothink','1');}catch(_){}
+      res=await _callAI(false);
+      data=await res.json();
+    }
     _netMs=Date.now()-_tn0; // v45: เวลารอ API ล้วนๆ (ไม่รวมโหลด key / ประมวลผล)
     if(data.error)throw new Error(data.error.message||JSON.stringify(data.error));
     const raw=data.candidates?.[0]?.content?.parts?.[0]?.text||'';
@@ -4291,9 +4332,10 @@ async function callGeminiAI(){
     if((t.kcal||0)>3000||(t.c||0)>400||(t.p||0)>300||(t.f||0)>300)
       throw new Error('ค่าสารอาหารผิดปกติ (AI ให้ค่าเกินจริง) กรุณาลองพิมพ์ใหม่ให้ละเอียดขึ้น');
     aiCacheSet(_cacheKey,aiParsedData); // เก็บ cache หลังผ่าน sanity check แล้วเท่านั้น
-    renderAIResult(aiParsedData);
+    renderAIResult(aiParsedData); // ← นักเรียนเห็นผลตรงนี้แล้ว ที่ทำหลังจากนี้ไม่กระทบเวลารอ
+    _logDbMiss((aiParsedData.items||[]).filter(it=>it._src!=='db').map(it=>it.name)); // v62: จดไว้ว่าอะไรยังไม่มีใน DB
     _logAITiming({src:'ai',totalMs:Date.now()-_t0,keyLoadMs:_keyMs,netMs:_netMs,parseMs:Date.now()-_tp0,
-      promptChars:_fullPrompt.length,respChars:_respChars,dbRefs:dbRefs.length,items:(aiParsedData.items||[]).length,ok:true});
+      promptChars:_fullPrompt.length,respChars:_respChars,dbRefs:dbRefs.length,items:(aiParsedData.items||[]).length,ok:true,thinkLow:!_noThink});
   }catch(e){
     if(/api.?key/i.test(e.message||'')){GEMINI_KEY=null;try{localStorage.removeItem('_dfk');}catch(_){}} // key ถูก rotate → ล้างแล้วโหลดใหม่ครั้งหน้า
     _logAITiming({src:'ai',totalMs:Date.now()-_t0,keyLoadMs:_keyMs,netMs:_netMs,
