@@ -886,7 +886,7 @@ db.enablePersistence({synchronizeTabs:true}).catch(e=>{console.warn('Persistence
 // ===== AUTO ERROR REPORTING → Firestore errorLogs =====
 // JS error ที่เกิดบนเครื่องลูกค้าจะถูกส่งเข้า collection 'errorLogs' อัตโนมัติ
 // ดูได้ใน Firebase Console → Firestore → errorLogs (เรียงตาม at ล่าสุด)
-const APP_VERSION='v51-2026-08-14'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
+const APP_VERSION='v59-2026-08-16'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
 const _errLogged=new Set();let _errCount=0;
 function _reportError(type,msg,stack,src){
   try{
@@ -2789,9 +2789,21 @@ const _REMOVED=[
 // STATE
 let user=null, isCoach=false, curMeal='เช้า', curMode='hand', studentTab='log', testMode=false, coachLogMode=false;
 let photoBase64=null, photoBase64List=[], coachTab='pending', allSubs=[], cState={};
+let _coachRendered=false; // v57.1: เคยวาดหน้าโค้ชไปแล้วหรือยัง (ใช้คู่กับ docChanges เพื่อข้ามการวาดซ้ำ)
+let _subsTruncated=false; // v53.1: true = ข้อมูลชนเพดาน query → เลข 🔥/log อาจต่ำกว่าความจริง ต้องเติม + ท้ายเลข
 let coachFilter='all';
+// BOTTLENECK v54.1: หลังขยายเพดานเป็น 800 รายการ แท็บ "อนุมัติแล้ว" จะวาดการ์ดทีเดียว 800 ใบ (มีรูปด้วย)
+// เครื่องค้างและกินแรมหนักมากบนมือถือ → วาดทีละ 40 ใบ แล้วมีปุ่มกดดูเพิ่ม
+let _doneShown=40;
+const _DONE_PAGE=40;
+// v56.1: มื้อที่อนุมัติแล้ว เก็บสิทธิ์ "ดูรูปย้อนหลัง" ไว้แค่ 10 รายการล่าสุดพอ
+// เก่ากว่านั้นตรวจผ่านไปนานแล้ว ไม่มีเหตุต้องเปิดดู (และเผื่ออนาคตลบรูปเก่าทิ้งเพื่อลดค่าเก็บข้อมูล)
+const _PHOTO_KEEP=10;
+let _photoOkIds=new Set();
+let _justActedIds=new Set(); // v59: id ที่โค้ชเพิ่งอนุมัติ/แก้ใน session นี้ — ให้ดูรูปได้เสมอ
 let studentTodaySubs=[];
-let studentSubsCache=null; // cache submissions ไม่ต้อง query ซ้ำ
+const _STU_LIMIT=120; // v53.1: ~40 วันสำหรับคนบันทึกวันละ 3 มื้อ (เอกสารไม่มีรูป base64 แล้ว ขนาดเล็ก)
+let studentSubsCache=null, _stuSubsTruncated=false; // cache submissions ไม่ต้อง query ซ้ำ
 let studentProgramData=null; // program info (start/end/pause)
 let nearEndSentDate=null;  // วันที่ส่ง near-end card แล้ว
 let histCache=null;
@@ -3106,7 +3118,7 @@ function getWeekDots(subs){
 function renderStreak(){
   const streak=calcStreak(studentSubsCache||[]);
   const pill=document.getElementById('streak-pill');
-  if(streak>0){pill.innerHTML=`🔥 ${streak} วันติด`;pill.style.display='flex';}
+  if(streak>0){pill.innerHTML=`🔥 ${streak}${_stuSubsTruncated?'+':''} วันติด`;pill.style.display='flex';} // v53.1: + = ข้อมูลชนเพดาน ของจริงอาจมากกว่านี้
   else{pill.style.display='none';}
 }
 
@@ -3210,12 +3222,14 @@ async function loadStudentData(){
     const _lsdt=ms=>new Promise(r=>setTimeout(()=>r(null),ms));
     const _qf=q=>Promise.race([q.get().catch(()=>null),_lsdt(8000)]).then(r=>r||q.get({source:'cache'}).catch(()=>null));
     const [snap,td,savedSnap]=await Promise.all([
-      _qf(db.collection('submissions').where('userId','==',user.userId).orderBy('createdAt','desc').limit(30)),
+      // BUGFIX v53.1: 30 รายการ = แค่ ~10 วันสำหรับคนบันทึกวันละ 3 มื้อ → 🔥 วันติด ตันที่ 10 วัน และประวัติย้อนหลังได้แค่ 10 วัน
+      _qf(db.collection('submissions').where('userId','==',user.userId).orderBy('createdAt','desc').limit(_STU_LIMIT)),
       _qf(db.collection('students').doc(user.userId)),
       _qf(db.collection('users').doc(user.userId).collection('savedMenus').limit(12)),
     ]);
     // NB7: ล้มเหลว (null) ≠ ไม่มีข้อมูล — อย่า cache เป็น [] ปล่อย null ให้ retry รอบถัดไป
     if(snap){
+      _stuSubsTruncated=snap.docs.length>=_STU_LIMIT; // v53.1: ชนเพดาน = มีข้อมูลเก่ากว่านี้อีก เลข 🔥 อาจต่ำกว่าจริง
       // sort client-side + ลบ photoBase64 ออกจาก RAM (ยังใช้ photoUrl แทนได้)
       studentSubsCache=snap.docs.map(d=>{const dat=d.data();delete dat.photoBase64;return{id:d.id,...dat};}).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
       // W7: มื้อที่ค้างคิว backup (ยังไม่ถึง server) ต้องโชว์ในประวัติ/วันนี้ด้วย
@@ -3327,10 +3341,30 @@ const MUSCLE_OPTIONS=[
   {key:'none',   icon:'🚫', label:'ไม่ได้เล่น'},
 ];
 
+// v58: cache บันทึกสุขภาพของแท็บนี้เอง — ไม่พึ่ง dashCache อย่างเดียวอีกต่อไป
+let _hlCache={};
+// BUGFIX v58: ถ้ายังไม่เคยเปิด Dashboard จะไม่มีข้อมูลเดิมเลย ฟอร์มโชว์ค่าเริ่มต้น
+// นักเรียนกดบันทึก = ทับข้อมูลจริงของวันนั้นด้วยค่าเริ่มต้น (ข้อมูลหายจริง)
+// จึงต้องไปอ่านของวันนั้นมาเองแล้ววาดใหม่
+async function _fetchHealthDay(date){
+  if(!user||!user.userId)return;
+  try{
+    const ref=db.collection('healthLogs').doc(user.userId).collection('days').doc(date);
+    let d=await Promise.race([ref.get().catch(()=>null),new Promise(r=>setTimeout(()=>r(null),6000))]);
+    if(!d)d=await ref.get({source:'cache'}).catch(()=>null);
+    if(d&&d.exists){
+      _hlCache[date]=d.data();
+      if(dashCache&&dashCache[3])dashCache[3][date]=d.data();
+      if(studentTab==='health'&&selectedDate===date)renderHealthLog(); // วาดใหม่ด้วยค่าจริง
+    }else _hlCache[date]=null;
+  }catch(_){}
+}
 function renderHealthLog(){
-  // Pre-load saved values from dashCache for the selected date (so students see real data, not defaults)
-  if(dashCache&&dashCache[3]){
-    const entry=dashCache[3][selectedDate];
+  {
+    let entry=(dashCache&&dashCache[3])?dashCache[3][selectedDate]:undefined;
+    if(entry===undefined)entry=_hlCache[selectedDate];
+    if(entry===undefined){_hlCache[selectedDate]=null;_fetchHealthDay(selectedDate);} // ยังไม่รู้ → ไปดึงมา แล้ววาดซ้ำ
+    entry=entry||null;
     if(entry){
       hlSleep=typeof entry.sleep==='number'?entry.sleep:7.0;
       hlStress=typeof entry.stress==='number'?entry.stress:2;
@@ -3538,13 +3572,17 @@ async function saveHealthLog(){
     const _hlPath=`healthLogs/${user.userId}/days/${selectedDate}`;
     const _hlBase={sleep:hlSleep, stress:hlStress, steps:hlSteps, cardio:hlCardio,
       muscleGroup:hlMuscle, weightMin:hlMuscle==='none'?0:hlWeightMin};
-    const _p=db.doc(_hlPath).set({..._hlBase,updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+    // BUGFIX v58: ต้องใช้ merge:true — เดิม set() ทับทั้งเอกสาร ถ้าฟอร์มโชว์ค่าเริ่มต้น (เพราะยังไม่ได้โหลดของเดิม)
+    // แล้วนักเรียนกดบันทึก ข้อมูลจริงของวันนั้นจะถูกแทนที่ด้วยค่าเริ่มต้นทั้งชุด
+    const _p=db.doc(_hlPath).set({..._hlBase,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
     _p.catch(()=>{});
     const _r=await Promise.race([_p.then(()=>'ok'),new Promise(r=>setTimeout(()=>r('timeout'),6000))]);
     if(_r==='timeout')_queueBackup(_hlPath,{..._hlBase,updatedAt:{__ts:Date.now()}}); // W3
     else _dropBackup(_hlPath);
     // Update local cache so switching tabs & dates shows the latest saved values
-    if(dashCache&&dashCache[3]){dashCache[3][selectedDate]={sleep:hlSleep,stress:hlStress,steps:hlSteps,cardio:hlCardio,muscleGroup:hlMuscle,weightMin:hlMuscle==='none'?0:hlWeightMin};}
+    const _hlSaved={sleep:hlSleep,stress:hlStress,steps:hlSteps,cardio:hlCardio,muscleGroup:hlMuscle,weightMin:hlMuscle==='none'?0:hlWeightMin};
+    if(dashCache&&dashCache[3])dashCache[3][selectedDate]=_hlSaved;
+    _hlCache[selectedDate]=_hlSaved; // v58: จำไว้ในแท็บนี้ด้วย สลับวันไปกลับจะได้ไม่ต้องดึงใหม่
     showToast(_r==='timeout'?'📡 เน็ตช้า — บันทึกไว้ในเครื่องแล้ว จะซิงค์อัตโนมัติค่ะ':'✅ บันทึกข้อมูลสุขภาพแล้วค่ะ',_r==='timeout'?4000:2500);
     if(_r!=='timeout')sendHealthLogCard(); // F3: ส่ง LINE card (ข้ามตอนเน็ตช้า — LINE ก็ส่งไม่ได้อยู่ดี)
   }catch(e){showToast('⚠️ บันทึกไม่ได้: '+e.message,4000);} // W2: toast แทน alert
@@ -3571,6 +3609,7 @@ async function sendWeeklyCheckCard(entry){
     if(entry.thigh_left_cm!=null||entry.thigh_right_cm!=null)
       row('🦵','ต้นขา ซ/ข',[entry.thigh_left_cm,entry.thigh_right_cm].map(v=>v==null?'—':v).join(' / ')+' cm');
     if(!rows.length)return;
+    if(!await _ensureSendPermission(false))return; // v52.1: ยังไม่อนุญาต → ข้ามไปเลย ไม่ยิงให้ error (ข้อมูลบันทึกแล้ว)
     await liff.sendMessages([{
       "type":"flex","altText":"📏 บันทึกผลการวัดแล้วค่ะ",
       "contents":{"type":"bubble","size":"kilo",
@@ -3604,6 +3643,7 @@ async function sendHealthLogCard(){
     if(hlMuscle&&hlMuscle!=='none')row('🏋️','เวทเทรนนิ่ง',(MUSCLE_TH[hlMuscle]||hlMuscle)+(hlWeightMin>0?` ${hlWeightMin} นาที`:''));
     if(!rows.length)return; // ไม่กรอกอะไรเลย → ไม่ส่ง card
     const dateLabel=formatDateTH(selectedDate);
+    if(!await _ensureSendPermission(false))return; // v52.1: ยังไม่อนุญาต → ข้ามไปเลย ไม่ยิงให้ error (ข้อมูลบันทึกแล้ว)
     await liff.sendMessages([{
       "type":"flex","altText":"🩺 บันทึก Health Log แล้วค่ะ",
       "contents":{"type":"bubble","size":"kilo",
@@ -3903,12 +3943,8 @@ function selDate(str,el){
 
 // MEAL / MODE
 function selMeal(btn){document.querySelectorAll('.meal-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');curMeal=btn.dataset.meal;}
-function selMode(tab){
-  document.querySelectorAll('.mode-tab').forEach(t=>t.classList.remove('active'));tab.classList.add('active');curMode=tab.dataset.mode;
-  document.getElementById('panel-hand').style.display=curMode==='hand'?'block':'none';
-  document.getElementById('panel-label').style.display=curMode==='label'?'block':'none';
-  document.getElementById('panel-weigh').style.display=curMode==='weigh'?'block':'none';
-}
+// v53: ลบ selMode ตัวเก่าออก — มีนิยามซ้ำอยู่ท้ายไฟล์ซึ่งเป็นตัวที่ทำงานจริง (มีระบบเตือนข้อมูลค้างด้วย)
+// ตัวเก่านี้เป็นโค้ดตาย ใครมาแก้ตรงนี้จะงงว่าทำไมแก้แล้วไม่มีผล
 
 // HAND MODE — collapsible sections + dynamic carb slots
 function toggleSection(sec){
@@ -4968,7 +5004,7 @@ async function loadDashboard(forceRefresh=false,silent=false){ // v51: silent = 
       // SPEED v49.1: 60→40 วัน — ประวัติมื้ออาหารดึงมาแค่ 30 รายการล่าสุด (ครอบคลุมสูงสุด 30 วัน) 40 วันจึงเหลือเฟือ
       _dqf(db.collection('healthLogs').doc(user.userId).collection('days').where(firebase.firestore.FieldPath.documentId(),'>=',_hld(40))),
       _dqf(db.collection('weeklyChecks').doc(user.userId).collection('entries').orderBy('date','desc').limit(20)),
-      _dqf(db.collection('students').doc(user.userId).collection('weeklySummaries').orderBy('weekStart','desc').limit(8)),
+      _dqf(db.collection('students').doc(user.userId).collection('weeklySummaries').orderBy('weekStart','desc').limit(16)), // v54.1: ให้พอกับจำนวนสัปดาห์ที่แสดงหลังขยายเพดานเป็น 120 รายการ
       _dqf(db.collection('students').doc(user.userId)),
     ]);
     const subs=studentSubsCache||[];
@@ -5179,10 +5215,29 @@ function startCoach(){
   if(_coachUnsub){_coachUnsub();_coachUnsub=null;} // H1: ยกเลิก listener เก่า
   document.getElementById('coach-view').style.display='block';
   // จำกัดแค่ 30 วันล่าสุด + limit 200 docs — ลดข้อมูลโหลดจาก "ทั้งหมด" เป็น "เดือนนี้"
-  const cutoff=firebase.firestore.Timestamp.fromDate(new Date(Date.now()-30*24*60*60*1000));
-  _coachUnsub=db.collection('submissions').where('createdAt','>=',cutoff).orderBy('createdAt','desc').limit(200)
+  // BUGFIX v53.1: เดิมดึงย้อนหลัง 30 วัน + จำกัด 200 รายการ "รวมทุกคน"
+  // นักเรียน 10 คน × วันละ 3 มื้อ = 30 รายการ/วัน → 200 รายการครอบคลุมแค่ ~7 วัน
+  // ทำให้ 🔥 วันติด และ log N วัน ของทุกคนถูกตัดให้ต่ำกว่าความจริง และยิ่งนักเรียนเยอะยิ่งเพี้ยนหนัก
+  // v55.1: กลับมาที่ 90วัน/800 ได้แล้ว หลังแก้ต้นเหตุจริง —
+  //   ตัวเอกสารเองเบามาก (เก็บแค่ลิงก์รูป ไม่ได้เก็บไฟล์รูป) ~2KB/รายการ → 800 รายการ ≈ 1.6MB รับได้
+  //   ของหนักคือ "รูป" ซึ่งตอนนี้มื้อที่อนุมัติแล้วไม่โหลดอัตโนมัติ + วาดทีละ 40 ใบ
+  // ยิ่งดึงได้เยอะ เลข 🔥 วันติด และสถิติ Dashboard ยิ่งแม่น (ซึ่งเป็นสิ่งที่อยากเก็บไว้จริงๆ)
+  const _COACH_WIN=90, _COACH_LIMIT=800;
+  const cutoff=firebase.firestore.Timestamp.fromDate(new Date(Date.now()-_COACH_WIN*24*60*60*1000));
+  _coachUnsub=db.collection('submissions').where('createdAt','>=',cutoff).orderBy('createdAt','desc').limit(_COACH_LIMIT)
     .onSnapshot(snap=>{
       allSubs=snap.docs.map(d=>{const dat=d.data();delete dat.photoBase64;return{id:d.id,...dat};});
+      _subsTruncated=snap.docs.length>=_COACH_LIMIT; // ชนเพดาน = ข้อมูลเก่ากว่านี้ถูกตัด ตัวเลขอาจต่ำกว่าจริง
+      // v57.1: ข้ามการวาดใหม่เมื่อ "ไม่มีเอกสารไหนเปลี่ยนจริง" — เดิมทุก snapshot จะล้างหน้าทั้งหน้า
+      // ทำให้จอเด้งกลับบนสุด และข้อความที่โค้ชพิมพ์ค้างอยู่หาย (ยิ่งนักเรียนเยอะยิ่งเจอถี่)
+      //
+      // BUGFIX: v55 ใช้ลายเซ็นจาก id+status ซึ่งพลาด — โค้ชแก้ค่ามื้อที่ "อนุมัติแล้ว" ซ้ำอีกรอบ
+      // status ไม่เปลี่ยน (approved เหมือนเดิม) ลายเซ็นเลยเท่าเดิม → หน้าไม่อัปเดต โค้ชนึกว่าบันทึกไม่ติด
+      // ใช้ docChanges() ของ Firestore แทน = รู้แน่ชัดว่ามีเอกสารไหนเพิ่ม/แก้/ลบบ้าง ไม่ต้องเดาเอง
+      let _changed=true;
+      try{_changed=snap.docChanges().length>0;}catch(_){}
+      if(!_changed&&_coachRendered)return; // ไม่มีอะไรเปลี่ยน และเคยวาดไปแล้ว → ไม่ต้องวาดซ้ำ
+      _coachRendered=true;
       renderCoach();
     },err=>console.error(err));
 }
@@ -5190,6 +5245,7 @@ function selCoachTab(tab){
   document.querySelectorAll('.coach-tab').forEach(t=>t.classList.remove('active'));
   tab.classList.add('active');
   coachTab=tab.dataset.tab;
+  _doneShown=_DONE_PAGE; // v54.1: เปลี่ยนแท็บแล้วเริ่มนับใหม่
   // cancel prefetch ถ้าออกจาก students tab ก่อน 800ms
   if(coachTab!=='students')clearTimeout(_prefetchTimer);
   if(coachTab==='mylog'){enterCoachLog();return;}
@@ -5197,6 +5253,13 @@ function selCoachTab(tab){
 }
 function renderCoach(){
   const pending=allSubs.filter(s=>s.status==='pending'),done=allSubs.filter(s=>s.status!=='pending');
+  // v57: คำนวณจาก allSubs (เรียงใหม่→เก่า) ไม่ใช่จากรายการที่กำลังวาด — ไม่งั้นพอโค้ชกดอนุมัติจากแท็บ "รออนุมัติ"
+  // การ์ดจะวาดใหม่ทันทีโดยที่ชุดนี้ยังว่าง แล้วรูปที่เพิ่งตรวจจะหายวับไปต่อหน้า
+  // v59: รวม "รายการที่โค้ชเพิ่งอนุมัติใน session นี้" เข้าไปด้วย
+  // เคสจริง: เคลียร์ของค้าง 3 วันก่อน พออนุมัติปุ๊บมันไปเรียงอยู่ท้ายๆ (เรียงตามเวลาที่นักเรียนส่ง)
+  // หลุดจาก 10 ล่าสุดทันที → รูปที่เพิ่งตรวจหายไปต่อหน้า กดดูซ้ำไม่ได้เลย
+  _photoOkIds=new Set(done.slice(0,_PHOTO_KEEP).map(x=>x.id));
+  _justActedIds.forEach(id=>_photoOkIds.add(id));
   const badge=document.getElementById('pending-count');
   if(pending.length>0){badge.style.display='inline-block';badge.textContent=pending.length;}else{badge.style.display='none';}
   const container=document.getElementById('cards-container');
@@ -5220,7 +5283,9 @@ function renderCoach(){
     list.forEach(s=>{if(!groups[s.userId]){groups[s.userId]=[];order.push(s.userId);}groups[s.userId].push(s);});
     // เรียงกลุ่ม: คนที่ส่งล่าสุดอยู่บนสุด
     order.sort((a,b)=>Math.max(...groups[b].map(s=>s.createdAt?.seconds||0))-Math.max(...groups[a].map(s=>s.createdAt?.seconds||0)));
-    container.innerHTML=order.map(uid=>{
+    // v55: จำกัดจำนวนกลุ่มที่วาดต่อรอบ — โค้ชหายไปหลายวันอาจมีค้างเป็นร้อยรายการ วาดทีเดียวเครื่องค้าง
+    const _ordShown=order.slice(0,_doneShown);
+    container.innerHTML=_ordShown.map(uid=>{
       // ในกลุ่ม: มื้อเก่าก่อน → อนุมัติตามลำดับที่นักเรียนกินจริง
       const subs=groups[uid].slice().sort((a,b)=>(a.createdAt?.seconds||0)-(b.createdAt?.seconds||0));
       const u0=subs[0];
@@ -5232,12 +5297,18 @@ function renderCoach(){
         <span style="font-size:14px;font-weight:700;font-family:'Prompt',sans-serif;color:var(--text)">${escHtml(u0.displayName||'นักเรียน')}</span>
         <span style="background:#FEF3C7;color:#92400E;border-radius:10px;padding:1px 9px;font-size:11px;font-weight:700">${subs.length} รายการ</span>
       </div>`+subs.map(s=>buildCard(s)).join('');
-    }).join('');
+    }).join('')
+    +(order.length>_doneShown?`<button onclick="showMoreDone()" style="width:100%;margin:14px 0 8px;padding:12px;background:var(--card);border:1.5px solid var(--border);border-radius:12px;color:var(--primary-dark);font-size:13px;font-weight:600;font-family:'Prompt',sans-serif;cursor:pointer">👥 ดูนักเรียนที่รออนุมัติเพิ่ม (เหลืออีก ${order.length-_doneShown} คน)</button>`:'');
     return;
   }
-  container.innerHTML=list.map(s=>buildCard(s)).join('');
+  // v54.1: วาดทีละหน้า ไม่วาดทั้ง 800 ใบรวดเดียว
+  const _shown=list.slice(0,_doneShown);
+  container.innerHTML=_shown.map(s=>buildCard(s)).join('')
+    +(list.length>_doneShown?`<button onclick="showMoreDone()" style="width:100%;margin:14px 0 8px;padding:12px;background:var(--card);border:1.5px solid var(--border);border-radius:12px;color:var(--primary-dark);font-size:13px;font-weight:600;font-family:'Prompt',sans-serif;cursor:pointer">📅 ดูเพิ่มอีก ${Math.min(_DONE_PAGE,list.length-_doneShown)} รายการ (เหลือ ${list.length-_doneShown})</button>`:'');
 }
+function showMoreDone(){_doneShown+=_DONE_PAGE;renderCoach();}
 function setCoachFilter(f){
+  _doneShown=_DONE_PAGE; // v59: เปลี่ยนตัวกรองแล้วเริ่มนับหน้าใหม่
   coachFilter=f;
   renderCoach();
 }
@@ -5311,10 +5382,10 @@ function buildStudentCard(u,MON){
       <div style="flex:1">
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
           <div class="stu-name">${escHtml(u.displayName||'นักเรียน')}</div>
-          ${streak>0?`<span class="stu-streak">🔥 ${streak} วัน</span>`:''}
+          ${streak>0?`<span class="stu-streak" title="${_subsTruncated?'ข้อมูลเกินเพดานที่ดึงมา ตัวเลขจริงอาจมากกว่านี้':''}">🔥 ${streak}${_subsTruncated?'+':''} วัน</span>`:''}
           ${showTestiBadge?`<span class="stu-testimonial-badge">⭐ ขอ Review</span>`:''}
         </div>
-        <div style="font-size:11px;color:var(--gray);margin-top:2px">avg ${avgKcal} kcal/วัน <span style="font-size:9px">(สัปดาห์นี้)</span> · log ${uniqueDays} วัน</div>
+        <div style="font-size:11px;color:var(--gray);margin-top:2px">avg ${avgKcal} kcal/วัน <span style="font-size:9px">(สัปดาห์นี้)</span> · log ${uniqueDays}${_subsTruncated?'+':''} วัน</div>
       </div>
     </div>
     <div style="font-size:9px;color:#9CA3AF;margin-bottom:3px">📅 สัปดาห์นี้ (จ–อา)</div>
@@ -5371,7 +5442,9 @@ async function prefetchStudent(userId){
     const [tdSnap,hsSnap,wsSnap,wcSnap]=await Promise.all([
       Promise.race([db.collection('students').doc(userId).get().catch(()=>null),_pft(8000)]),
       Promise.race([db.collection('healthLogs').doc(userId).collection('days').where(firebase.firestore.FieldPath.documentId(),'>=',_hld(30)).get().catch(()=>null),_pft(8000)]),
-      Promise.race([db.collection('students').doc(userId).collection('weeklySummaries').orderBy('weekStart','desc').limit(4).get().catch(()=>null),_pft(8000)]),
+      // BUGFIX v54.1: เดิม limit(4) แต่หน้าจอแสดงได้ถึง ~9 สัปดาห์ → สัปดาห์เก่าโชว์ช่องโน้ตว่างทั้งที่มีโน้ตอยู่จริง
+      // โค้ชพิมพ์ทับแล้วกดบันทึก = โน้ตเดิมหายถาวร
+      Promise.race([db.collection('students').doc(userId).collection('weeklySummaries').orderBy('weekStart','desc').limit(16).get().catch(()=>null),_pft(8000)]),
       Promise.race([db.collection('weeklyChecks').doc(userId).collection('entries').orderBy('date','desc').limit(20).get().catch(()=>null),_pft(8000)]),
     ]);
     let targets={kcal:1600,c:160,p:120,f:55};
@@ -5462,7 +5535,7 @@ async function openStudentDetail(userId){
   const _p2Q=q=>Promise.race([q.get().catch(()=>null),_p2T(8000)]).then(r=>r||q.get({source:'cache'}).catch(()=>null));
   const [hsSnap,wsSnap,wcSnap]=await Promise.all([
     _p2Q(db.collection('healthLogs').doc(userId).collection('days').where(firebase.firestore.FieldPath.documentId(),'>=',_hld(30))),
-    _p2Q(db.collection('students').doc(userId).collection('weeklySummaries').orderBy('weekStart','desc').limit(4)),
+    _p2Q(db.collection('students').doc(userId).collection('weeklySummaries').orderBy('weekStart','desc').limit(16)), // v54.1: ต้องครอบคลุมทุกสัปดาห์ที่แสดง ไม่งั้นโน้ตโค้ชหาย
     _p2Q(db.collection('weeklyChecks').doc(userId).collection('entries').orderBy('date','desc').limit(20)),
   ]);
   if(!hsSnap)_hlE='timeout/เน็ตช้า';
@@ -5645,8 +5718,11 @@ function setToneBtn(id,tone){
     if(t===tone){btn.style.background=t==='good'?'#059669':t==='fix'?'#D97706':'#DC2626';btn.style.color='white';btn.style.fontWeight='700';}
     else{btn.style.background='#F3F4F6';btn.style.color='var(--text)';btn.style.fontWeight='400';}
   });
+  // BUGFIX v54.1: เดิมเช็ค ta._userEdited ซึ่งไม่มีใครตั้งค่าเลย = เป็น undefined ตลอด
+  // ผลคือโค้ชพิมพ์ข้อความเองแล้วเผลอกดปุ่มโทน ข้อความที่พิมพ์จะถูกทับด้วยข้อความสำเร็จรูปทันที
+  const cs0=cState[id]||{};
   const ta=document.getElementById(`approve-comment-${id}`);
-  if(ta&&!ta._userEdited)ta.value=DEFAULTS[tone];
+  if(ta&&!cs0._cmtEdited)ta.value=DEFAULTS[tone];
 }
 async function checkCoachComments(){
   if(!studentSubsCache)return;
@@ -6544,7 +6620,7 @@ function buildCard(s){
       chips=wd.aiItems.map(it=>`<span class="est-chip gram"${it._src&&it._src!=='db'?' style="background:#FEF3C7;color:#92400E" title="AI ประมาณเอง (ไม่มีในฐานข้อมูล) — ควรตรวจ"':''}>${it._src&&it._src!=='db'?'🤖 ':''}${escHtml(it.name||'')} ${escHtml(it.amount||'')} · C${it.c} P${it.p} F${it.f}</span>`).join('');
     }else{
       const wKcalC=Math.round((wd.carb||0)*4+(wd.protein||0)*4+(wd.fat||0)*9);
-      chips=`<span class="est-chip gram">${wd.food}</span><span class="est-chip gram">C:${wd.carb||0}g</span><span class="est-chip gram">P:${wd.protein||0}g</span><span class="est-chip gram">F:${wd.fat||0}g</span><span class="est-chip gram">⚡${wKcalC}kcal</span>`;
+      chips=`<span class="est-chip gram">${escHtml(wd.food||'')}</span><span class="est-chip gram">C:${wd.carb||0}g</span><span class="est-chip gram">P:${wd.protein||0}g</span><span class="est-chip gram">F:${wd.fat||0}g</span><span class="est-chip gram">⚡${wKcalC}kcal</span>`;
     }
   }
   const m=getSubMacros(s);
@@ -6555,7 +6631,17 @@ function buildCard(s){
   const corrNote=s.correction?`<div class="corr-note">✏️ ปรับค่า → C ${s.correction.carb} · P ${s.correction.protein} · F ${s.correction.fat}${s.correction.note?'<br>💬 '+escHtml(s.correction.note):''}</div>`:'';
   const _photos=(s.photoUrls||[]).filter(Boolean);
   if(!_photos.length&&(s.photoUrl||s.photoBase64))_photos.push(s.photoUrl||s.photoBase64);
-  const photoHtml=_photos.length===0?'':_photos.length===1
+  // v55.1: มื้อที่ตรวจผ่านแล้ว ไม่ต้องโหลดรูปมาแสดง — โค้ชดูไปแล้วตอนอนุมัติ
+  // รูปคือของหนักที่สุดในการ์ด (ไฟล์ละหลายร้อย KB) การโหลด 40-400 ใบพร้อมกันคือสาเหตุที่เครื่องค้าง
+  // ยังกดดูย้อนหลังได้ แค่โหลดตอนกดเท่านั้น
+  // ยังไม่อนุมัติ → โชว์รูปทั้งหมดทันที (โค้ชต้องเห็นถึงจะตรวจได้)
+  // อนุมัติแล้ว → 10 รายการล่าสุดมีปุ่มกดดู · เก่ากว่านั้นไม่ต้องแสดงอะไร
+  const _photoDone=s.status!=='pending';
+  const photoHtml=_photos.length===0?''
+    :(_photoDone&&!_photoOkIds.has(s.id))?''
+    :_photoDone
+    ?`<div id="ph-${s.id}" style="padding:6px 12px 0"><button onclick="showCardPhotos('${s.id}')" style="background:var(--light);border:1px solid var(--border);border-radius:8px;padding:5px 12px;font-size:11.5px;font-family:'Prompt',sans-serif;color:var(--gray);cursor:pointer">📷 ดูรูป${_photos.length>1?' ('+_photos.length+')':''}</button></div>`
+    :_photos.length===1
     ?`<img class="card-photo" src="${_photos[0]}" loading="lazy">`
     :`<div style="display:flex;gap:6px;overflow-x:auto;padding:8px 12px 4px;-webkit-overflow-scrolling:touch">${_photos.map(u=>`<img src="${u}" loading="lazy" style="height:110px;width:110px;object-fit:cover;border-radius:8px;flex-shrink:0">`).join('')}</div>`;
   const avatarHtml=s.pictureUrl?`<img src="${s.pictureUrl}" onerror="this.src=''" alt="">`:`<div style="width:38px;height:38px;border-radius:50%;background:var(--light);display:flex;align-items:center;justify-content:center;font-size:18px">👤</div>`;
@@ -6572,9 +6658,11 @@ function buildCard(s){
       ${['good','fix','warn'].map(t=>`<button class="tone-btn" id="tone-${t}-${s.id}" onclick="setToneBtn('${s.id}','${t}')"
         style="${(cs._tone||'good')===t?'background:'+(t==='good'?'#059669':t==='fix'?'#D97706':'#DC2626')+';color:white;font-weight:700':''}">${{good:'✅ ชม',fix:'📝 แนะนำ',warn:'⚠️ เตือน'}[t]}</button>`).join('')}
     </div>
-    <textarea id="approve-comment-${s.id}" rows="3"
+    <!-- BUGFIX v54.1: จำข้อความที่โค้ชพิมพ์ไว้ใน cState — เดิมพอนักเรียนคนไหนบันทึกมื้อ หน้าจะวาดใหม่ทั้งหมด
+         ข้อความที่โค้ชกำลังพิมพ์ค้างอยู่จะหายกลางคัน (ยิ่งนักเรียนเยอะยิ่งเจอบ่อย) -->
+    <textarea id="approve-comment-${s.id}" rows="3" oninput="cState['${s.id}']=cState['${s.id}']||{};cState['${s.id}']._cmt=this.value;cState['${s.id}']._cmtEdited=true;"
       style="width:100%;border:1.5px solid #BBF7D0;border-radius:8px;padding:8px;font-size:12px;font-family:'Prompt',sans-serif;background:white;resize:none;box-sizing:border-box"
-      placeholder="ข้อความสำหรับนักเรียน...">${TONE_DEFAULTS[cs._tone||'good']}</textarea>
+      placeholder="ข้อความสำหรับนักเรียน...">${escHtml(cs._cmtEdited?(cs._cmt||''):TONE_DEFAULTS[cs._tone||'good'])}</textarea>
     ${(s.photoBase64||s.photoUrl||s.photoUrls?.length)?`<label style="display:flex;align-items:center;gap:6px;font-size:11px;color:#374151;margin-top:6px">
       <input type="checkbox" id="approve-photo-${s.id}" checked> แนบรูปอาหารไปด้วย</label>`:''}
     <div style="display:flex;gap:6px;margin-top:8px">
@@ -6583,7 +6671,9 @@ function buildCard(s){
     </div>
   </div>`:'';
   const commentBadge=s.coachComment&&s.status!=='pending'?`<div class="hist-coach-comment" style="background:#F0FDF4;color:#065F46;margin-top:6px">💬 ${escHtml(s.coachComment)}</div>`:'';
-  if(s.status==='pending')actions=`<div class="card-actions"><button class="btn-approve" onclick="doApproveQuiet('${s.id}')">✅ อนุมัติ</button><button class="btn-correct" onclick="toggleCorr('${s.id}')">${showCorr?'✕ ยกเลิก':'✏️ แก้ไข + ส่ง Card'}</button></div>`;
+  // BUGFIX v58: เดิมไม่มีปุ่มไหนเปิดแผง "อนุมัติ + ข้อความ" ได้เลย (approveCard ถูกเรียกจากปุ่มยกเลิก
+  // ที่อยู่ข้างในแผงตัวเองเท่านั้น) → โค้ชส่งข้อความชมนักเรียนตอนอนุมัติไม่ได้ ทั้งที่มีระบบรออยู่ครบ
+  if(s.status==='pending')actions=`<div class="card-actions"><button class="btn-approve" onclick="doApproveQuiet('${s.id}')">✅ อนุมัติ</button><button class="btn-approve" style="background:#ECFDF5;color:#065F46;border:1px solid #A7F3D0" onclick="approveCard('${s.id}')">${showApprove?'✕ ปิด':'💬 อนุมัติ + ข้อความ'}</button><button class="btn-correct" onclick="toggleCorr('${s.id}')">${showCorr?'✕ ยกเลิก':'✏️ แก้ไข'}</button></div>`;
   // F1: การ์ดที่อนุมัติ/แก้ไปแล้ว → โค้ชกลับมาแก้ใหม่ได้ (บันทึกแล้วส่ง Card อัปเดตให้นักเรียน)
   else if(s.status==='approved'||s.status==='corrected')actions=`<div class="card-actions"><button class="btn-correct" onclick="toggleCorr('${s.id}')" style="flex:1">${showCorr?'✕ ยกเลิก':'✏️ แก้ไขการอนุมัติ'}</button></div>`;
   const corrPanel=showCorr?buildCorrPanel(s,cs):'';
@@ -6680,7 +6770,7 @@ ${s.correction?`<div style="background:#FEF3C7;border:1px solid #FDE68A;border-r
 <div id="hc-summary-${s.id}" style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:6px 12px;margin:2px 0 8px;font-size:11px;color:#64748B;text-align:center">นักเรียนกรอก: <del>C${origTotal.c}g · P${origTotal.p}g · F${origTotal.f}g = ${origTotal.kcal}kcal</del><br>แก้เป็น: <span style="color:#059669">C${preC}g · P${preP}g · F${preF}g = ${preKcal}kcal</span></div>
 <div class="feedback-chips"><span class="fchip fchip-green" onclick="setCoachChip('${s.id}','✅ กรอกถูกแล้ว เก่งมากเลย!')">✅ กรอกถูกแล้ว</span><span class="fchip fchip-green" onclick="setCoachChip('${s.id}','✏️ โค้ชแก้ให้แล้ว เช็คดูได้เลยนะคะ')">✏️ โค้ชแก้ให้แล้ว</span><span class="fchip fchip-yellow" onclick="setCoachChip('${s.id}','🍚 คาร์บเยอะไปนิด ลองลดหน่อยนะคะ')">🍚 คาร์บเยอะไปนิด</span><span class="fchip fchip-yellow" onclick="setCoachChip('${s.id}','💪 โปรตีนน้อยไป ครั้งหน้าเพิ่มได้เลย')">💪 โปรตีนน้อยไป</span><span class="fchip fchip-yellow" onclick="setCoachChip('${s.id}','🥑 ไขมันเกินนิดนึง ระวังด้วยนะคะ')">🥑 ไขมันเกิน</span><span class="fchip fchip-gray" onclick="setCoachChip('${s.id}','🎉 วันนี้ทำได้ดีมาก! Keep going!')">🎉 ทำได้ดีมาก!</span><span class="fchip fchip-gray" onclick="setCoachChip('${s.id}','🥗 อย่าลืมเพิ่มผักด้วยนะคะ')">🥗 อย่าลืมผัก</span><span class="fchip fchip-gray" onclick="setCoachChip('${s.id}','💧 ดื่มน้ำให้ครบด้วยนะคะ')">💧 ดื่มน้ำให้ครบ</span></div>
 <div style="display:flex;justify-content:flex-end;margin-bottom:4px"><button onclick="genCorrNote('${s.id}')" style="padding:5px 12px;background:#EDE9FE;border:none;border-radius:8px;font-size:12px;font-family:'Prompt',sans-serif;color:#6D28D9;cursor:pointer">✨ Gen ข้อความ</button></div>
-<textarea class="corr-note-ta" id="cc-note-${s.id}" rows="3" placeholder="ข้อความถึงนักเรียน (ไม่บังคับ)...">${escHtml(cs.note||'')}</textarea>
+<textarea class="corr-note-ta" id="cc-note-${s.id}" rows="3" oninput="cState['${s.id}']=cState['${s.id}']||{};cState['${s.id}'].note=this.value;" placeholder="ข้อความถึงนักเรียน (ไม่บังคับ)...">${escHtml(cs.note||'')}</textarea>
 <div style="display:flex;gap:8px;margin-top:6px"><button class="btn-send-corr" style="flex:1" onclick="sendCorrection('${s.id}','save')">💾 บันทึก</button><button class="btn-send-corr" style="flex:1;background:#2563EB" onclick="sendCorrection('${s.id}','copy')">📋 Copy ข้อความ</button></div>
 </div>`;
   }
@@ -6709,10 +6799,20 @@ ${s.correction?`<div style="background:#FEF3C7;border:1px solid #FDE68A;border-r
 <div id="corr-preview-${s.id}" data-origc="${origC}" data-origp="${origP}" data-origf="${origF}" style="background:#F0FDF4;border-radius:8px;padding:8px 12px;margin:6px 0 4px;font-size:13px;font-weight:700;color:#15803D;text-align:center">C ${carb}g · P ${prot}g · F ${fat}g → ⚡ ${prevKcal} kcal${kcalDiffBadge}</div>
 <div class="feedback-chips"><span class="fchip fchip-green" onclick="setCoachChip('${s.id}','✅ กรอกถูกแล้ว เก่งมากเลย!')">✅ กรอกถูกแล้ว</span><span class="fchip fchip-green" onclick="setCoachChip('${s.id}','✏️ โค้ชแก้ให้แล้ว เช็คดูได้เลยนะคะ')">✏️ โค้ชแก้ให้แล้ว</span><span class="fchip fchip-yellow" onclick="setCoachChip('${s.id}','🍚 คาร์บเยอะไปนิด ลองลดหน่อยนะคะ')">🍚 คาร์บเยอะไปนิด</span><span class="fchip fchip-yellow" onclick="setCoachChip('${s.id}','💪 โปรตีนน้อยไป ครั้งหน้าเพิ่มได้เลย')">💪 โปรตีนน้อยไป</span><span class="fchip fchip-yellow" onclick="setCoachChip('${s.id}','🥑 ไขมันเกินนิดนึง ระวังด้วยนะคะ')">🥑 ไขมันเกิน</span><span class="fchip fchip-gray" onclick="setCoachChip('${s.id}','🎉 วันนี้ทำได้ดีมาก! Keep going!')">🎉 ทำได้ดีมาก!</span><span class="fchip fchip-gray" onclick="setCoachChip('${s.id}','🥗 อย่าลืมเพิ่มผักด้วยนะคะ')">🥗 อย่าลืมผัก</span><span class="fchip fchip-gray" onclick="setCoachChip('${s.id}','💧 ดื่มน้ำให้ครบด้วยนะคะ')">💧 ดื่มน้ำให้ครบ</span></div>
 <div style="display:flex;justify-content:flex-end;margin-bottom:4px"><button onclick="genCorrNote('${s.id}')" style="padding:5px 12px;background:#EDE9FE;border:none;border-radius:8px;font-size:12px;font-family:'Prompt',sans-serif;color:#6D28D9;cursor:pointer">✨ Gen ข้อความ</button></div>
-<textarea class="corr-note-ta" id="cc-note-${s.id}" rows="3" placeholder="ข้อความถึงนักเรียน (ไม่บังคับ)...">${escHtml(cs.note||'')}</textarea>
+<textarea class="corr-note-ta" id="cc-note-${s.id}" rows="3" oninput="cState['${s.id}']=cState['${s.id}']||{};cState['${s.id}'].note=this.value;" placeholder="ข้อความถึงนักเรียน (ไม่บังคับ)...">${escHtml(cs.note||'')}</textarea>
 <div style="display:flex;gap:8px;margin-top:6px"><button class="btn-send-corr" style="flex:1" onclick="sendCorrection('${s.id}','save')">💾 บันทึก</button><button class="btn-send-corr" style="flex:1;background:#2563EB" onclick="sendCorrection('${s.id}','copy')">📋 Copy ข้อความ</button></div></div>`;
 }
 
+// v55.1: โหลดรูปเฉพาะตอนโค้ชกดดู (มื้อที่อนุมัติแล้วไม่โหลดรูปอัตโนมัติ)
+function showCardPhotos(id){
+  const s=allSubs.find(x=>x.id===id);if(!s)return;
+  const ph=(s.photoUrls||[]).filter(Boolean);
+  if(!ph.length&&(s.photoUrl||s.photoBase64))ph.push(s.photoUrl||s.photoBase64);
+  const box=document.getElementById('ph-'+id);if(!box||!ph.length)return;
+  box.innerHTML=ph.length===1
+    ?`<img src="${ph[0]}" style="width:100%;border-radius:8px" loading="lazy">`
+    :`<div style="display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch">${ph.map(u=>`<img src="${u}" loading="lazy" style="height:110px;width:110px;object-fit:cover;border-radius:8px;flex-shrink:0">`).join('')}</div>`;
+}
 function _updateCard(id){const s=allSubs.find(x=>x.id===id);const el=document.getElementById('card-'+id);if(s&&el){el.outerHTML=buildCard(s);}else{renderCoach();}}
 function setCoachCorrMode(id,mode){if(!cState[id])cState[id]={};cState[id].corrMode=mode;delete cState[id].carb;delete cState[id].protein;delete cState[id].fat;_updateCard(id);}
 function toggleCorr(id){if(!cState[id])cState[id]={};cState[id].open=!cState[id].open;_updateCard(id);}
@@ -6850,6 +6950,7 @@ function updateHandCorrPreview(id){
 function setCoachChip(id,text){
   const ta=document.getElementById(`cc-note-${id}`);
   if(ta){ta.value=text;ta.focus();}
+  cState[id]=cState[id]||{};cState[id].note=text; // v54.1: จำไว้ ไม่งั้นหน้าวาดใหม่แล้วข้อความหาย
 }
 function genCorrNote(id){
   let oC,oP,oF,nC,nP,nF;
@@ -6877,11 +6978,13 @@ function genCorrNote(id){
   fmt('🍚 คาร์บ',oC,nC);fmt('💪 โปรตีน',oP,nP);fmt('🥑 ไขมัน',oF,nF);
   if(!lines.length){showToast('ยังไม่มีค่าที่เปลี่ยนค่ะ');return;}
   const ta=document.getElementById(`cc-note-${id}`);
-  if(ta){ta.value=`โค้ชปรับค่าให้นะคะ 💪\n${lines.join('\n')}\n\n`;ta.focus();}
+  if(ta){ta.value=`โค้ชปรับค่าให้นะคะ 💪\n${lines.join('\n')}\n\n`;ta.focus();cState[id]=cState[id]||{};cState[id].note=ta.value;} // v54.1: จำไว้กันหน้าวาดใหม่แล้วหาย
 }
 function approveCard(id){if(!cState[id])cState[id]={};cState[id].approveOpen=!cState[id].approveOpen;renderCoach();}
 const _approveInProgress=new Set(); // M1: ป้องกัน double-tap
 async function doApproveQuiet(id){
+  _justActedIds.add(id); // v59: จำไว้ว่าโค้ชเพิ่งจัดการรายการนี้ → ยังกดดูรูปได้แม้หลุด 10 ล่าสุด
+  if(cState[id])delete cState[id]; // v59: ล้างสถานะการ์ด (รวม _sub ที่กินหน่วยความจำ) หลังจัดการเสร็จ
   if(_approveInProgress.has(id))return; // M1
   _approveInProgress.add(id);
   try{
@@ -6895,6 +6998,8 @@ async function doApproveQuiet(id){
   finally{_approveInProgress.delete(id);} // M1
 }
 async function doApprove(id){
+  _justActedIds.add(id); // v59: จำไว้ว่าโค้ชเพิ่งจัดการรายการนี้ → ยังกดดูรูปได้แม้หลุด 10 ล่าสุด
+  if(cState[id])delete cState[id]; // v59: ล้างสถานะการ์ด (รวม _sub ที่กินหน่วยความจำ) หลังจัดการเสร็จ
   if(_approveInProgress.has(id))return; // M1
   _approveInProgress.add(id);
   const tone=cState[id]?._tone||'good';
@@ -6929,6 +7034,7 @@ async function doApprove(id){
 }
 const _corrInProgress=new Set(); // M2: ป้องกัน double-tap correction
 async function sendCorrection(id,action='save'){
+  _justActedIds.add(id); // v59: จำไว้ว่าโค้ชเพิ่งจัดการรายการนี้ → ยังกดดูรูปได้แม้หลุด 10 ล่าสุด
   if(action==='save'){
     if(_corrInProgress.has(id))return; // M2
     _corrInProgress.add(id);
@@ -7550,6 +7656,8 @@ async function sendFeedbackCard(currentSub){
 
     flex=buildFeedbackFlex(subs.length,totC,totP,totF,totKcal,currentSub,subs);
     if(typeof liff!=='undefined'&&liff.isInClient()){
+      // v52.1: ส่งอัตโนมัติ = แค่เช็ค ไม่เด้งหน้าขออนุญาต (กันนักเรียนหลุดจากหน้าสรุปกลางคัน)
+      if(!await _ensureSendPermission(false))throw new Error('403: ยังไม่ได้อนุญาตให้ส่งข้อความ');
       await liff.sendMessages([flex]);
     }else{
       console.warn('sendFeedbackCard: liff not in client, isInClient=',typeof liff!=='undefined'?liff.isInClient():'liff undef');
@@ -7564,20 +7672,59 @@ async function sendFeedbackCard(currentSub){
 }
 // CARD-UX: ส่งอัตโนมัติไม่ได้ → เก็บ card ไว้ + โชว์ปุ่มให้นักเรียนกดส่งเอง (shareTargetPicker ใช้ได้ทุก context)
 let _lastFlex=null;
+// v52: LINE ต้องได้รับ "อนุญาตให้ส่งข้อความแทนฉัน" (chat_message.write) ก่อนถึงจะส่ง Card ได้
+// ถ้าไม่ได้รับ liff.sendMessages จะโยน 403 "user doesn't grant required permissions yet"
+// เคสที่เจอบ่อย: เคยกดยอมรับไว้ตั้งแต่ก่อนเราเพิ่ม scope ใหม่ (shareTargetPicker) → LINE ถือว่ายังไม่ยินยอมชุดใหม่
+// ฟังก์ชันนี้เช็คก่อนส่ง ถ้ายังไม่อนุญาตจะเด้งหน้าขออนุญาตให้เอง (ทำครั้งเดียวจบ ไม่ต้องให้โค้ชไล่สอนทีละคน)
+// v52.1 ปรับดีไซน์หลังทบทวนความเสี่ยง:
+//   ask=false (ส่งอัตโนมัติ) → "ถามเฉยๆ ไม่เด้งหน้าขออนุญาต" — เพราะหน้ายินยอมของ LINE อาจพาออกจากแอป
+//                              ทำให้นักเรียนหลุดจากหน้าสรุปกลางคัน ทั้งที่เพิ่งกดบันทึกเสร็จ
+//   ask=true  (นักเรียนกดปุ่ม 📤 เอง) → เด้งหน้าขออนุญาตได้ เพราะเป็นการกระทำที่เขาตั้งใจ
+// ทุก call มี timeout กันค้าง (เคยเจอมาแล้วว่า await ที่ไม่มี timeout = ค้างเงียบ)
+let _permAsked=false;
+function _permRace(p,ms){return Promise.race([p.catch(()=>null),new Promise(r=>setTimeout(()=>r(null),ms))]);}
+async function _ensureSendPermission(ask){
+  try{
+    if(typeof liff==='undefined'||!liff.isInClient())return true; // นอกแอป LINE ไม่ต้องเช็ค
+    if(!liff.permission||!liff.permission.query)return true;       // SDK เก่าไม่มี API นี้ — ปล่อยผ่านไปลองส่งเลย
+    const st=await _permRace(liff.permission.query('chat_message.write'),4000);
+    if(!st)return true;                                            // ถามไม่ได้/ช้า → อย่าบล็อก ลองส่งตามปกติ
+    if(st.state==='granted')return true;
+    if(!ask)return false;                                          // ส่งอัตโนมัติ: รู้ว่าไม่ผ่าน ก็ไม่ต้องยิงให้เสียเวลา
+    if(_permAsked)return false;                                    // ขอไปแล้วรอบนี้ อย่าเด้งซ้ำให้รำคาญ
+    _permAsked=true;
+    if(liff.permission.requestAll)await _permRace(liff.permission.requestAll(),20000);
+    const st2=await _permRace(liff.permission.query('chat_message.write'),4000);
+    return !!(st2&&st2.state==='granted');
+  }catch(_){return true;} // เช็คไม่ได้ = อย่าไปบล็อกการส่ง ลองส่งตามปกติ
+}
 function _offerManualCard(flex,reason){
   _lastFlex=flex;
   const scr=document.getElementById('success-screen');
   const onSuccessScreen=scr&&scr.style.display==='flex'; // ปุ่มอยู่บนหน้า success — โชว์/พูดถึงเฉพาะตอนหน้านั้นเปิดอยู่
   const b=document.getElementById('btn-resend-card');
   if(b&&onSuccessScreen)b.style.display='inline-block';
-  showToast(onSuccessScreen
+  // v52: แยกข้อความกรณี "ยังไม่ได้อนุญาต" ออกมา เพราะนักเรียนแก้เองได้ (ต่างจากเคสเปิดนอกห้องแชทที่แก้ไม่ได้)
+  const isPerm=/403|permission|grant/i.test(String(reason||''));
+  showToast(isPerm
+    ?'📱 มื้อบันทึกแล้วค่ะ ✅ — LINE ยังไม่ได้รับอนุญาตให้ส่ง Card แทนคุณ กดปุ่ม 📤 ด้านล่างเพื่ออนุญาตครั้งเดียว แล้วครั้งต่อไปจะเด้งเองค่ะ'
+    :onSuccessScreen
     ?'📱 มื้อบันทึกเรียบร้อยแล้ว ไม่ต้องส่งซ้ำนะคะ — กดปุ่ม 📤 ด้านล่างถ้าอยากได้ Card ในแชทค่ะ'
-    :'📱 มื้อบันทึกเรียบร้อยแล้วค่ะ (Card ในแชทส่งไม่ได้ — ดูสรุปได้ที่ Dashboard นะคะ)',5000);
+    :'📱 มื้อบันทึกเรียบร้อยแล้วค่ะ (Card ในแชทส่งไม่ได้ — ดูสรุปได้ที่ Dashboard นะคะ)',isPerm?6500:5000);
   if(typeof _reportError==='function')_reportError('card-fail',reason,'','sendFeedbackCard');
 }
 async function resendCardManually(){
   if(!_lastFlex){showToast('ไม่มี Card ค้างส่งค่ะ');return;}
   try{
+    // v52: ลองส่งเข้าห้องแชทตรงๆ ก่อน (หลังนักเรียนกดอนุญาตแล้วมักผ่าน) — ได้ Card ในห้องโค้ชเลย ไม่ต้องเลือกผู้รับ
+    if(typeof liff!=='undefined'&&liff.isInClient()&&await _ensureSendPermission(true)){ // v52.1: true = นักเรียนกดเอง เด้งหน้าขออนุญาตได้
+      try{
+        await liff.sendMessages([_lastFlex]);
+        showToast('✅ ส่ง Card แล้วค่ะ');
+        const b0=document.getElementById('btn-resend-card');if(b0)b0.style.display='none';
+        _lastFlex=null;return;
+      }catch(_){/* ส่งตรงไม่ได้ → ตกไปใช้ตัวเลือกผู้รับด้านล่าง */}
+    }
     if(typeof liff!=='undefined'&&liff.shareTargetPicker){
       await liff.shareTargetPicker([_lastFlex]);
       showToast('✅ ส่ง Card แล้วค่ะ');
