@@ -879,14 +879,32 @@ const db = firebase.firestore();
 db.settings({experimentalAutoDetectLongPolling:true,merge:true});
 const storage = firebase.storage();
 // Firebase Anonymous Auth — ให้ทุก user มี auth token สำหรับ Firestore Rules
-firebase.auth().signInAnonymously().catch(e=>console.warn('anon auth:',e));
+// v65: ทำให้เชื่อถือได้ก่อนจะไปขัน Rules — ลองใหม่ 3 ครั้ง และรายงานถ้ายังไม่สำเร็จ
+// ถ้าขัน Rules เป็น request.auth != null ทั้งที่ auth ยังล้มเหลวบางเครื่อง = แอปพังทันทีสำหรับคนกลุ่มนั้น
+let _authOk=false;
+const _authReady=(async()=>{
+  for(let i=0;i<3;i++){
+    try{
+      if(firebase.auth().currentUser){_authOk=true;return true;}
+      await firebase.auth().signInAnonymously();
+      _authOk=true;return true;
+    }catch(e){
+      if(i===2){ // ครบ 3 ครั้งแล้วยังไม่ได้ → จดไว้ให้เห็นใน errorLogs
+        try{setTimeout(()=>{if(typeof _reportError==='function')_reportError('auth-fail',(e&&e.code||'')+' '+(e&&e.message||''),'','signInAnonymously');},3000);}catch(_){}
+        return false;
+      }
+      await new Promise(r=>setTimeout(r,800*(i+1)));
+    }
+  }
+  return false;
+})();
 // Offline persistence — reload ครั้งที่ 2+ โหลดจาก cache ทันที
 db.enablePersistence({synchronizeTabs:true}).catch(e=>{console.warn('Persistence:',e.code);});
 
 // ===== AUTO ERROR REPORTING → Firestore errorLogs =====
 // JS error ที่เกิดบนเครื่องลูกค้าจะถูกส่งเข้า collection 'errorLogs' อัตโนมัติ
 // ดูได้ใน Firebase Console → Firestore → errorLogs (เรียงตาม at ล่าสุด)
-const APP_VERSION='v62-2026-08-16'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
+const APP_VERSION='v69-2026-08-17'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
 const _errLogged=new Set();let _errCount=0;
 function _reportError(type,msg,stack,src){
   try{
@@ -904,6 +922,7 @@ function _reportError(type,msg,stack,src){
       ua:navigator.userAgent.slice(0,200),
       ver:APP_VERSION,
       online:navigator.onLine,
+      authed:_authOk, // v66: auth นิรนามผ่านไหม — ใช้ตัดสินใจก่อนขัน Firestore Rules
       at:firebase.firestore.FieldValue.serverTimestamp()
     }).catch(()=>{}); // fire-and-forget — ห้าม throw เอง
   }catch(_){}
@@ -916,6 +935,44 @@ function _reportError(type,msg,stack,src){
 // เขียนแบบ "ยิงแล้วลืม" หลังนักเรียนเห็นผลลัพธ์ไปแล้ว → ไม่มีทางทำให้ช้าลง
 // เก็บเป็นตัวนับต่อชื่ออาหาร (increment) จะได้จัดอันดับได้ว่าควรเพิ่มอะไรก่อน
 let _dbMissCount=0;const _dbMissSeen=new Set();
+// v64: กัน XSS — URL รูปมาจากเอกสารที่ "เครื่องนักเรียน" เป็นคนเขียน
+// นักเรียนแก้ค่าให้เป็น  x" onerror="โค้ดอันตราย  แล้วมันจะรันในเครื่องโค้ชที่ล็อกอินอยู่
+function safeImg(u){
+  const v=String(u||'');
+  if(!/^(https:\/\/|data:image\/)/i.test(v))return '';
+  return v.replace(/[<>"'`\s]/g,'');
+}
+// v65: กล่องยืนยัน/กรอกข้อความในหน้าเว็บ (แทน confirm/prompt ที่ LINE บางรุ่นบล็อกเงียบๆ)
+// คืนค่าเป็น Promise — askConfirm → true/false · askText → ข้อความ หรือ null ถ้ายกเลิก
+let _dfAskPending=null; // v65.1: กล่องมีใบเดียว ถ้าเปิดซ้อนต้องปิดอันเก่าก่อน
+function _dfAsk(opt){
+  // BUGFIX v65.1: เดิมถ้ากดปุ่มที่เปิดกล่องสองอันติดกันเร็วๆ อันแรกจะถูกทับ
+  // แล้ว Promise ของอันแรกจะไม่มีวัน resolve → ฟังก์ชันนั้นค้างค้างไปตลอด (เช่น ปุ่มอนุมัติล็อกถาวร)
+  if(_dfAskPending){try{_dfAskPending();}catch(_){}_dfAskPending=null;}
+  return new Promise(res=>{
+    const box=document.getElementById('df-ask');
+    if(!box){res(opt.input?null:false);return;} // ไม่มี element (ไม่ควรเกิด) → ตอบปฏิเสธไว้ก่อน ปลอดภัยกว่า
+    _dfAskPending=()=>res(opt.input?null:false); // ถ้าถูกทับ = ถือว่ายกเลิก
+    const msg=document.getElementById('df-ask-msg'), inp=document.getElementById('df-ask-input');
+    const yes=document.getElementById('df-ask-yes'), no=document.getElementById('df-ask-no');
+    const icon=document.getElementById('df-ask-icon');
+    icon.textContent=opt.icon||'❓';
+    msg.textContent=opt.msg||'';
+    inp.style.display=opt.input?'block':'none';
+    if(opt.input){inp.value=opt.value||'';inp.placeholder=opt.placeholder||'';}
+    yes.textContent=opt.okText||'ตกลง';
+    no.textContent=opt.cancelText||'ยกเลิก';
+    yes.style.background=opt.danger?'#DC2626':'#10B981';
+    box.style.display='flex';
+    if(opt.input)setTimeout(()=>{try{inp.focus();}catch(_){}},80);
+    const done=v=>{_dfAskPending=null;box.style.display='none';yes.onclick=null;no.onclick=null;inp.onkeydown=null;res(v);};
+    yes.onclick=()=>done(opt.input?(inp.value||'').trim():true);
+    no.onclick=()=>done(opt.input?null:false);
+    if(opt.input)inp.onkeydown=e=>{if(e.key==='Enter')done((inp.value||'').trim());};
+  });
+}
+function askConfirm(msg,opt){return _dfAsk(Object.assign({msg},opt||{}));}
+function askText(msg,value,opt){return _dfAsk(Object.assign({msg,input:true,value:value||''},opt||{}));}
 function _logDbMiss(names){
   try{
     if(!Array.isArray(names)||!names.length)return;
@@ -925,7 +982,10 @@ function _logDbMiss(names){
       if(key.length<2)continue;
       if(_dbMissSeen.has(key))continue;
       _dbMissSeen.add(key);_dbMissCount++;
-      db.collection('dbMisses').doc(encodeURIComponent(key)).set({
+      // v62.1: Firestore ปฏิเสธ document id บางรูปแบบ ("." ".." และ "__xxx__") → ถ้าเจอให้เติมตัวคั่นกัน
+      let id=encodeURIComponent(key);
+      if(id==='.'||id==='..'||/^__.*__$/.test(id))id='x-'+id;
+      db.collection('dbMisses').doc(id).set({
         name:key,
         count:firebase.firestore.FieldValue.increment(1),
         lastAt:firebase.firestore.FieldValue.serverTimestamp()
@@ -957,6 +1017,7 @@ function _logAITiming(d){
       userId:(typeof user!=='undefined'&&user&&user.userId)||null,
       online:navigator.onLine,
       conn:(navigator.connection&&navigator.connection.effectiveType)||null, // 4g/3g/slow-2g — บอกว่าช้าที่เน็ตนักเรียนไหม
+      authed:_authOk, // v66: ใช้ดูว่ามีเครื่องไหน auth ไม่ผ่านบ้าง ก่อนตัดสินใจขัน Rules
       ver:APP_VERSION,
       at:firebase.firestore.FieldValue.serverTimestamp()
     }).catch(()=>{}); // fire-and-forget — ห้ามให้กระทบ flow นักเรียน
@@ -2894,8 +2955,11 @@ async function _flushBackupQueue(){
     let q=[];try{q=JSON.parse(localStorage.getItem('_dfq')||'[]');}catch(_){q=[];}
     if(!q.length)return;
     const remain=[];let sent=0;let _flushedSub=null;let _flushedWC=null;
+    // v69: จำไว้ด้วยว่ารูปไหน "ยังไม่สำเร็จ" — เดิมคืนแต่ url ที่สำเร็จ
+    // ทำให้เคสอัปได้บางรูป (เช่น 2 จาก 3) รูปที่เหลือหายถาวร เพราะระบบคิดว่าเสร็จแล้ว
+    let _upLeft=[]; // base64 ของรูปที่ยังอัปไม่ขึ้นจากรอบล่าสุด
     const _upPhotos=async(photos,uid)=>{ // W4: อัปโหลดรูปที่ค้างจาก backup ขึ้น Storage
-      const urls=[];let _lastErr=null;
+      const urls=[];let _lastErr=null;_upLeft=[];
       for(let i=0;i<photos.length;i++){
         try{
           const sref=storage.ref(`photos/${uid}/${Date.now()}_bk${i}.jpg`);
@@ -2903,8 +2967,8 @@ async function _flushBackupQueue(){
             sref.putString(photos[i],'data_url').then(()=>sref.getDownloadURL()),
             new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),20000))
           ]);
-          if(u)urls.push(u);
-        }catch(e){_lastErr=e&&e.message;}
+          if(u)urls.push(u);else _upLeft.push(photos[i]);
+        }catch(e){_lastErr=e&&e.message;_upLeft.push(photos[i]);}
       }
       // W5: อัปโหลดล้มทั้งหมด → รายงานเข้า errorLogs ให้เห็นสาเหตุจริง
       if(!urls.length&&photos.length&&typeof _reportError==='function')_reportError('photo-flush-fail',_lastErr||'upload failed','','flush');
@@ -2928,10 +2992,14 @@ async function _flushBackupQueue(){
           if(ex.exists){
             // doc ถึง server แล้ว — เหลือแค่เติมรูป (ถ้ามี)
             if(_photoUrls.length){
-              const mr=await _race(ref.set({photoUrl:_photoUrls[0],photoUrls:_photoUrls},{merge:true}),8000);
-              if(mr!=='ok'){ // merge ไม่ทัน → เก็บ URL ไว้ merge รอบหน้า (ไม่อัปโหลดรูปซ้ำ)
+              // v69: ถ้ายังมีรูปอัปไม่ขึ้นบางส่วน ต้องเอา url ที่ได้แล้วไปรวมกับของเดิมในเอกสาร (ไม่ทับทิ้ง)
+              const _prev=(it.d.__ph&&Array.isArray(it.d.photoUrls))?it.d.photoUrls:[];
+              const _all=[..._prev,..._photoUrls];
+              const mr=await _race(ref.set({photoUrl:_all[0],photoUrls:_all},{merge:true}),8000);
+              const _left=_upLeft.slice(); // รูปที่ยังไม่สำเร็จรอบนี้
+              if(mr!=='ok'||_left.length){ // merge ไม่ทัน หรือยังมีรูปค้าง → เก็บไว้ลองรอบหน้า
                 const n=(it.n||0)+1;
-                if(n<=5)remain.push({p:it.p,d:{userId:it.d.userId,photoUrl:_photoUrls[0],photoUrls:_photoUrls,__ph:1},n,at:it.at});
+                if(n<=5)remain.push({p:it.p,d:{userId:it.d.userId,photoUrl:_all[0],photoUrls:_all,__ph:1,...(_left.length?{__photos:_left}:{})},n,at:it.at});
               }
             }else if(it.d.__photos&&it.d.__photos.length){
               // W4-1: อัปโหลดรูปล้มทั้งหมด → เก็บ base64 ไว้ลองใหม่ (สูงสุด 5 ครั้ง) — รูปต้องไม่หายเงียบ
@@ -3378,7 +3446,11 @@ async function _fetchHealthDay(date){
     if(d&&d.exists){
       _hlCache[date]=d.data();
       if(dashCache&&dashCache[3])dashCache[3][date]=d.data();
-      if(studentTab==='health'&&selectedDate===date)renderHealthLog(); // วาดใหม่ด้วยค่าจริง
+      // BUGFIX v63.1: ห้ามวาดทับถ้านักเรียนกำลังพิมพ์อยู่ (ช่องวัดสัดส่วนอยู่หน้าเดียวกัน)
+      // เดิมถ้าดึงข้อมูลช้า 6 วิ แล้ววาดใหม่ ตัวเลขที่นักเรียนเพิ่งกรอกจะหายทั้งหมด
+      const _ae=document.activeElement;
+      const _typing=_ae&&_ae.closest&&_ae.closest('#health-log-content');
+      if(studentTab==='health'&&selectedDate===date&&!_typing)renderHealthLog(); // วาดใหม่ด้วยค่าจริง
     }else _hlCache[date]=null;
   }catch(_){}
 }
@@ -3592,7 +3664,9 @@ async function saveHealthLog(){
   if(_hlBtn){_hlBtn.disabled=true;_hlBtn.textContent='⏳ กำลังบันทึก...';} // UX: feedback ทันทีที่กด
   try{
     // W1: race 6s — timeout = คิวไว้ในเครื่องแล้ว จะซิงค์เอง ถือเป็นสำเร็จ + W3 backup
-    const _hlPath=`healthLogs/${user.userId}/days/${selectedDate}`;
+    const _hlDate=selectedDate; // BUGFIX v63.1: จับวันไว้ตั้งแต่ต้น — ถ้านักเรียนเลื่อนเปลี่ยนวันระหว่างรอ 6 วิ
+    // ของเดิมจะเอาข้อมูลวัน A ไปแปะ cache ของวัน B แล้วบันทึกครั้งถัดไปจะเขียนทับวัน B ด้วยค่าของวัน A
+    const _hlPath=`healthLogs/${user.userId}/days/${_hlDate}`;
     const _hlBase={sleep:hlSleep, stress:hlStress, steps:hlSteps, cardio:hlCardio,
       muscleGroup:hlMuscle, weightMin:hlMuscle==='none'?0:hlWeightMin};
     // BUGFIX v58: ต้องใช้ merge:true — เดิม set() ทับทั้งเอกสาร ถ้าฟอร์มโชว์ค่าเริ่มต้น (เพราะยังไม่ได้โหลดของเดิม)
@@ -3604,8 +3678,8 @@ async function saveHealthLog(){
     else _dropBackup(_hlPath);
     // Update local cache so switching tabs & dates shows the latest saved values
     const _hlSaved={sleep:hlSleep,stress:hlStress,steps:hlSteps,cardio:hlCardio,muscleGroup:hlMuscle,weightMin:hlMuscle==='none'?0:hlWeightMin};
-    if(dashCache&&dashCache[3])dashCache[3][selectedDate]=_hlSaved;
-    _hlCache[selectedDate]=_hlSaved; // v58: จำไว้ในแท็บนี้ด้วย สลับวันไปกลับจะได้ไม่ต้องดึงใหม่
+    if(dashCache&&dashCache[3])dashCache[3][_hlDate]=_hlSaved;
+    _hlCache[_hlDate]=_hlSaved; // v58: จำไว้ในแท็บนี้ด้วย สลับวันไปกลับจะได้ไม่ต้องดึงใหม่
     showToast(_r==='timeout'?'📡 เน็ตช้า — บันทึกไว้ในเครื่องแล้ว จะซิงค์อัตโนมัติค่ะ':'✅ บันทึกข้อมูลสุขภาพแล้วค่ะ',_r==='timeout'?4000:2500);
     if(_r!=='timeout')sendHealthLogCard(); // F3: ส่ง LINE card (ข้ามตอนเน็ตช้า — LINE ก็ส่งไม่ได้อยู่ดี)
   }catch(e){showToast('⚠️ บันทึกไม่ได้: '+e.message,4000);} // W2: toast แทน alert
@@ -3724,7 +3798,11 @@ async function saveWeeklyCheck(){
   finally{if(_wcBtn){_wcBtn.disabled=false;_wcBtn.textContent='📏 บันทึกผลการวัด';}}
 }
 
+let _mpLoading=false;
 async function loadMyProgress(){
+  if(_mpLoading)return; // BUGFIX v63.1: กันเรียกซ้อน — เดิมวาดหน้าใหม่ 2 รอบทำให้กราฟ "ผลลัพธ์ของฉัน" โผล่ 2 อัน
+  _mpLoading=true;
+  try{
   const el=document.getElementById('health-log-content');
   if(!el)return;
   let existing=document.getElementById('my-progress-section');
@@ -3758,12 +3836,14 @@ async function loadMyProgress(){
     if(!(snap.metadata&&snap.metadata.fromCache&&snap.empty))_myProgressCache=entries;
     if(!entries.length)return;
     const html=buildMyProgressHtml(entries);
+    document.getElementById('my-progress-section')?.remove(); // v63.1: เช็คใหม่หลัง await — กันวาดซ้อนอันเดิม
     const wrap=document.createElement('div');
     wrap.id='my-progress-section';
     wrap.style.padding='0 12px 24px';
     wrap.innerHTML=html;
     el.appendChild(wrap);
   }catch(e){}
+  }finally{_mpLoading=false;}
 }
 
 function buildMyProgressHtml(entries){
@@ -4596,7 +4676,7 @@ function refreshAllChips(){
   renderSavedChips('weigh');
 }
 async function deleteSavedMenu(id){
-  if(!confirm('ลบเมนูนี้?'))return;
+  if(!await askConfirm('ลบเมนูนี้?',{icon:'🗑️',okText:'ลบ',danger:true}))return; // v65
   try{
     const _r=await _fsWrite(db.collection('users').doc(user.userId).collection('savedMenus').doc(id).delete()); // W1
     if(_r==='timeout'){
@@ -4611,7 +4691,7 @@ async function deleteSavedMenu(id){
   }catch(e){showToast('⚠️ ลบไม่สำเร็จ: '+e.message,4000);} // W2
 }
 async function saveCurrentMenu(){
-  const name=prompt('ตั้งชื่อเมนูนี้ว่า:','');
+  const name=await askText('ตั้งชื่อเมนูนี้ว่า:','',{icon:'⭐',placeholder:'เช่น ข้าวไก่ย่างมื้อเช้า',okText:'บันทึก'}); // v65
   if(!name||!name.trim())return;
   let data={name:name.trim(),mode:curMode,createdAt:firebase.firestore.FieldValue.serverTimestamp()};
   if(curMode==='weigh'){
@@ -4738,24 +4818,38 @@ async function submitMeal(){
       const k=getSubMacros(s).kcal||0;
       return _curKcal>0&&Math.abs(k-_curKcal)<=Math.max(15,_curKcal*0.05); // แคลต่างไม่เกิน 5% = เนื้อหาเดิม
     });
-    if(_dupRecent&&!confirm('ดูเหมือนรายการนี้เพิ่งส่งสำเร็จไปเมื่อสักครู่แล้วนะคะ ✅\n(มื้อเดียวกัน เนื้อหาเหมือนกัน)\n\nถ้า Card ไม่เด้ง ไม่ต้องส่งซ้ำ — เช็คได้ที่แท็บ "ประวัติ" เลยค่ะ\n\nยืนยันจะส่งซ้ำอีกรายการไหมคะ?')){resetBtn();return;}
+    if(_dupRecent&&!await askConfirm('ดูเหมือนรายการนี้เพิ่งส่งสำเร็จไปเมื่อสักครู่แล้วนะคะ ✅\n(มื้อเดียวกัน เนื้อหาเหมือนกัน)\n\nถ้า Card ไม่เด้ง ไม่ต้องส่งซ้ำ — เช็คได้ที่แท็บ "ประวัติ" เลยค่ะ',{icon:'🤔',okText:'ส่งเพิ่มอีก',cancelText:'ไม่ส่ง'})){resetBtn();return;} // v65
     // อัปโหลดรูปไป Firebase Storage (สูงสุด 3 รูป, timeout 20s ต่อรูป)
-    let photoUrl=null, photoUrls=[];
+    let photoUrl=null, photoUrls=[], _photoFailed=false;
     // W5: ออฟไลน์ชัดเจน → ข้ามอัปโหลดเลย (ไม่ต้องรอ 20s) รูปจะเข้า backup แล้วอัปโหลดตอนเน็ตกลับมา
     if(photoBase64List.length>0&&navigator.onLine!==false){
       btn.textContent='📷 กำลังอัปโหลดรูป...'; // W1: progress text
+      // BUGFIX v68: ต้องรอ Anonymous Auth ให้เสร็จก่อนอัปรูป
+      // กฎของ Storage เช็ค request.auth != null — ถ้ายิงอัปก่อน auth เสร็จ จะโดน storage/unauthorized ทันที
+      // เดิมการขอ token เป็นแบบ "ยิงแล้วลืม" คนที่เน็ตช้าหรือกดส่งเร็วมากจะอัปรูปไม่ขึ้นแบบสุ่มๆ
+      try{await Promise.race([_authReady,new Promise(r=>setTimeout(r,5000))]);}catch(_){}
       const uploadOne=async(b64,i)=>{
         try{
           const ref=storage.ref(`photos/${user.userId}/${Date.now()}_${i}.jpg`);
           const uploadP=ref.putString(b64,'data_url').then(()=>ref.getDownloadURL());
           const timeoutP=new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),20000)); // L1: 10s→20s
           return await Promise.race([uploadP,timeoutP]);
-        }catch(e){console.log('photo upload skipped:',e.message);return null;}
+        }catch(e){
+          // BUGFIX v67: เดิม error ถูกกลืนหายไปเฉยๆ (console.log อย่างเดียว)
+          // นักเรียนไม่รู้ว่ารูปไม่ขึ้น เราก็ไม่รู้สาเหตุ — ตอนนี้ส่งรหัสข้อผิดพลาดจริงเข้า errorLogs
+          // รหัสจะบอกทันทีว่าเป็นเรื่องสิทธิ์ (storage/unauthorized) เน็ต หรือ bucket ผิด
+          console.log('photo upload failed:',e&&e.code,e&&e.message);
+          if(typeof _reportError==='function')_reportError('photo-fail',(e&&e.code?e.code+' | ':'')+(e&&e.message||String(e)),'','uploadPhoto');
+          return null;
+        }
       };
       const urls=await Promise.all(photoBase64List.map((b64,i)=>uploadOne(b64,i)));
       photoUrls=urls.filter(Boolean);
       photoUrl=photoUrls[0]||null; // backward compat
+      _photoFailed=photoUrls.length<photoBase64List.length; // v67: มีรูปที่อัปไม่ขึ้น
     }
+    // v67: ถ้าอัปรูปไม่สำเร็จ ต้องเก็บรูปไว้ลองใหม่ ไม่ใช่ปล่อยหาย
+    // เดิมระบบเติมรูปย้อนหลังทำงานเฉพาะตอน "เซฟช้า" เท่านั้น — ถ้าเซฟสำเร็จแต่รูปพัง รูปหายถาวร
     // W1: pre-generate ref + set() race 6s — timeout = write ถูกคิวไว้ในเครื่องแล้ว (offline persistence)
     // จะซิงค์อัตโนมัติเมื่อเน็ตกลับมา — ถือเป็นสำเร็จ ห้ามโชว์ error (กันนักเรียนกดส่งซ้ำ → ข้อมูลซ้ำ)
     btn.textContent='💾 กำลังบันทึก...'; // W1: progress text
@@ -4779,7 +4873,16 @@ async function submitMeal(){
         if(_totalLen<1800000)_bk.__photos=photoBase64List.slice(0,3);
       }
       _queueBackup('submissions/'+docRef.id,_bk);
-    }else _dropBackup('submissions/'+docRef.id);
+    }else{
+      _dropBackup('submissions/'+docRef.id);
+      // v67: เซฟสำเร็จแต่รูปอัปไม่ขึ้น → เข้าคิวเติมรูปย้อนหลัง (ใช้กลไก __photos เดิมที่มีอยู่แล้ว)
+      // ไม่งั้นรูปที่นักเรียนถ่ายมาหายถาวร ทั้งที่มื้อบันทึกสำเร็จ
+      if(_photoFailed&&photoBase64List.length){
+        const _pl=photoBase64List.reduce((a,b)=>a+(b?b.length:0),0);
+        if(_pl<1800000)_queueBackup('submissions/'+docRef.id,{userId:user.userId,__photos:photoBase64List.slice(0,3)});
+        showToast('📷 รูปยังอัปไม่ขึ้น — มื้อบันทึกแล้วนะคะ ระบบจะลองส่งรูปให้อีกครั้งเองค่ะ',5000);
+      }
+    }
     // update cache locally (ไม่ต้อง re-query)
     const _now=Date.now();
     // BUGFIX v50.1: ใส่ isTest ด้วย — เดิมสำเนาในเครื่องไม่มีธงนี้ ทำให้มื้อทดสอบถูกนับเป็นมื้อจริงจนกว่าจะปิดเปิดแอป
@@ -4940,7 +5043,7 @@ function buildHistCard(s){
     chips+=`<span class="chip">⚡ ${wMacros.kcal} kcal</span>`;
   }
   const photoSrc=s.photoBase64||s.photoUrl||null;
-  const photoHtml=photoSrc?`<img style="width:100%;max-height:160px;object-fit:cover;border-radius:8px;margin-bottom:8px" src="${photoSrc}" loading="lazy">`:'';
+  const photoHtml=photoSrc?`<img style="width:100%;max-height:160px;object-fit:cover;border-radius:8px;margin-bottom:8px" src="${safeImg(photoSrc)}" loading="lazy">`:'';
   const editHistHtml=(s.editHistory&&s.editHistory.length)?`<div class="hist-edit-log">
     ${s.editHistory.map(h=>`
     <div style="font-size:10px;font-weight:700;color:${h.by==='student'?'#1D4ED8':'#92400E'};margin-bottom:4px">${h.by==='student'?'✏️ นักเรียนแก้ไขเอง':'✏️ โค้ชแก้ไข'}</div>
@@ -4968,7 +5071,7 @@ function buildHistCard(s){
 }
 
 async function deleteHistSub(id){
-  if(!confirm('ลบรายการนี้?'))return;
+  if(!await askConfirm('ลบรายการนี้?',{icon:'🗑️',okText:'ลบ',danger:true}))return; // v65
   try{
     // W7-E1: มื้อที่ยังรอส่ง (ค้างคิว ยังไม่ถึง server) → ลบจากคิวพอ ห้ามยิง delete ไป server
     // ไม่งั้น flush จะเขียนมื้อกลับมาใหม่ทีหลัง (มื้อผีคืนชีพ)
@@ -5268,6 +5371,11 @@ function startCoach(){
   const cutoff=firebase.firestore.Timestamp.fromDate(new Date(Date.now()-_COACH_WIN*24*60*60*1000));
   _coachUnsub=db.collection('submissions').where('createdAt','>=',cutoff).orderBy('createdAt','desc').limit(_COACH_LIMIT)
     .onSnapshot(snap=>{
+      // v64: เช็คก่อนว่ามีเอกสารเปลี่ยนจริงไหม แล้วค่อยแปลงข้อมูล 800 รายการ
+      // เดิมแปลงก่อนแล้วค่อยเช็ค = เสียแรงสร้าง object 800 ตัวทิ้งทุกครั้งที่ snapshot เด้ง
+      let _changed0=true;
+      try{_changed0=snap.docChanges().length>0;}catch(_){}
+      if(!_changed0&&_coachRendered)return;
       allSubs=snap.docs.map(d=>{const dat=d.data();delete dat.photoBase64;return{id:d.id,...dat};});
       _subsTruncated=snap.docs.length>=_COACH_LIMIT; // ชนเพดาน = ข้อมูลเก่ากว่านี้ถูกตัด ตัวเลขอาจต่ำกว่าจริง
       // v57.1: ข้ามการวาดใหม่เมื่อ "ไม่มีเอกสารไหนเปลี่ยนจริง" — เดิมทุก snapshot จะล้างหน้าทั้งหน้า
@@ -5276,9 +5384,6 @@ function startCoach(){
       // BUGFIX: v55 ใช้ลายเซ็นจาก id+status ซึ่งพลาด — โค้ชแก้ค่ามื้อที่ "อนุมัติแล้ว" ซ้ำอีกรอบ
       // status ไม่เปลี่ยน (approved เหมือนเดิม) ลายเซ็นเลยเท่าเดิม → หน้าไม่อัปเดต โค้ชนึกว่าบันทึกไม่ติด
       // ใช้ docChanges() ของ Firestore แทน = รู้แน่ชัดว่ามีเอกสารไหนเพิ่ม/แก้/ลบบ้าง ไม่ต้องเดาเอง
-      let _changed=true;
-      try{_changed=snap.docChanges().length>0;}catch(_){}
-      if(!_changed&&_coachRendered)return; // ไม่มีอะไรเปลี่ยน และเคยวาดไปแล้ว → ไม่ต้องวาดซ้ำ
       _coachRendered=true;
       renderCoach();
     },err=>console.error(err));
@@ -5768,7 +5873,8 @@ function setToneBtn(id,tone){
 }
 async function checkCoachComments(){
   if(!studentSubsCache)return;
-  const unnotified=studentSubsCache.filter(s=>s.coachComment&&!s.coachCommentSent&&(s.status==='approved'||s.status==='corrected'));
+  // v64: จำกัด 3 ใบต่อครั้ง — เดิมถ้าโค้ชเคลียร์ของค้างทีเดียว นักเรียนเปิดแอปแล้วโดนการ์ดถล่มเป็นสิบใบรวด
+  const unnotified=studentSubsCache.filter(s=>s.coachComment&&!s.coachCommentSent&&(s.status==='approved'||s.status==='corrected')).slice(0,3);
   if(!unnotified.length)return;
   if(!liff.isInClient())return;
   for(const s of unnotified){
@@ -6414,7 +6520,7 @@ async function saveProgramSettings(uid){
   }catch(e){showToast('⚠️ บันทึกไม่ได้: '+e.message,4000);}
 }
 async function pauseStudentProgram(uid){
-  if(!confirm('พักเทรนนักเรียนคนนี้? วันจบจะถูกเลื่อนออกไปทุกวันที่พัก'))return;
+  if(!await askConfirm('พักเทรนนักเรียนคนนี้?\nวันจบจะถูกเลื่อนออกไปทุกวันที่พัก',{icon:'⏸️',okText:'พักเทรน'}))return; // v65
   try{
     await _fsWrite(db.collection('students').doc(uid).set({isPaused:true,pauseStartDate:todayStr()},{merge:true})); // W1
     showToast('⏸ พักเทรนแล้วค่ะ วันจบจะถูกคำนวณใหม่');
@@ -6684,9 +6790,9 @@ function buildCard(s){
     :_photoDone
     ?`<div id="ph-${s.id}" style="padding:6px 12px 0"><button onclick="showCardPhotos('${s.id}')" style="background:var(--light);border:1px solid var(--border);border-radius:8px;padding:5px 12px;font-size:11.5px;font-family:'Prompt',sans-serif;color:var(--gray);cursor:pointer">📷 ดูรูป${_photos.length>1?' ('+_photos.length+')':''}</button></div>`
     :_photos.length===1
-    ?`<img class="card-photo" src="${_photos[0]}" loading="lazy">`
-    :`<div style="display:flex;gap:6px;overflow-x:auto;padding:8px 12px 4px;-webkit-overflow-scrolling:touch">${_photos.map(u=>`<img src="${u}" loading="lazy" style="height:110px;width:110px;object-fit:cover;border-radius:8px;flex-shrink:0">`).join('')}</div>`;
-  const avatarHtml=s.pictureUrl?`<img src="${s.pictureUrl}" onerror="this.src=''" alt="">`:`<div style="width:38px;height:38px;border-radius:50%;background:var(--light);display:flex;align-items:center;justify-content:center;font-size:18px">👤</div>`;
+    ?`<img class="card-photo" src="${safeImg(_photos[0])}" loading="lazy">`
+    :`<div style="display:flex;gap:6px;overflow-x:auto;padding:8px 12px 4px;-webkit-overflow-scrolling:touch">${_photos.map(u=>`<img src="${safeImg(u)}" loading="lazy" style="height:110px;width:110px;object-fit:cover;border-radius:8px;flex-shrink:0">`).join('')}</div>`;
+  const avatarHtml=s.pictureUrl?`<img src="${safeImg(s.pictureUrl)}" onerror="this.src=''" alt="">`:`<div style="width:38px;height:38px;border-radius:50%;background:var(--light);display:flex;align-items:center;justify-content:center;font-size:18px">👤</div>`;
   let actions='';
   const showApprove=cs.approveOpen||false;
   const TONE_DEFAULTS={
@@ -6852,8 +6958,8 @@ function showCardPhotos(id){
   if(!ph.length&&(s.photoUrl||s.photoBase64))ph.push(s.photoUrl||s.photoBase64);
   const box=document.getElementById('ph-'+id);if(!box||!ph.length)return;
   box.innerHTML=ph.length===1
-    ?`<img src="${ph[0]}" style="width:100%;border-radius:8px" loading="lazy">`
-    :`<div style="display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch">${ph.map(u=>`<img src="${u}" loading="lazy" style="height:110px;width:110px;object-fit:cover;border-radius:8px;flex-shrink:0">`).join('')}</div>`;
+    ?`<img src="${safeImg(ph[0])}" style="width:100%;border-radius:8px" loading="lazy">`
+    :`<div style="display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch">${ph.map(u=>`<img src="${safeImg(u)}" loading="lazy" style="height:110px;width:110px;object-fit:cover;border-radius:8px;flex-shrink:0">`).join('')}</div>`;
 }
 function _updateCard(id){const s=allSubs.find(x=>x.id===id);const el=document.getElementById('card-'+id);if(s&&el){el.outerHTML=buildCard(s);}else{renderCoach();}}
 function setCoachCorrMode(id,mode){if(!cState[id])cState[id]={};cState[id].corrMode=mode;delete cState[id].carb;delete cState[id].protein;delete cState[id].fat;_updateCard(id);}
@@ -7036,18 +7142,20 @@ async function doApproveQuiet(id){
     if(cState[id])delete cState[id].approveOpen;
     renderCoach();
     showToast(_r==='timeout'?'📡 เน็ตช้า — อนุมัติไว้ในเครื่องแล้ว จะซิงค์อัตโนมัติค่ะ':'✅ อนุมัติแล้วค่ะ',_r==='timeout'?4000:2500);
-  }catch(e){alert('Error: '+e.message);}
+  }catch(e){showToast('⚠️ ไม่สำเร็จ: '+e.message,4000);} // v65: alert ถูก LINE บล็อกได้ = โค้ชไม่รู้ว่าพลาด
   finally{_approveInProgress.delete(id);} // M1
 }
 async function doApprove(id){
   _justActedIds.add(id); // v59: จำไว้ว่าโค้ชเพิ่งจัดการรายการนี้ → ยังกดดูรูปได้แม้หลุด 10 ล่าสุด
-  if(cState[id])delete cState[id]; // v59: ล้างสถานะการ์ด (รวม _sub ที่กินหน่วยความจำ) หลังจัดการเสร็จ
   if(_approveInProgress.has(id))return; // M1
   _approveInProgress.add(id);
+  // BUGFIX v63.1: v59 เผลอลบ cState[id] ทิ้ง "ก่อน" อ่านค่าโทนที่โค้ชเลือก
+  // ผลคือโค้ชกด "⚠️ เตือน" หรือ "📝 แนะนำ" แต่นักเรียนได้การ์ดสีเขียว "ชม" ทุกครั้ง
   const tone=cState[id]?._tone||'good';
   const comment=(document.getElementById(`approve-comment-${id}`)?.value||'').trim();
   const withPhoto=document.getElementById(`approve-photo-${id}`)?.checked||false;
   const s=allSubs.find(x=>x.id===id);
+  if(cState[id])delete cState[id]; // v63.1: ล้างหลังอ่านค่าครบแล้วเท่านั้น
   try{
     const _r=await _fsWrite(db.collection('submissions').doc(id).update({
       status:'approved',coachComment:comment,coachCommentTone:tone,
@@ -7061,7 +7169,7 @@ async function doApprove(id){
         const cardData=Object.assign({},s,{coachComment:comment,coachCommentTone:tone,coachCommentWithPhoto:withPhoto,status:'approved'});
         const card=buildCoachCommentCard(cardData,comment,tone,withPhoto);
         await liff.sendMessages([card]);
-        await db.collection('submissions').doc(id).update({coachCommentSent:true});
+        await _fsWrite(db.collection('submissions').doc(id).update({coachCommentSent:true})); // v63.1: เดิมไม่มี timeout เน็ตหลุดตรงนี้ = การ์ดล็อกถาวรทั้ง session
         sentNow=true;
       }catch(sendErr){
         // ไม่ได้อยู่ใน chat → นักเรียนจะรับ Card ครั้งหน้าที่เปิดแอป
@@ -7071,7 +7179,7 @@ async function doApprove(id){
     if(cState[id])cState[id].approveOpen=false;
     renderCoach();
     showToast(_r==='timeout'?'📡 เน็ตช้า — อนุมัติไว้ในเครื่องแล้ว Card จะส่งเมื่อนักเรียนเปิดแอปค่ะ':(sentNow?'✅ ส่ง Card ให้นักเรียนแล้วค่ะ':'✅ อนุมัติแล้ว — Card จะส่งเมื่อนักเรียนเปิดแอปค่ะ'),_r==='timeout'?4500:2500);
-  }catch(e){alert('Error: '+e.message);}
+  }catch(e){showToast('⚠️ ไม่สำเร็จ: '+e.message,4000);} // v65: alert ถูก LINE บล็อกได้ = โค้ชไม่รู้ว่าพลาด
   finally{_approveInProgress.delete(id);} // M1
 }
 const _corrInProgress=new Set(); // M2: ป้องกัน double-tap correction
@@ -7148,7 +7256,7 @@ async function sendCorrection(id,action='save'){
     cState[id]={};
     renderCoach();
     showToast(_r==='timeout'?'📡 เน็ตช้า — บันทึกไว้ในเครื่องแล้ว จะซิงค์อัตโนมัติค่ะ':(_isReEdit?(_sentNow?'✅ แก้ไขแล้ว — ส่ง Card อัปเดตให้นักเรียนแล้วค่ะ':'✅ แก้ไขแล้ว — Card อัปเดตจะส่งเมื่อนักเรียนเปิดแอปค่ะ'):'✅ บันทึกแล้วค่ะ'),_r==='timeout'?4000:3000);
-  }catch(e){alert('Error: '+e.message);}
+  }catch(e){showToast('⚠️ ไม่สำเร็จ: '+e.message,4000);} // v65: alert ถูก LINE บล็อกได้ = โค้ชไม่รู้ว่าพลาด
   finally{_corrInProgress.delete(id);} // M2
 }
 
@@ -7346,7 +7454,7 @@ async function sendZigzagVerdict(userId){
     ta.style.background='#D1FAE5';
     setTimeout(()=>{ta.style.background='white';},1500);
     if(_r==='timeout')showToast('📡 เน็ตช้า — บันทึกไว้ในเครื่องแล้ว จะซิงค์อัตโนมัติค่ะ',4000);
-  }catch(e){alert('ส่งไม่ได้: '+e.message);}
+  }catch(e){showToast('⚠️ ส่งไม่ได้: '+e.message,4000);} // v65
 }
 
 // ===== WEEKLY SUMMARY ACCORDION =====
@@ -7521,7 +7629,7 @@ async function saveWeeklyNote(userId,weekId){
     },{merge:true});
     ta.style.background='#D1FAE5';
     setTimeout(()=>{ta.style.background='white';},1200);
-  }catch(e){alert('บันทึกไม่ได้: '+e.message);}
+  }catch(e){showToast('⚠️ บันทึกไม่ได้: '+e.message,4000);} // v65
 }
 
 function toggleWeekAcc(hdr){
@@ -7545,7 +7653,7 @@ async function saveCoachNotes(userId){
     const btn=ta.nextElementSibling;
     if(btn){const orig=btn.textContent;btn.textContent='✅ บันทึกแล้ว';setTimeout(()=>{btn.textContent=orig;},1500);}
     if(_r==='timeout')showToast('📡 เน็ตช้า — บันทึกไว้ในเครื่องแล้ว จะซิงค์อัตโนมัติค่ะ',4000);
-  }catch(e){alert('บันทึกไม่ได้: '+e.message);}
+  }catch(e){showToast('⚠️ บันทึกไม่ได้: '+e.message,4000);} // v65
 }
 
 // ===== EDIT TARGETS =====
@@ -7578,7 +7686,7 @@ async function saveTargets(userId){
     const view=document.getElementById(`tg-view-${userId}`);
     view.style.outline='2px solid #22C55E';
     setTimeout(()=>{view.style.outline='none';},1200);
-  }catch(e){alert('บันทึกไม่ได้: '+e.message);}
+  }catch(e){showToast('⚠️ บันทึกไม่ได้: '+e.message,4000);} // v65
 }
 
 async function autoMarkMissedDays(userId, byDate){
@@ -8087,7 +8195,7 @@ async function editHistSub(id){
 
   // Guard 2: coach already corrected — BUGFIX v44: correction ถูกเซฟคู่ status:'approved' ด้วย เช็คทั้งสองแบบ
   if(s.status==='corrected'||s.correction){
-    if(!confirm('⚠️ โค้ชเคย correct log นี้แล้ว\nถ้าแก้ไขตอนนี้ โค้ชจะต้อง review ใหม่\n\nแน่ใจไหมว่าจะแก้ไข?'))return;
+    if(!await askConfirm('โค้ชเคยตรวจแก้มื้อนี้ให้แล้ว\nถ้าแก้ตอนนี้ โค้ชจะต้องตรวจใหม่อีกรอบ\n\nแน่ใจไหมคะ?',{icon:'⚠️',okText:'แก้ไข'}))return; // v65
   }
 
   _editSubId=id;_editSubMode=s.mode;
@@ -8506,6 +8614,19 @@ function showTabWarn(m){
 function tabWarnSubmit(){document.getElementById('modal-tab-warn').style.display='none';document.getElementById('btn-submit').click();_pendingTab=null;}
 function tabWarnSwitch(){document.getElementById('modal-tab-warn').style.display='none';if(_pendingTab){_doSelMode(_pendingTab);_pendingTab=null;}}
 </script>
+<!-- v65: กล่องยืนยัน/กรอกข้อความของเราเอง — LINE webview บางรุ่นบล็อก confirm()/prompt()
+     ผลคือกดปุ่มแล้วเงียบ ไม่มีอะไรเกิดขึ้น ผู้ใช้นึกว่าแอปพัง -->
+<div id="df-ask" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10000;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:16px;padding:22px 20px;max-width:340px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,.2);font-family:'Prompt',sans-serif">
+    <div id="df-ask-icon" style="font-size:1.8rem;text-align:center;margin-bottom:8px">❓</div>
+    <div id="df-ask-msg" style="color:#1F2937;font-size:.95rem;line-height:1.6;text-align:center;margin-bottom:16px;white-space:pre-line"></div>
+    <input id="df-ask-input" type="text" style="display:none;width:100%;border:1.5px solid #E5E7EB;border-radius:10px;padding:11px;font-size:15px;font-family:'Prompt',sans-serif;margin-bottom:16px;box-sizing:border-box">
+    <div style="display:flex;gap:10px">
+      <button id="df-ask-no" style="flex:1;padding:12px;background:#F3F4F6;color:#374151;border:none;border-radius:10px;font-size:.95rem;font-family:'Prompt',sans-serif;cursor:pointer">ยกเลิก</button>
+      <button id="df-ask-yes" style="flex:1;padding:12px;background:#10B981;color:#fff;border:none;border-radius:10px;font-size:.95rem;font-weight:600;font-family:'Prompt',sans-serif;cursor:pointer">ตกลง</button>
+    </div>
+  </div>
+</div>
 <div id="modal-tab-warn" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;align-items:center;justify-content:center;"><div style="background:#fff;border-radius:16px;padding:24px 20px;max-width:320px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,.2);text-align:center;"><div style="font-size:2rem;margin-bottom:8px;">⚠️</div><div style="font-weight:700;font-size:1.05rem;color:#1F2937;margin-bottom:6px;"><span id="tab-warn-mode"></span></div><div style="color:#6B7280;font-size:.9rem;margin-bottom:20px;">ยังไม่ได้ส่ง กดส่งก่อนเปลี่ยน mode ไหม?</div><div style="display:flex;gap:10px;"><button onclick="tabWarnSubmit()" style="flex:1;padding:12px;background:#10B981;color:#fff;border:none;border-radius:10px;font-size:.95rem;font-weight:600;cursor:pointer;">ส่งตอนนี้ ✓</button><button onclick="tabWarnSwitch()" style="flex:1;padding:12px;background:#F3F4F6;color:#374151;border:none;border-radius:10px;font-size:.95rem;cursor:pointer;">เปลี่ยนเลย</button></div></div></div>
 </body>
 </html>
