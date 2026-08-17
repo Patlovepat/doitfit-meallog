@@ -29,6 +29,11 @@ window.onerror=function(msg,src,line,col,err){
 body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-height:100vh;font-size:15px}
 
 /* SPINNER + SKELETON (loading ที่ดูมีชีวิต) */
+/* v70: ฟอร์มข้อมูลพื้นฐาน */
+.pf-chip{display:inline-block;background:#F3F4F6;color:#374151;border:1px solid #E5E7EB;border-radius:999px;padding:5px 12px;font-size:12px;cursor:pointer;user-select:none}
+.pf-chip.on{background:#FEE2E2;color:#991B1B;border-color:#FCA5A5;font-weight:600}
+.pf-lbl{font-size:12px;font-weight:600;color:#374151;margin:12px 0 5px}
+.pf-in{width:100%;border:1.5px solid #E5E7EB;border-radius:10px;padding:10px;font-size:15px;font-family:'Prompt',sans-serif;box-sizing:border-box;background:#fff;color:#1F2937}
 @keyframes dfspin{to{transform:rotate(360deg)}}
 .df-spin{width:34px;height:34px;border:3.5px solid #FDE9C8;border-top-color:var(--primary);border-radius:50%;animation:dfspin .8s linear infinite;margin:0 auto 10px}
 .df-spin.sm{width:20px;height:20px;border-width:2.5px;margin-bottom:6px}
@@ -503,7 +508,14 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
     <div class="logo"><span>DO</span></div>
     <h1>Meal Log</h1>
     <span id="streak-pill" class="streak-pill"></span>
-    <img id="user-pic" class="user-pic" src="" alt="">
+    <!-- v70: แตะรูปโปรไฟล์ = เปิดฟอร์มข้อมูลของฉัน (ทางเข้าถาวร ไม่ต้องหา) -->
+    <img id="user-pic" class="user-pic" src="" alt="" style="cursor:pointer" title="ข้อมูลของฉัน" onclick="openProfileForm(null,studentProfile)">
+  </div>
+
+  <!-- v70: เตือนจนกว่าจะกรอกข้อมูลพื้นฐาน -->
+  <div id="profile-banner" style="display:none;align-items:center;gap:8px;background:#FFFBEB;border-bottom:1px solid #FDE68A;padding:9px 14px;font-size:12.5px;color:#92400E;font-family:'Prompt',sans-serif">
+    <span style="flex:1;line-height:1.5">🧍 ยังไม่ได้กรอกข้อมูลพื้นฐาน — ช่วยให้โค้ชดูแลได้แม่นขึ้นค่ะ</span>
+    <button onclick="openProfileForm(null,studentProfile)" style="background:#F59E0B;color:#fff;border:none;border-radius:8px;padding:6px 13px;font-size:12px;font-weight:600;font-family:'Prompt',sans-serif;cursor:pointer;flex-shrink:0">กรอกเลย</button>
   </div>
 
   <!-- PROGRAM BAR -->
@@ -904,7 +916,7 @@ db.enablePersistence({synchronizeTabs:true}).catch(e=>{console.warn('Persistence
 // ===== AUTO ERROR REPORTING → Firestore errorLogs =====
 // JS error ที่เกิดบนเครื่องลูกค้าจะถูกส่งเข้า collection 'errorLogs' อัตโนมัติ
 // ดูได้ใน Firebase Console → Firestore → errorLogs (เรียงตาม at ล่าสุด)
-const APP_VERSION='v69-2026-08-17'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
+const APP_VERSION='v70.1-2026-08-17'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
 const _errLogged=new Set();let _errCount=0;
 function _reportError(type,msg,stack,src){
   try{
@@ -973,6 +985,144 @@ function _dfAsk(opt){
 }
 function askConfirm(msg,opt){return _dfAsk(Object.assign({msg},opt||{}));}
 function askText(msg,value,opt){return _dfAsk(Object.assign({msg,input:true,value:value||''},opt||{}));}
+// ---- การ์ดข้อมูลพื้นฐาน (ฝั่งโค้ช) ----
+const _pfCache={},_pfWeight={}; // v70.1 เก็บไว้เรียกตอนกดแก้ไข — ห้ามยัดข้อมูลนักเรียนลง onclick
+function buildProfileSection(uid,pf,latestWeight){
+  _pfCache[uid]=pf||{};
+  if(latestWeight!=null)_pfWeight[uid]=latestWeight; else latestWeight=_pfWeight[uid];
+  const age=calcAge(pf&&pf.birthDate);
+  const bmi=calcBMI(pf&&pf.heightCm,latestWeight);
+  const G={f:'หญิง',m:'ชาย'};
+  const rows=[];
+  if(pf&&pf.gender)rows.push(['เพศ',G[pf.gender]||pf.gender]);
+  if(age!=null)rows.push(['อายุ',age+' ปี']);
+  if(pf&&pf.heightCm)rows.push(['ส่วนสูง',pf.heightCm+' ซม.']);
+  if(bmi!=null)rows.push(['BMI',bmi+' — '+bmiLabel(bmi)]);
+  const flag=hasHealthFlag(pf);
+  const warn=flag?`<div style="background:#FEF2F2;border:1.5px solid #FECACA;border-radius:10px;padding:10px 12px;margin-top:8px">
+      ${(pf.conditions||'').trim()?`<div style="font-size:12.5px;color:#991B1B;line-height:1.7"><b>⚕️ โรคประจำตัว:</b> ${escHtml(pf.conditions)}</div>`:''}
+      ${(pf.allergies||'').trim()?`<div style="font-size:12.5px;color:#991B1B;line-height:1.7"><b>🚫 แพ้อาหาร:</b> ${escHtml(pf.allergies)}</div>`:''}
+    </div>`:'';
+  const body=rows.length
+    ?`<div style="display:flex;flex-wrap:wrap;gap:6px">${rows.map(([k,v])=>
+        `<span style="background:var(--light);border-radius:8px;padding:4px 10px;font-size:12px"><span style="color:var(--gray)">${k}</span> <b>${escHtml(String(v))}</b></span>`).join('')}</div>`
+    :`<div style="font-size:12.5px;color:var(--gray)">ยังไม่มีข้อมูล — กดแก้ไขเพื่อกรอกให้นักเรียนได้เลยค่ะ</div>`;
+  const uidA=escHtml(String(uid)).replace(/'/g,'');
+  return `<div class="sd-section" id="pf-view-${uidA}">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div class="sd-section-title" style="margin-bottom:0">🧍 ข้อมูลพื้นฐาน</div>
+      <button onclick="openProfileForm('${uidA}')" style="padding:5px 12px;background:var(--light);border:1px solid var(--border);border-radius:8px;font-size:12px;font-family:'Prompt',sans-serif;cursor:pointer">✏️ แก้ไข</button>
+    </div>
+    ${body}${warn}
+  </div>`;
+}
+// ---- ฟอร์มกรอกข้อมูล (นักเรียนกรอกเอง / โค้ชแก้ให้ได้) ----
+let _pfTargetUid=null; // null = ตัวเอง · มีค่า = โค้ชแก้ให้นักเรียนคนนั้น
+function openProfileForm(uid,pf){
+  if(!document.getElementById('profile-modal'))return;
+  _pfTargetUid=uid||null;
+  const p=pf||(uid?(_pfCache[uid]||{}):(studentProfile||{})); // v70.1 ดึงจาก cache แทนการส่งผ่าน onclick
+  const conds=(p.conditions||'').split(',').map(x=>x.trim()).filter(Boolean);
+  document.getElementById('pf-gender').value=p.gender||'';
+  document.getElementById('pf-birth').value=p.birthDate||'';
+  document.getElementById('pf-height').value=p.heightCm||'';
+  document.getElementById('pf-cond').value=(p.conditions||'');
+  document.getElementById('pf-allergy').value=(p.allergies||'');
+  // chip เลือกโรคที่พบบ่อย
+  document.getElementById('pf-chips').innerHTML=COND_CHIPS.map(c=>
+    `<span class="pf-chip${conds.includes(c)?' on':''}" onclick="togglePfChip(this,'${c}')">${c}</span>`).join('');
+  document.getElementById('pf-title').textContent=uid?'แก้ข้อมูลนักเรียน':'ข้อมูลของฉัน';
+  document.getElementById('pf-skip').style.display=uid?'none':'inline-block';
+  document.getElementById('profile-modal').style.display='flex';
+}
+function closeProfileForm(){document.getElementById('profile-modal').style.display='none';_pfTargetUid=null;}
+function togglePfChip(el,txt){
+  el.classList.toggle('on');
+  const ta=document.getElementById('pf-cond');
+  let arr=(ta.value||'').split(',').map(x=>x.trim()).filter(Boolean);
+  if(el.classList.contains('on')){if(!arr.includes(txt))arr.push(txt);}
+  else arr=arr.filter(x=>x!==txt);
+  ta.value=arr.join(', ');
+}
+async function saveProfile(){
+  const btn=document.getElementById('pf-save');
+  const g=document.getElementById('pf-gender').value;
+  const b=document.getElementById('pf-birth').value;
+  const hRaw=document.getElementById('pf-height').value;
+  const h=parseFloat(hRaw)||0;
+  // ตรวจค่าก่อนบันทึก — ส่วนสูงผิดจะทำให้ BMI และเป้าหมายเพี้ยนทั้งหมด
+  if(h&&(h<90||h>250)){showToast('ส่วนสูงดูไม่ถูกต้องนะคะ (ควรอยู่ระหว่าง 90–250 ซม.)',4000);return;}
+  if(b){const a=calcAge(b);if(a===null||a<8||a>100){showToast('วันเกิดดูไม่ถูกต้องนะคะ',3500);return;}}
+  const pf={
+    gender:g||null, birthDate:b||null, heightCm:h||null,
+    conditions:(document.getElementById('pf-cond').value||'').trim(),
+    allergies:(document.getElementById('pf-allergy').value||'').trim(),
+    updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+  };
+  const uid=_pfTargetUid||(user&&user.userId);
+  if(!uid){showToast('ยังเชื่อมต่อไม่สำเร็จ ลองใหม่อีกครั้งนะคะ',3500);return;} // v70.1 กัน user ยังไม่พร้อม
+  if(btn){btn.disabled=true;btn.textContent='⏳ กำลังบันทึก...';}
+  try{
+    const _r=await _fsWrite(db.collection('students').doc(uid).set({profile:pf},{merge:true}));
+    const local={...pf,updatedAt:Date.now()};
+    if(!_pfTargetUid){studentProfile=local;const bn=document.getElementById('profile-banner');if(bn)bn.style.display='none';}
+    else{ // โค้ชแก้ให้ → อัปเดตหน้าที่เปิดอยู่
+      if(_sdCache&&_sdCache[uid]&&_sdCache[uid].targets)_sdCache[uid].targets.profile=local;
+      const el=document.getElementById('pf-view-'+uid);if(el)el.outerHTML=buildProfileSection(uid,local,_pfWeight[uid]); // v70.1 ต้องส่งน้ำหนักด้วย ไม่งั้น BMI หายหลังบันทึก
+    }
+    closeProfileForm();
+    showToast(_r==='timeout'?'📡 เน็ตช้า — บันทึกไว้ในเครื่องแล้วค่ะ':'✅ บันทึกข้อมูลแล้วค่ะ',_r==='timeout'?4000:2500);
+  }catch(e){showToast('⚠️ บันทึกไม่ได้: '+e.message,4000);}
+  finally{if(btn){btn.disabled=false;btn.textContent='💾 บันทึก';}}
+}
+// ชวนกรอกครั้งแรก — ข้ามได้ ไม่บังคับ (บังคับแล้วนักเรียนจะหงุดหงิดตั้งแต่เปิดแอป)
+function maybeAskProfile(){
+  try{
+    if(isCoach||coachLogMode||testMode)return;
+    if(profileComplete(studentProfile))return;
+    const bn=document.getElementById('profile-banner');
+    if(bn)bn.style.display='flex'; // แถบเตือนค้างไว้จนกว่าจะกรอก
+    if(localStorage.getItem('_dfpfAsked')==='1')return; // เคยเด้งแล้ว ไม่เด้งซ้ำ
+    localStorage.setItem('_dfpfAsked','1');
+    setTimeout(()=>{ // v70.1 อย่าเด้งทับกล่องอื่นที่เปิดค้างอยู่
+      const busy=document.getElementById('df-ask');
+      if(studentTab==='log'&&!(busy&&busy.style.display&&busy.style.display!=='none'))openProfileForm(null,studentProfile);
+    },1200);
+  }catch(_){}
+}
+// ===== PROFILE (v70) — ข้อมูลพื้นฐานนักเรียน =====
+// เก็บใน students/{uid}.profile — ที่เดียวกับวันเริ่มคอร์สและเป้าหมาย
+// gender:'f'|'m' · birthDate:'YYYY-MM-DD' · heightCm:number · conditions:string · allergies:string
+let studentProfile=null;
+const COND_CHIPS=['เบาหวาน','ความดันสูง','ไขมันในเลือดสูง','ไทรอยด์','โรคไต','โรคหัวใจ','กรดไหลย้อน','ตั้งครรภ์/ให้นมบุตร'];
+
+function calcAge(birthDate){
+  if(!birthDate)return null;
+  const b=new Date(birthDate+'T00:00:00');
+  if(isNaN(b.getTime()))return null;
+  const t=new Date();
+  let a=t.getFullYear()-b.getFullYear();
+  const m=t.getMonth()-b.getMonth();
+  if(m<0||(m===0&&t.getDate()<b.getDate()))a--;
+  return (a>=0&&a<130)?a:null;
+}
+function calcBMI(heightCm,weightKg){
+  if(!heightCm||!weightKg)return null;
+  const h=heightCm/100;
+  const v=weightKg/(h*h);
+  return (v>5&&v<100)?Math.round(v*10)/10:null;
+}
+function bmiLabel(b){
+  if(b==null)return '';
+  if(b<18.5)return 'ต่ำกว่าเกณฑ์';
+  if(b<23)return 'สมส่วน';
+  if(b<25)return 'ท้วม';
+  if(b<30)return 'อ้วนระดับ 1';
+  return 'อ้วนระดับ 2';
+}
+// มีเรื่องสุขภาพที่โค้ชต้องระวังไหม (ใช้โชว์ป้ายเตือน)
+function hasHealthFlag(pf){return !!(pf&&((pf.conditions||'').trim()||(pf.allergies||'').trim()));}
+function profileComplete(pf){return !!(pf&&pf.gender&&pf.birthDate&&pf.heightCm);}
 function _logDbMiss(names){
   try{
     if(!Array.isArray(names)||!names.length)return;
@@ -3343,7 +3493,10 @@ async function loadStudentData(){
       showToast('📡 โหลดข้อมูลไม่สำเร็จ — จะลองใหม่อัตโนมัติค่ะ',3000);
     }
     applyTargets(td);
-    if(td&&td.exists){const d=td.data();studentProgramData={programStart:d.programStart||'',programWeeks:d.programWeeks||12,pausedDays:d.pausedDays||0,isPaused:d.isPaused||false,discountCode:d.discountCode||'',discountPercent:d.discountPercent||0};}
+    if(td&&td.exists){const d=td.data();studentProgramData={programStart:d.programStart||'',programWeeks:d.programWeeks||12,pausedDays:d.pausedDays||0,isPaused:d.isPaused||false,discountCode:d.discountCode||'',discountPercent:d.discountPercent||0};
+      studentProfile=d.profile||null; // v70
+      maybeAskProfile(); // v70: ยังไม่เคยกรอก → ชวนกรอก (ข้ามได้)
+    }
     // NW1: ถ้าผลมาจาก offline cache แล้วว่างเปล่า → อย่าทับ ปล่อย null ให้ loadSavedMenus retry ได้
     if(savedSnap&&!(savedSnap.metadata&&savedSnap.metadata.fromCache&&savedSnap.empty)){savedMenusCache=savedSnap.docs.map(d=>({id:d.id,...d.data()}));_persistMenus();}
     renderStreak();
@@ -5602,6 +5755,7 @@ async function prefetchStudent(userId){
       targets.programStart=d.programStart||'';targets.programWeeks=d.programWeeks||12;
       targets.pausedDays=d.pausedDays||0;targets.isPaused=d.isPaused||false;
       targets.discountCode=d.discountCode||'';targets.discountPercent=d.discountPercent||0;
+      targets.profile=d.profile||null; // v70.1 ลืมก๊อปมา → การ์ดข้อมูลพื้นฐานว่างตลอด
     }
     // NB7: prefetch ล้มบางส่วน (เน็ตช้า) → อย่า cache — ไม่งั้นหน้านักเรียนจะโชว์ "ไม่มีข้อมูล" ทั้งที่มี
     if(tdSnap&&hsSnap&&wsSnap&&wcSnap){
@@ -5667,6 +5821,7 @@ async function openStudentDetail(userId){
     targets.isPaused=d.isPaused||false;
     targets.discountCode=d.discountCode||'';
     targets.discountPercent=d.discountPercent||0;
+    targets.profile=d.profile||null; // v70.1 ลืมก๊อปมา → การ์ดข้อมูลพื้นฐานว่างตลอด
   }
   renderStudentDetail(u,targets,{},{},[]); // render ทันที ยังไม่มี health/weekly data
   // แสดง loading ใน Lifestyle + Weekly sections ระหว่างรอ Phase 2
@@ -6561,6 +6716,9 @@ function renderStudentDetail(u, targets, healthLogs, weeklySummaries={}, weeklyC
     pausedDays:targets.pausedDays||0,isPaused:targets.isPaused||false,
     discountCode:targets.discountCode||'',discountPercent:targets.discountPercent||0};
   const progHtml=buildProgramSection(uid,progData);
+  // v70: ข้อมูลพื้นฐาน (เพศ/อายุ/ส่วนสูง/โรคประจำตัว/แพ้อาหาร) — วางไว้บนสุดเพราะโค้ชต้องเห็นก่อนให้คำแนะนำ
+  const _latestW=(weeklyChecks&&weeklyChecks.length)?weeklyChecks[weeklyChecks.length-1].weight_kg:null;
+  const profileHtml=buildProfileSection(uid,targets.profile||null,_latestW);
 
   // --- COACH NOTES ---
   const notesHtml=`<div class="sd-section">
@@ -6630,7 +6788,7 @@ function renderStudentDetail(u, targets, healthLogs, weeklySummaries={}, weeklyC
     style="width:100%;padding:11px;background:var(--light);border:1.5px solid var(--border);border-radius:10px;font-size:13px;font-weight:600;font-family:'Prompt',sans-serif;color:var(--primary-dark);cursor:pointer;margin-top:4px">
     📅 ดูย้อนหลังเพิ่มเติม
   </button>`:'';
-  document.getElementById('sd-content').innerHTML=planSectionHtml+progHtml+notesHtml+targHtml+macro7Html+`<div id="sd-progress-${uid}">${progressHtml}</div>`+zigzagHtml+`<div id="sd-lifestyle-${uid}">${lifestyleHtml}</div>`+`<div id="sd-weekly-${uid}">${weeklyHtml}</div>`+loadMoreBtn;
+  document.getElementById('sd-content').innerHTML=profileHtml+planSectionHtml+progHtml+notesHtml+targHtml+macro7Html+`<div id="sd-progress-${uid}">${progressHtml}</div>`+zigzagHtml+`<div id="sd-lifestyle-${uid}">${lifestyleHtml}</div>`+`<div id="sd-weekly-${uid}">${weeklyHtml}</div>`+loadMoreBtn;
 }
 
 // ===== LIFESTYLE 7 วัน (bar charts) =====
@@ -8616,6 +8774,29 @@ function tabWarnSwitch(){document.getElementById('modal-tab-warn').style.display
 </script>
 <!-- v65: กล่องยืนยัน/กรอกข้อความของเราเอง — LINE webview บางรุ่นบล็อก confirm()/prompt()
      ผลคือกดปุ่มแล้วเงียบ ไม่มีอะไรเกิดขึ้น ผู้ใช้นึกว่าแอปพัง -->
+<!-- v70: ฟอร์มข้อมูลพื้นฐานนักเรียน -->
+<div id="profile-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10001;align-items:flex-end;justify-content:center">
+  <div style="background:#fff;border-radius:20px 20px 0 0;width:100%;max-width:480px;padding:20px 18px 30px;max-height:92vh;overflow-y:auto;font-family:'Prompt',sans-serif;box-sizing:border-box">
+    <div style="width:40px;height:4px;background:#E5E7EB;border-radius:2px;margin:0 auto 14px"></div>
+    <div id="pf-title" style="font-size:17px;font-weight:700;color:#1F2937">ข้อมูลของฉัน</div>
+    <div style="font-size:12px;color:#6B7280;margin-top:4px;line-height:1.6">ช่วยให้โค้ชคำนวณเป้าหมายได้แม่นขึ้น และดูแลได้ปลอดภัยขึ้นค่ะ<br>กรอกครั้งเดียว แก้ทีหลังได้ตลอด</div>
+    <div class="pf-lbl">เพศ</div>
+    <select id="pf-gender" class="pf-in"><option value="">— เลือก —</option><option value="f">หญิง</option><option value="m">ชาย</option></select>
+    <div class="pf-lbl">วันเกิด</div>
+    <input type="date" id="pf-birth" class="pf-in">
+    <div class="pf-lbl">ส่วนสูง (ซม.)</div>
+    <input type="number" id="pf-height" class="pf-in" inputmode="decimal" placeholder="เช่น 160" min="90" max="250" step="0.5">
+    <div class="pf-lbl">โรคประจำตัว / ภาวะสุขภาพ</div>
+    <div id="pf-chips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px"></div>
+    <textarea id="pf-cond" class="pf-in" rows="2" placeholder="ไม่มี / ระบุเพิ่มเติมได้"></textarea>
+    <div class="pf-lbl">แพ้อาหาร / ของที่กินไม่ได้</div>
+    <textarea id="pf-allergy" class="pf-in" rows="2" placeholder="เช่น แพ้กุ้ง แพ้นมวัว หรือ ไม่มี"></textarea>
+    <div style="display:flex;gap:10px;margin-top:18px">
+      <button id="pf-skip" onclick="closeProfileForm()" style="flex:1;padding:13px;background:#F3F4F6;color:#374151;border:none;border-radius:11px;font-size:14px;font-family:'Prompt',sans-serif;cursor:pointer">ไว้ทีหลัง</button>
+      <button id="pf-save" onclick="saveProfile()" style="flex:2;padding:13px;background:#10B981;color:#fff;border:none;border-radius:11px;font-size:14px;font-weight:600;font-family:'Prompt',sans-serif;cursor:pointer">💾 บันทึก</button>
+    </div>
+  </div>
+</div>
 <div id="df-ask" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10000;align-items:center;justify-content:center;padding:20px">
   <div style="background:#fff;border-radius:16px;padding:22px 20px;max-width:340px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,.2);font-family:'Prompt',sans-serif">
     <div id="df-ask-icon" style="font-size:1.8rem;text-align:center;margin-bottom:8px">❓</div>
