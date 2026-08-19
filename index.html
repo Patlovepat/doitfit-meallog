@@ -747,8 +747,15 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
         <!-- AI mode -->
         <div id="weigh-ai">
           <div id="saved-chips-weigh" class="saved-menu-area" style="display:none"></div>
-          <div style="font-size:12px;color:var(--gray);margin-bottom:8px">พิมพ์อาหารทั้งหมดที่กิน ไม่ต้องเป๊ะ — AI จะแปลงให้</div>
-          <textarea class="ai-food-textarea" id="ai-food-input" rows="5" placeholder="ตัวอย่าง:&#10;ข้าวกล้อง 2 ทัพพี&#10;ไข่ไก่ 2 ฟอง&#10;หมูสันใน 100g&#10;ผักผัด 60g"></textarea>
+          <div style="font-size:12px;color:var(--text);margin-bottom:6px;line-height:1.65">
+            <b>พิมพ์ให้ละเอียดที่สุดเท่าที่จำได้</b> — ยิ่งบอกปริมาณ ตัวเลขยิ่งแม่น<br>
+            <span style="color:var(--gray)">หน่วยอะไรก็ได้ค่ะ · ทัพพี · ช้อน · จาน · ฟอง · กรัม · ครึ่งจาน — ไม่ต้องชั่ง แค่กะเอาก็พอ</span>
+          </div>
+          <div style="background:#F0FDF4;border:1px solid #BBF7D0;border-radius:9px;padding:8px 10px;margin-bottom:8px;font-size:11px;line-height:1.75;color:#166534">
+            <b>✅ แบบนี้แม่น</b> ข้าวกล้อง 2 ทัพพี · ไก่ย่าง 1 น่อง · ผัดผักครึ่งจาน · กาแฟใส่นม 1 แก้ว<br>
+            <span style="color:#B45309"><b>⚠️ แบบนี้ AI ต้องเดา</b> ข้าวผัด · กาแฟ · ผลไม้</span>
+          </div>
+          <textarea class="ai-food-textarea" id="ai-food-input" rows="5" placeholder="ข้าวกล้อง 2 ทัพพี&#10;ไข่ดาว 1 ฟอง&#10;ผัดผักบุ้งครึ่งจาน&#10;นมจืด 1 กล่อง"></textarea>
           <button class="ai-calc-btn" id="ai-calc-btn" onclick="callGeminiAI()">✨ ให้ AI คำนวณ</button>
           <div id="ai-result-area" style="display:none"></div>
           <button class="btn-save-menu" id="btn-save-weigh" style="display:none" onclick="saveCurrentMenu()">⭐ บันทึกเป็นเมนูโปรด</button>
@@ -916,7 +923,7 @@ db.enablePersistence({synchronizeTabs:true}).catch(e=>{console.warn('Persistence
 // ===== AUTO ERROR REPORTING → Firestore errorLogs =====
 // JS error ที่เกิดบนเครื่องลูกค้าจะถูกส่งเข้า collection 'errorLogs' อัตโนมัติ
 // ดูได้ใน Firebase Console → Firestore → errorLogs (เรียงตาม at ล่าสุด)
-const APP_VERSION='v70.1-2026-08-17'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
+const APP_VERSION='v71.1-2026-08-19'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
 const _errLogged=new Set();let _errCount=0;
 function _reportError(type,msg,stack,src){
   try{
@@ -4454,10 +4461,28 @@ function buildDBContext(text){
   return refs.slice(0,8); // SPEED: จำกัด 8 อ้างอิง — prompt สั้นลง ตอบเร็วขึ้น (มื้อปกติไม่เกิน 8 รายการ ความแม่นยำไม่ลด)
 }
 // WEIGH (AI only)
+let _lastQtyWarn='',_aiBusy=false; // v71 จำข้อความที่เตือนไปแล้ว จะได้ไม่ถามซ้ำ
 async function callGeminiAI(){
-  const _t0=Date.now(); // v45: จับเวลาตั้งแต่นักเรียนกดปุ่ม
+  if(_aiBusy)return; // v71.1 กดรัวๆ เคยยิง API ซ้อนกันได้ (มี await 2 จุดก่อนปุ่มจะถูกปิด)
+  _aiBusy=true;
+  try{ await _callGeminiAI(); } finally { _aiBusy=false; }
+}
+async function _callGeminiAI(){
+  let _t0=Date.now(); // v45: จับเวลาตั้งแต่นักเรียนกดปุ่ม
   const text=document.getElementById('ai-food-input').value.trim();
   if(!text){showToast('กรุณาพิมพ์รายการอาหารก่อนค่ะ');return;}
+  // v71: บรรทัดที่ไม่ได้บอกปริมาณ = AI ต้องเดา → ชวนเติมก่อน แต่ไม่บังคับ (เตือนซ้ำข้อความเดิมไม่ต้องถามอีก)
+  const _nq=_noQtyLines(text);
+  if(_nq.length&&_lastQtyWarn!==text){
+    const _go=await askConfirm(
+      'รายการนี้ยังไม่ได้บอกปริมาณ AI จะเดาให้แทน ซึ่งอาจคลาดเคลื่อน\n\n'+_nq.map(x=>'• '+x).join('\n')+
+      '\n\nเติมแค่ "1 จาน" "2 ทัพพี" "ครึ่งถ้วย" ก็ช่วยได้มากแล้วค่ะ — หน่วยอะไรก็ได้',
+      {icon:'📏',okText:'ส่งเลย',cancelText:'กลับไปเติม'}
+    );
+    if(!_go){const _ta=document.getElementById('ai-food-input');if(_ta)_ta.focus();return;}
+    _lastQtyWarn=text; // v71.1 ตั้งธงหลังเลือก "ส่งเลย" เท่านั้น — ตั้งก่อนถาม = กดกลับไปเติมแล้วส่งซ้ำจะไม่เตือนอีก
+    _t0=Date.now(); // v71: เวลาที่นักเรียนอ่านกล่องเตือน ห้ามนับเป็นเวลารอ AI ไม่งั้นสถิติความเร็วเพี้ยน
+  }
   // เช็ค cache ก่อน — cache hit ไม่ต้องโหลด key ไม่ต้องยิง API (v45: ย้ายมาก่อน _ensureGeminiKey เพื่อไม่เสียเวลารอ key ฟรีๆ)
   const _cacheKey=text.toLowerCase().replace(/\s+/g,' ');
   const _cached=aiCacheGet(_cacheKey);
@@ -4585,6 +4610,20 @@ async function callGeminiAI(){
 // v46.1: ตัวเติมข้อมูลกลาง — ใช้ทุกทางที่ตั้งค่า aiParsedData (ผล AI ใหม่ / cache เก่า / เมนูโปรด)
 // เดิมมีแค่ทางเดียวที่ตั้ง _src ทำให้เมนูโปรดและ cache ที่บันทึกไว้ก่อน v46 ขึ้นป้าย "🤖 AI ประมาณเองทั้งหมด" ผิดๆ
 // และซ่อมกรณี total หาย (cache รุ่นเก่า) ซึ่งเดิมทำให้ปุ่ม ✨ ค้างเงียบไม่มีอะไรเกิดขึ้น
+// v71: หาบรรทัดที่ไม่ได้ระบุปริมาณ — ทำในเครื่องล้วน ไม่ยิง AI ไม่เสียเวลาเพิ่มแม้แต่มิลลิวินาทีเดียว
+// รับหน่วยอะไรก็ได้ ขอแค่มี "จำนวน" สักอย่าง (เลขอารบิก/เลขไทย/คำบอกจำนวน)
+// ตัวเลขนับเสมอ · คำบอกจำนวนต้องมี "หน่วย" ตามหลังถึงจะนับ
+// ไม่งั้น "หมูสามชั้น" จะถูกมองว่าบอกปริมาณแล้ว เพราะมีคำว่า "สาม" (เมนูนี้อยู่ในชุดทดสอบความแม่นของเราจริงๆ)
+const _QTY_NUM=/[0-9๐-๙]/;
+const _QTY_WORD=/(ครึ่ง|หนึ่ง|สอง|สาม|สี่|ห้า|หก|เจ็ด|แปด|เก้า|สิบ|โหล)\s*(จาน|ชาม|ถ้วย|แก้ว|ทัพพี|ช้อน|ฟอง|ลูก|ชิ้น|ตัว|แผ่น|ฝัก|กล่อง|ขวด|กระป๋อง|ห่อ|ก้อน|น่อง|ปีก|คำ|ที่|กรัม|ขีด|กิโล)/;
+function _hasQty(seg){return _QTY_NUM.test(seg)||_QTY_WORD.test(seg);}
+// ตัดเป็นรายการย่อยแบบเดียวกับ buildDBContext — นักเรียนหลายคนพิมพ์ติดกันบรรทัดเดียวคั่นด้วยจุลภาค
+function _noQtyLines(txt){
+  if(!txt)return [];
+  return String(txt).split(/[,\n、+·]|และ|กับ|พร้อม/).map(x=>x.trim())
+    .filter(x=>x.length>=2&&!_hasQty(x))
+    .slice(0,8);
+}
 function _enrichAIData(data,srcText){
   if(!data)return data;
   if(!Array.isArray(data.items))data.items=[];
@@ -4598,6 +4637,7 @@ function _enrichAIData(data,srcText){
   c=Math.round(c*10)/10;p=Math.round(p*10)/10;f=Math.round(f*10)/10;
   data.total={c,p,f,kcal:Math.round(c*4+p*4+f*9)};
   if(!Array.isArray(data._dbRefs))data._dbRefs=srcText?buildDBContext(srcText):[];
+  data._noQty=_noQtyLines(srcText); // v71
   return data;
 }
 function renderAIResult(data){
@@ -4631,7 +4671,13 @@ function renderAIResult(data){
           <div style="margin-top:4px">รายการกลุ่มนี้เป็น<b>ค่าประมาณ</b> อาจคลาดเคลื่อนได้ — ถ้ารู้ปริมาณวัตถุดิบ พิมพ์เพิ่มให้ละเอียดจะแม่นขึ้นมากค่ะ (เช่น "ราเมง (เส้น 120g หมู 60g)")<br>โค้ชจะตรวจให้อีกรอบอยู่แล้วนะคะ 💚</div>`:''}
       </div>
     </details>`;
-  const rows=_hint+_srcHtml+data.items.map((it,i)=>`<div class="ai-item-row" data-idx="${i}">
+  // v71: บอกตรงๆ ว่ารายการไหน AI เดาปริมาณให้ — ใช้ข้อมูลในเครื่อง ไม่ได้ให้ AI พิมพ์เพิ่ม
+  const _nq=data._noQty||[];
+  const _qtyHtml=_nq.length?`<div style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:9px;padding:8px 10px;margin-bottom:8px;font-size:10.5px;line-height:1.7;color:#92400E">
+      <b>📏 ไม่ได้ระบุปริมาณ — AI เดาให้ตามขนาดปกติ:</b><br>${_nq.map(x=>'• '+escHtml(x)).join('<br>')}
+      <div style="margin-top:4px">ตัวเลขกลุ่มนี้<b>อาจคลาดเคลื่อนมาก</b> · แก้ช่อง "ปริมาณ" ด้านล่างได้เลย ระบบคำนวณใหม่ให้อัตโนมัติค่ะ</div>
+    </div>`:'';
+  const rows=_hint+_qtyHtml+_srcHtml+data.items.map((it,i)=>`<div class="ai-item-row" data-idx="${i}">
     <div class="ai-item-name">${escHtml(it.name||'')}${it._src==='db'?`<span title="อ้างอิงฐานข้อมูล: ${escHtml(it._ref||'')}" style="font-size:9px;background:#DCFCE7;color:#166534;border-radius:4px;padding:1px 4px;margin-left:4px;font-weight:600">📚</span>`:`<span title="ไม่มีในฐานข้อมูล — AI ประมาณให้" style="font-size:9px;background:#FEF3C7;color:#92400E;border-radius:4px;padding:1px 4px;margin-left:4px;font-weight:600">🤖 ประมาณ</span>`}<br><input type="text" class="ai-amount-input" value="${escHtml(it.amount||'')}" placeholder="ปริมาณ" onchange="updateAIAmount(${i},this.value)"><br><span id="ai-kcal-${i}" style="font-size:10.5px;font-weight:700;color:var(--primary-dark)">⚡ ${it.kcal||0} kcal</span></div>
     <div class="ai-item-mac" style="display:flex;align-items:center;gap:2px;flex-shrink:0">
       C<input type="number" class="ai-edit-input" value="${it.c}" step="0.1" min="0" oninput="updateAIItem(${i},'c',this.value)">
@@ -4691,6 +4737,11 @@ function updateAIAmount(idx,val){
     it.kcal=Math.round(it.c*4+it.p*4+it.f*9);
   }
   it.amount=val;
+  // v71.1 ลบเฉพาะบรรทัดที่ตรงกับรายการที่เพิ่งแก้ — เดิมล้างทั้งกล่อง รายการอื่นที่ยังไม่บอกปริมาณเลยเงียบไปด้วย
+  if(aiParsedData&&Array.isArray(aiParsedData._noQty)&&_hasQty(val||'')){
+    const nm=(it.name||'').trim();
+    if(nm.length>=3)aiParsedData._noQty=aiParsedData._noQty.filter(x=>!(x.includes(nm)||nm.includes(x)));
+  }
   recalcAITotal();
   renderAIResult(aiParsedData);
   showToast('✅ ปรับปริมาณแล้ว — คำนวณสารอาหารใหม่ให้อัตโนมัติค่ะ',2200); // UX: บอกชัดว่าเซฟแล้ว
