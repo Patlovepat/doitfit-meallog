@@ -758,7 +758,7 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
           <div style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:9px;padding:7px 10px;margin-bottom:8px;font-size:10.5px;line-height:1.7;color:#92400E">
             ⚖️ <b>ชั่งเป็นกรัมใช่ไหมคะ — บอกด้วยว่า "ดิบ" หรือ "สุก"</b><br>ข้าวสารกับข้าวสวยน้ำหนักเท่ากัน แต่แคลต่างกันเกือบ 3 เท่าเลยค่ะ
           </div>
-          <textarea class="ai-food-textarea" id="ai-food-input" rows="5" placeholder="ข้าวกล้อง 2 ทัพพี&#10;ไข่ดาว 1 ฟอง&#10;ผัดผักบุ้งครึ่งจาน&#10;นมจืด 1 กล่อง"></textarea>
+          <textarea class="ai-food-textarea" id="ai-food-input" rows="5" maxlength="800" placeholder="ข้าวกล้อง 2 ทัพพี&#10;ไข่ดาว 1 ฟอง&#10;ผัดผักบุ้งครึ่งจาน&#10;นมจืด 1 กล่อง"></textarea>
           <button class="ai-calc-btn" id="ai-calc-btn" onclick="callGeminiAI()">✨ ให้ AI คำนวณ</button>
           <div id="ai-result-area" style="display:none"></div>
           <button class="btn-save-menu" id="btn-save-weigh" style="display:none" onclick="saveCurrentMenu()">⭐ บันทึกเป็นเมนูโปรด</button>
@@ -926,7 +926,7 @@ db.enablePersistence({synchronizeTabs:true}).catch(e=>{console.warn('Persistence
 // ===== AUTO ERROR REPORTING → Firestore errorLogs =====
 // JS error ที่เกิดบนเครื่องลูกค้าจะถูกส่งเข้า collection 'errorLogs' อัตโนมัติ
 // ดูได้ใน Firebase Console → Firestore → errorLogs (เรียงตาม at ล่าสุด)
-const APP_VERSION='v74-2026-08-22'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
+const APP_VERSION='v76-2026-08-27'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
 const _errLogged=new Set();let _errCount=0;
 function _reportError(type,msg,stack,src){
   try{
@@ -1197,6 +1197,14 @@ window.addEventListener('unhandledrejection',e=>{
 let user=null, isCoach=false, curMeal='เช้า', curMode='hand', studentTab='log', testMode=false, coachLogMode=false;
 let photoBase64=null, photoBase64List=[], coachTab='pending', allSubs=[], cState={};
 let _coachRendered=false; // v57.1: เคยวาดหน้าโค้ชไปแล้วหรือยัง (ใช้คู่กับ docChanges เพื่อข้ามการวาดซ้ำ)
+// v76: v75 ใช้เวลาตัวเดียวทั้งแอป ซึ่งกว้างเกินไป — โค้ชอนุมัติมื้อแล้วภายใน 10 วิ บันทึก/ลบมื้อของตัวเอง
+// เส้นทางพวกนั้นไม่ได้เรียก renderCoach() เอง แต่โดนบล็อกไปด้วย → หน้าโค้ชค้างไม่รีเฟรช
+// เปลี่ยนเป็นจำ "id เอกสาร" ที่ปุ่มซึ่งวาดหน้าให้เองเป็นคนเขียน แล้วข้ามเฉพาะใบพวกนั้น
+const _coachSelfWrites=new Map(); // id → เวลาที่เขียน
+function _markCoachSelfWrite(id){
+  _coachSelfWrites.set(id,Date.now());
+  if(_coachSelfWrites.size>60){const k=_coachSelfWrites.keys().next();if(!k.done)_coachSelfWrites.delete(k.value);}
+}
 let _subsTruncated=false; // v53.1: true = ข้อมูลชนเพดาน query → เลข 🔥/log อาจต่ำกว่าความจริง ต้องเติม + ท้ายเลข
 let coachFilter='all';
 // BOTTLENECK v54.1: หลังขยายเพดานเป็น 800 รายการ แท็บ "อนุมัติแล้ว" จะวาดการ์ดทีเดียว 800 ใบ (มีรูปด้วย)
@@ -1466,6 +1474,19 @@ const CARB_D={
 // lean=อกไก่/ปลาขาว/กุ้ง/ทูน่า ~90g cooked; semilean=ไก่มีหนัง/แซลมอน/เนื้อวัว ~90g cooked
 const PROT_T={lean:{c:0,p:28,f:3},semilean:{c:0,p:22,f:14}};
 const COOK_M={none:{f:0},stirfry:{f:10},deep:{f:20}};
+// v75: น้ำมันจากวิธีปรุงต้องมี "ของ" ให้ปรุงก่อน
+// เดิมบวก 20g (ทอด/กะทิ) หรือ 10g (ผัด) ทุกครั้งที่ปุ่มถูกเลือก แม้ทุกช่องเป็น 0
+// → โค้ชเคลียร์ค่าเป็น 0 ทั้งหมดแต่ลืมกดปุ่ม "ต้ม/นึ่ง/ย่าง" = บันทึก 180 kcal จากจานว่าง
+// น้ำมันมองเห็น (visibleFat) ไม่อยู่ในกฎนี้ — โค้ช/นักเรียนกรอกเองแปลว่าตั้งใจ
+function cookFat(cookMethod,qtys){
+  const ck=COOK_M[cookMethod]||COOK_M.none;
+  return (qtys||[]).some(v=>(+v||0)>0)?ck.f:0;
+}
+// เวอร์ชันรับ handData ที่บันทึกไว้แล้ว (ใช้ตอนวาด Flex card)
+function cookFatHD(hd){
+  if(!hd)return 0;
+  return cookFat(hd.cookMethod,[hd.protein,hd.eggWhole,hd.eggWhite,hd.avo,hd.fruitLadles].concat((hd.carbSlots||[]).map(sl=>sl&&sl.qty)));
+}
 const EGG_W={c:0.6,p:6,f:5};
 const EGG_WH={c:0,p:3.6,f:0};
 const AVO={c:4,p:1,f:8};
@@ -2503,7 +2524,7 @@ function updateHandSummary(){
   let C=0,P=0,F=0;
   carbSlots.forEach(s=>{const cm=CARB_D[s.density];C+=cm.c*s.qty;P+=cm.p*s.qty;F+=cm.f*s.qty;});
   C+=pm.c*protQty;P+=pm.p*protQty;F+=pm.f*protQty;
-  F+=ck.f+visibleFat*VIS_FAT_G;
+  F+=cookFat(cookMethod,[protQty,eggWhole,eggWhite,avoQty,getFruitLadles()].concat(carbSlots.map(sl=>sl.qty)))+visibleFat*VIS_FAT_G; // v75
   C+=EGG_W.c*eggWhole+EGG_WH.c*eggWhite;P+=EGG_W.p*eggWhole+EGG_WH.p*eggWhite;F+=EGG_W.f*eggWhole;
   C+=AVO.c*avoQty;P+=AVO.p*avoQty;F+=AVO.f*avoQty;
   C+=getFruitLadles()*15;
@@ -2819,7 +2840,7 @@ async function _callGeminiAI(){
     aiParsedData=_enrichAIData(_parsed,text);
     // Sanity check: ป้องกัน hallucination ค่าเกินจริง
     const t=aiParsedData.total||{};
-    if((t.kcal||0)>3000||(t.c||0)>400||(t.p||0)>300||(t.f||0)>300)
+    if((t.kcal||0)>3000||(t.c||0)>400||(t.p||0)>300||(t.f||0)>300||(t.kcal||0)<0) // v76: เดิมมีแต่ขอบบน ค่าติดลบเล็ดลอด
       throw new Error('ค่าสารอาหารผิดปกติ (AI ให้ค่าเกินจริง) กรุณาลองพิมพ์ใหม่ให้ละเอียดขึ้น');
     aiCacheSet(_cacheKey,aiParsedData); // เก็บ cache หลังผ่าน sanity check แล้วเท่านั้น
     renderAIResult(aiParsedData); // ← นักเรียนเห็นผลตรงนี้แล้ว ที่ทำหลังจากนี้ไม่กระทบเวลารอ
@@ -2827,11 +2848,17 @@ async function _callGeminiAI(){
     _logAITiming({src:'ai',totalMs:Date.now()-_t0,keyLoadMs:_keyMs,netMs:_netMs,parseMs:Date.now()-_tp0,
       promptChars:_fullPrompt.length,respChars:_respChars,dbRefs:dbRefs.length,items:(aiParsedData.items||[]).length,ok:true,thinkLow:!_noThink});
   }catch(e){
+    // v76: ล้างผลทิ้งเสมอเมื่อพลาด — ไม่ใช่แค่ผลของ "มื้อก่อน" (v46.1) แต่รวมผลของมื้อนี้ที่ sanity check ตีตกด้วย
+    // เดิม aiParsedData ถูกตั้งค่าที่บรรทัดก่อน throw → นักเรียนเห็นกล่องแดง "ค่าผิดปกติ" แต่กดส่งแล้วบันทึกได้จริง
+    aiParsedData=null;
     if(/api.?key/i.test(e.message||'')){GEMINI_KEY=null;try{localStorage.removeItem('_dfk');}catch(_){}} // key ถูก rotate → ล้างแล้วโหลดใหม่ครั้งหน้า
     _logAITiming({src:'ai',totalMs:Date.now()-_t0,keyLoadMs:_keyMs,netMs:_netMs,
       promptChars:_fullPrompt.length,respChars:_respChars,dbRefs:dbRefs.length,ok:false,err:e.message||''});
     const area=document.getElementById('ai-result-area');
-    area.innerHTML=`<div class="ai-error">⚠️ ${e.message}<br><span style="font-size:11px">กด ✨ ลองใหม่อีกครั้งนะคะ</span></div>`;
+    // v76: หมดเวลา (15 วิ) เกิดจาก prompt ยาวเกือบทุกครั้ง — กดลองใหม่เฉยๆ ก็ชนเดิม ต้องบอกให้แบ่งส่ง
+    const _abort=/abort|timeout|signal/i.test((e&&e.name||'')+' '+(e&&e.message||''));
+    const _emsg=_abort?'ใช้เวลานานเกินไป — ลองแบ่งส่งทีละมื้อ หรือพิมพ์ให้สั้นลงนะคะ':escHtml(e.message||'ไม่ทราบสาเหตุ');
+    area.innerHTML=`<div class="ai-error">⚠️ ${_emsg}<br><span style="font-size:11px">กด ✨ ลองใหม่อีกครั้งนะคะ</span></div>`;
     area.style.display='block';
     const _bsw=document.getElementById('btn-save-weigh');if(_bsw)_bsw.style.display='none'; // BUGFIX v46.1: เดิมโชว์ปุ่มส่งทั้งที่ไม่มีข้อมูล → กดแล้วงง
   }finally{
@@ -2861,7 +2888,7 @@ function _enrichAIData(data,srcText){
   if(!Array.isArray(data.items))data.items=[];
   let c=0,p=0,f=0;
   data.items.forEach(it=>{
-    it.c=+it.c||0;it.p=+it.p||0;it.f=+it.f||0;
+    it.c=Math.max(0,+it.c||0);it.p=Math.max(0,+it.p||0);it.f=Math.max(0,+it.f||0); // v76: ||0 ไม่กันค่าติดลบ
     it.kcal=Math.round(it.c*4+it.p*4+it.f*9);
     if(it._src!=='db'&&it._src!=='ai'){const r=dbLookup(it.name||'');it._src=r?'db':'ai';it._ref=r?r[0]:null;}
     c+=it.c;p+=it.p;f+=it.f;
@@ -3017,7 +3044,11 @@ function onPhoto(input){
     photoBase64=photoBase64List[0]; // backward compat
     renderPhotoThumbs();
     _photoProcessing=false;
-  }).catch(()=>{_photoProcessing=false;});
+  }).catch(e=>{
+    // v76: เดิมกลืน error เงียบ นักเรียนกดแล้วไม่มีอะไรเกิดขึ้น นึกว่าปุ่มเสีย
+    _photoProcessing=false;
+    showToast('⚠️ แนบรูปนี้ไม่ได้ ('+((e&&e.message)||'ไม่ทราบสาเหตุ')+') ลองถ่ายใหม่หรือเลือกรูปอื่นนะคะ',4500);
+  });
   input.value=''; // allow re-select same file
 }
 
@@ -3040,17 +3071,32 @@ function renderPhotoThumbs(){
   if(addBtn)addBtn.style.display=photoBase64List.length>=3?'none':'inline-flex';
 }
 async function compressPhoto(file){
-  return new Promise(resolve=>{
+  // v76 BUGFIX: เดิมมีแต่ resolve ไม่มี reject และไม่มี onerror สักตัว
+  //   ไฟล์เสีย / ฟอร์แมตที่เบราว์เซอร์ decode ไม่ได้ / หน่วยความจำไม่พอ → Promise ค้างตลอดกาล
+  //   ฝั่งนักเรียน _photoProcessing ค้าง true → แนบรูปไม่ได้อีกเลยทั้ง session แบบเงียบๆ ไม่มี error ให้เห็น
+  return new Promise((resolve,reject)=>{
+    let done=false;
+    const fin=(fn,v)=>{if(done)return;done=true;clearTimeout(_tm);fn(v);};
+    const _tm=setTimeout(()=>fin(reject,new Error('อ่านรูปไม่ทัน (ไฟล์ใหญ่เกินไป)')),20000); // กันเหนียวชั้นสุดท้าย
     const reader=new FileReader();
+    reader.onerror=()=>fin(reject,new Error('อ่านไฟล์รูปไม่ได้'));
+    reader.onabort=()=>fin(reject,new Error('อ่านไฟล์รูปไม่สำเร็จ'));
     reader.onload=e=>{
-      const img=new Image();img.onload=()=>{
-        const MAX=800;let w=img.width,h=img.height;
-        if(w>h&&w>MAX){h=h/w*MAX;w=MAX;}else if(h>MAX){w=w/h*MAX;h=MAX;}
-        const canvas=document.createElement('canvas');canvas.width=Math.round(w);canvas.height=Math.round(h);
-        canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);
-        resolve(canvas.toDataURL('image/jpeg',0.7));
-      };img.src=e.target.result;
-    };reader.readAsDataURL(file);
+      const img=new Image();
+      img.onerror=()=>fin(reject,new Error('ไฟล์นี้เปิดเป็นรูปไม่ได้'));
+      img.onload=()=>{
+        try{
+          const MAX=800;let w=img.width,h=img.height;
+          if(!w||!h)return fin(reject,new Error('รูปนี้ขนาดผิดปกติ'));
+          if(w>h&&w>MAX){h=h/w*MAX;w=MAX;}else if(h>MAX){w=w/h*MAX;h=MAX;}
+          const canvas=document.createElement('canvas');canvas.width=Math.round(w);canvas.height=Math.round(h);
+          canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);
+          fin(resolve,canvas.toDataURL('image/jpeg',0.7));
+        }catch(err){fin(reject,err instanceof Error?err:new Error('ย่อรูปไม่สำเร็จ'));}
+      };
+      img.src=e.target.result;
+    };
+    reader.readAsDataURL(file);
   });
 }
 
@@ -3154,7 +3200,7 @@ async function saveCurrentMenu(){
     let C=0,P=0,F=0;
     carbSlots.forEach(s=>{const cm=CARB_D[s.density];C+=cm.c*s.qty;P+=cm.p*s.qty;F+=cm.f*s.qty;});
     C+=pm.c*protQty;P+=pm.p*protQty;F+=pm.f*protQty;
-    F+=ck.f+visibleFat*VIS_FAT_G;
+    F+=cookFat(cookMethod,[protQty,eggWhole,eggWhite,avoQty,getFruitLadles()].concat(carbSlots.map(sl=>sl.qty)))+visibleFat*VIS_FAT_G; // v75
     C+=EGG_W.c*eggWhole+EGG_WH.c*eggWhite;P+=EGG_W.p*eggWhole+EGG_WH.p*eggWhite;F+=EGG_W.f*eggWhole;
     C+=AVO.c*avoQty;P+=AVO.p*avoQty;F+=AVO.f*avoQty;
     C+=getFruitLadles()*15;
@@ -3233,7 +3279,7 @@ async function submitMeal(){
       let C=0,P=0,F=0;
       carbSlots.forEach(s=>{const cm=CARB_D[s.density];C+=cm.c*s.qty;P+=cm.p*s.qty;F+=cm.f*s.qty;});
       C+=pm.c*protQty;P+=pm.p*protQty;F+=pm.f*protQty;
-      F+=ck.f+visibleFat*VIS_FAT_G;
+      F+=cookFat(cookMethod,[protQty,eggWhole,eggWhite,avoQty,getFruitLadles()].concat(carbSlots.map(sl=>sl.qty)))+visibleFat*VIS_FAT_G; // v75
       C+=EGG_W.c*eggWhole+EGG_WH.c*eggWhite;P+=EGG_W.p*eggWhole+EGG_WH.p*eggWhite;F+=EGG_W.f*eggWhole;
       C+=AVO.c*avoQty;P+=AVO.p*avoQty;F+=AVO.f*avoQty;
       const fruitLadles=getFruitLadles();
@@ -3386,7 +3432,7 @@ function showSuccess(mode,handData,labelData,weighData,_sDate,_sMeal){ // v74: �
     chips+=`<span class="chip">คาร์บ ${labelData.carb.toFixed(1)}g</span><span class="chip">โปรตีน ${labelData.protein.toFixed(1)}g</span><span class="chip">ไขมัน ${labelData.fat.toFixed(1)}g</span>`;
   }else if(mode==='weigh'&&weighData){
     const wKcal=Math.round((weighData.carb||0)*4+(weighData.protein||0)*4+(weighData.fat||0)*9);
-    chips+=`<span class="chip">${weighData.food}</span><span class="chip">คาร์บ ${(weighData.carb||0).toFixed(1)}g</span><span class="chip">โปรตีน ${(weighData.protein||0).toFixed(1)}g</span><span class="chip">ไขมัน ${(weighData.fat||0).toFixed(1)}g</span><span class="chip">⚡ ${wKcal} kcal</span>`;
+    chips+=`<span class="chip">${escHtml(weighData.food)}</span><span class="chip">คาร์บ ${(weighData.carb||0).toFixed(1)}g</span><span class="chip">โปรตีน ${(weighData.protein||0).toFixed(1)}g</span><span class="chip">ไขมัน ${(weighData.fat||0).toFixed(1)}g</span><span class="chip">⚡ ${wKcal} kcal</span>`;
   }
   if(photoBase64List.length>0)chips+=`<span class="chip">📸 ${photoBase64List.length>1?photoBase64List.length+' รูป':'มีรูป'}</span>`;
   // CARD-UX: สรุปรวมวันแบบเดียวกับ LINE card บนหน้านี้เลย — นักเรียนเห็นเสมอแม้ card ในแชทไม่เด้ง
@@ -3832,6 +3878,22 @@ function startCoach(){
       // BUGFIX: v55 ใช้ลายเซ็นจาก id+status ซึ่งพลาด — โค้ชแก้ค่ามื้อที่ "อนุมัติแล้ว" ซ้ำอีกรอบ
       // status ไม่เปลี่ยน (approved เหมือนเดิม) ลายเซ็นเลยเท่าเดิม → หน้าไม่อัปเดต โค้ชนึกว่าบันทึกไม่ติด
       // ใช้ docChanges() ของ Firestore แทน = รู้แน่ชัดว่ามีเอกสารไหนเพิ่ม/แก้/ลบบ้าง ไม่ต้องเดาเอง
+      // v75: ถ้าเอกสารที่เปลี่ยน "ทุกใบ" เป็น write ของเครื่องนี้เองที่ยังไม่ซิงค์
+      // แปลว่าตัวจัดการ (doApprove/sendCorrection) วาดหน้าให้แล้ว — ไม่ต้องวาดซ้ำ
+      // เดิมกด 1 ที = วาดทั้งหน้า 3 รอบ (handler + snapshot local + snapshot server)
+      // เช็ค "ทุกใบ" ไม่ใช่ snapshot.hasPendingWrites รวม เพราะถ้านักเรียนส่งมื้อใหม่เข้ามาพร้อมกัน ต้องวาด
+      // v76: ข้ามการวาดเฉพาะเมื่อเอกสารที่เปลี่ยน "ทุกใบ" เป็น write ที่ยังไม่ซิงค์ "และ" มาจากปุ่มที่วาดหน้าให้เองแล้ว
+      // นักเรียนส่งมื้อใหม่ / โค้ชบันทึกมื้อตัวเอง / แก้มื้อผ่านหน้า edit / ลบมื้อ → ไม่อยู่ใน Map → วาดตามปกติ
+      let _allLocal=false;
+      try{
+        const _ch=snap.docChanges(),_now=Date.now();
+        _allLocal=_ch.length>0&&_ch.every(c=>{
+          if(!c.doc.metadata.hasPendingWrites)return false;
+          const t=_coachSelfWrites.get(c.doc.id);
+          return !!t&&(_now-t)<15000;
+        });
+      }catch(_){}
+      if(_allLocal&&_coachRendered)return;
       _coachRendered=true;
       renderCoach();
     },err=>console.error(err));
@@ -3885,7 +3947,7 @@ function renderCoach(){
       const subs=groups[uid].slice().sort((a,b)=>(a.createdAt?.seconds||0)-(b.createdAt?.seconds||0));
       const u0=subs[0];
       const av=u0.pictureUrl
-        ?`<img src="${u0.pictureUrl}" style="width:28px;height:28px;border-radius:50%;object-fit:cover">`
+        ?`<img src="${safeImg(u0.pictureUrl)}" style="width:28px;height:28px;border-radius:50%;object-fit:cover">` // v76 XSS: pictureUrl มาจากเอกสารที่เครื่องนักเรียนเขียน
         :`<div style="width:28px;height:28px;border-radius:50%;background:var(--light);display:flex;align-items:center;justify-content:center;font-size:14px">👤</div>`;
       return`<div style="display:flex;align-items:center;gap:8px;margin:16px 2px 8px;padding-bottom:7px;border-bottom:2px solid var(--border)">
         ${av}
@@ -3974,7 +4036,8 @@ function buildStudentCard(u,MON){
   // testimonial badge: streak ≥14 หรือ log ≥20 วัน
   const uniqueDays=new Set(u.subs.map(s=>subDate(s))).size;
   const showTestiBadge=streak>=14||uniqueDays>=20;
-  const avatarHtml=u.pictureUrl?`<img src="${u.pictureUrl}" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display='none'">`:'👤';
+  // v76 XSS: เดิมยัด URL ดิบเข้า src → ค่า  x" onerror="..."  รันโค้ดในเครื่องโค้ชได้ (safeImg มีอยู่แล้ว อีก 6 จุดใช้ถูกหมด)
+  const avatarHtml=u.pictureUrl?`<img src="${safeImg(u.pictureUrl)}" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display='none'">`:'👤';
   return`<div class="stu-card" onclick="openStudentDetail('${u.userId}')" onmouseenter="prefetchStudent('${u.userId}')">
     <div class="stu-card-top">
       <div class="stu-avatar">${avatarHtml}</div>
@@ -4026,10 +4089,23 @@ function _sdCachePut(userId,data){
   }
 }
 
+const _SD_SKEL=`<div style="padding:36px 16px;font-family:'Prompt',sans-serif">
+    <div class="df-spin"></div>
+    <div style="text-align:center;color:var(--gray);font-size:13px;margin-bottom:18px">กำลังโหลดข้อมูลนักเรียน...</div>
+    <div class="df-skel" style="height:80px;margin-bottom:10px"></div>
+    <div class="df-skel" style="height:110px"></div>
+  </div>`;
+
 // Prefetch student data ล่วงหน้า (hover หรือ background)
+const _sdPending={}; // v75: promise ของ prefetch ที่ยังวิ่งอยู่ ต่อ userId
 async function prefetchStudent(userId){
-  if(_sdCache[userId]||_sdCache['_pf_'+userId])return;
-  _sdCache['_pf_'+userId]=true;
+  if(_sdCache[userId])return;
+  if(_sdPending[userId])return _sdPending[userId]; // กำลังโหลดอยู่แล้ว → ใช้ตัวเดิม ไม่ยิงใหม่
+  const p=_prefetchRun(userId);
+  _sdPending[userId]=p;
+  try{return await p;}finally{delete _sdPending[userId];}
+}
+async function _prefetchRun(userId){
   try{
     const _pft=ms=>new Promise(r=>setTimeout(()=>r(null),ms));
     const [tdSnap,hsSnap,wsSnap,wcSnap]=await Promise.all([
@@ -4064,7 +4140,6 @@ async function prefetchStudent(userId){
       _sdCachePut(userId,{targets,healthLogs,weeklySummaries,weeklyChecks});
     }
   }catch(e){}
-  delete _sdCache['_pf_'+userId];
 }
 async function openStudentDetail(userId){
   const overlay=document.getElementById('student-detail');
@@ -4078,6 +4153,13 @@ async function openStudentDetail(userId){
   document.getElementById('sd-name').textContent=u.displayName||'นักเรียน';
   const streak=calcStreak(u.subs,tzOfUser(userId)); // v73: streak ตามเวลาของนักเรียน
   document.getElementById('sd-sub').textContent=streak>0?`🔥 ${streak} วันติดต่อกัน`:'';
+  // v75: prefetch ของคนนี้กำลังวิ่งอยู่ → โชว์ skeleton แล้วรอสั้นๆ แทนยิง query ชุดเดียวกันซ้อน
+  // ทันก็ได้ผลจาก prefetch เลย (ประหยัด 4 query และขึ้นเร็วกว่าเดิมด้วย) ไม่ทันก็ทำต่อตามปกติ
+  if(!_sdCache[userId]&&_sdPending[userId]){
+    const _sc=document.getElementById('sd-content');if(_sc)_sc.innerHTML=_SD_SKEL;
+    await Promise.race([_sdPending[userId].catch(()=>null),new Promise(r=>setTimeout(r,1500))]);
+    if(!currentStudentData||currentStudentData.userId!==userId)return; // โค้ชเปลี่ยนไปดูคนอื่นระหว่างรอ
+  }
   // ถ้ามี cache → render ทันที ไม่รอ Firestore
   if(_sdCache[userId]){
     const c=_sdCache[userId];
@@ -4095,12 +4177,7 @@ async function openStudentDetail(userId){
       return;
   }
   // แสดง loading ก่อน Phase 1 fetch (sd-content ยังว่าง)
-  document.getElementById('sd-content').innerHTML=`<div style="padding:36px 16px;font-family:'Prompt',sans-serif">
-    <div class="df-spin"></div>
-    <div style="text-align:center;color:var(--gray);font-size:13px;margin-bottom:18px">กำลังโหลดข้อมูลนักเรียน...</div>
-    <div class="df-skel" style="height:80px;margin-bottom:10px"></div>
-    <div class="df-skel" style="height:110px"></div>
-  </div>`;
+  document.getElementById('sd-content').innerHTML=_SD_SKEL;
   // === PHASE 1: โหลด students doc เดียว → render ทันที ===
   const tdSnap=await db.collection('students').doc(userId).get().catch(()=>null);
   let targets={kcal:1600,c:160,p:120,f:55};
@@ -4647,7 +4724,7 @@ function updatePlanHandPreview(){
   const cm=COOK_M[planCookMethod]||COOK_M.none;
   const c=Math.round(cd.c*planHandCarbQty+pt.c*planHandProtQty+EGG_W.c*planEggWhole+EGG_WH.c*planEggWhite+AVO.c*planAvoQty+getPlanFruitLadles()*15);
   const p=Math.round(cd.p*planHandCarbQty+pt.p*planHandProtQty+EGG_W.p*planEggWhole+EGG_WH.p*planEggWhite+AVO.p*planAvoQty);
-  const f=Math.round(cd.f*planHandCarbQty+pt.f*planHandProtQty+cm.f+planVisibleFat*VIS_FAT_G+EGG_W.f*planEggWhole+AVO.f*planAvoQty);
+  const f=Math.round(cd.f*planHandCarbQty+pt.f*planHandProtQty+cookFat(planCookMethod,[planHandCarbQty,planHandProtQty,planEggWhole,planEggWhite,planAvoQty,getPlanFruitLadles()])+planVisibleFat*VIS_FAT_G+EGG_W.f*planEggWhole+AVO.f*planAvoQty);
   const kcal=c*4+p*4+f*9;
   const el=document.getElementById('ph-preview-text');
   if(el)el.textContent=`C ${c}g · P ${p}g · F ${f}g → ⚡ ${kcal} kcal`;
@@ -4741,7 +4818,7 @@ function addPlanItem(){
     const cm=COOK_M[planCookMethod]||COOK_M.none;
     c=Math.round(cd.c*planHandCarbQty+pt.c*planHandProtQty+EGG_W.c*planEggWhole+EGG_WH.c*planEggWhite+AVO.c*planAvoQty+getPlanFruitLadles()*15);
     p=Math.round(cd.p*planHandCarbQty+pt.p*planHandProtQty+EGG_W.p*planEggWhole+EGG_WH.p*planEggWhite+AVO.p*planAvoQty);
-    f=Math.round(cd.f*planHandCarbQty+pt.f*planHandProtQty+cm.f+planVisibleFat*VIS_FAT_G+EGG_W.f*planEggWhole+AVO.f*planAvoQty);
+    f=Math.round(cd.f*planHandCarbQty+pt.f*planHandProtQty+cookFat(planCookMethod,[planHandCarbQty,planHandProtQty,planEggWhole,planEggWhite,planAvoQty,getPlanFruitLadles()])+planVisibleFat*VIS_FAT_G+EGG_W.f*planEggWhole+AVO.f*planAvoQty);
     if(!c&&!p&&!f){showToast('ปรับ qty คาร์บหรือโปรตีนก่อนนะคะ');return;}
     autoName=`${cd.emoji} ${cd.label} ${planHandCarbQty}ทัพพี + ${planHandProtType==='lean'?'💪':'🍗'} โปรตีน ${planHandProtQty}ฝ่ามือ`;
   }else if(planAddMode==='fill'){
@@ -4995,15 +5072,35 @@ async function saveProgramSettings(uid){
   const weeksEl=document.getElementById(`prog-weeks-${uid}`);
   if(!startEl||!weeksEl)return;
   const payload={programStart:startEl.value,programWeeks:parseInt(weeksEl.value)||12}; // NB6: กัน NaN → Firestore reject
+  // v76 BUGFIX: pausedDays / isPaused / pauseStartDate ไม่เคยถูกล้างที่ไหนเลยทั้งไฟล์ → ติดตัวนักเรียนข้ามคอร์ส
+  //   วันจบคอร์สใหม่ = (สัปดาห์ × 7) + วันพักของคอร์สเก่า → เลื่อนสะสมไปเรื่อยๆ
+  //   และถ้าคอร์สเก่าจบตอนยังพักอยู่ isPaused ค้าง true → checkNearEnd มี "if(prog.isPaused)return"
+  //   → การ์ดเตือนใกล้หมดคอร์สไม่เด้งเลยตลอดคอร์สใหม่
+  //   เปลี่ยน "วันเริ่ม" = ขึ้นรอบใหม่ → ล้าง | แก้แค่จำนวนสัปดาห์ = คอร์สเดิม → ห้ามล้าง
+  let _prevStart=null,_didReset=false;
+  try{const _c=_sdCache[uid];if(_c&&_c.targets&&_c.targets.programStart!==undefined)_prevStart=_c.targets.programStart||'';}catch(_){}
+  if(_prevStart===null){
+    const _pd=await db.collection('students').doc(uid).get().catch(()=>null);
+    _prevStart=(_pd&&_pd.exists&&_pd.data().programStart)||'';
+  }
+  if((startEl.value||'')!==_prevStart){
+    payload.pausedDays=0;payload.isPaused=false;payload.pauseStartDate=null;
+    _didReset=!!_prevStart; // ครั้งแรกที่ตั้งค่า (ยังไม่เคยมีวันเริ่ม) ไม่ต้องแจ้ง
+  }
   try{
     const _r=await _fsWrite(db.collection('students').doc(uid).set(payload,{merge:true})); // W1
-    showToast(_r==='timeout'?'📡 เน็ตช้า — บันทึกไว้ในเครื่องแล้ว จะซิงค์อัตโนมัติค่ะ':'บันทึกข้อมูลคอร์สแล้วค่ะ ✅',_r==='timeout'?4000:2500);
+    showToast(_r==='timeout'?'📡 เน็ตช้า — บันทึกไว้ในเครื่องแล้ว จะซิงค์อัตโนมัติค่ะ':(_didReset?'บันทึกแล้วค่ะ ✅ (เริ่มคอร์สใหม่ → รีเซ็ตวันพักเป็น 0)':'บันทึกข้อมูลคอร์สแล้วค่ะ ✅'),_r==='timeout'?4000:3500);
     delete _sdCache[uid];
     if(currentStudentData&&currentStudentData.userId===uid)openStudentDetail(uid);
   }catch(e){showToast('⚠️ บันทึกไม่ได้: '+e.message,4000);}
 }
 async function pauseStudentProgram(uid){
   if(!await askConfirm('พักเทรนนักเรียนคนนี้?\nวันจบจะถูกเลื่อนออกไปทุกวันที่พัก',{icon:'⏸️',okText:'พักเทรน'}))return; // v65
+  // v76: กดซ้ำ (เช่นเปิดค้างอีกแท็บที่ยังเห็นปุ่มเดิม) จะทับ pauseStartDate → วันพักที่สะสมไว้หายไปเป็นสัปดาห์
+  let _isP=null;
+  try{const _c=_sdCache[uid];if(_c&&_c.targets&&_c.targets.isPaused!==undefined)_isP=!!_c.targets.isPaused;}catch(_){}
+  if(_isP===null){const _pd=await db.collection('students').doc(uid).get().catch(()=>null);if(_pd&&_pd.exists)_isP=!!_pd.data().isPaused;}
+  if(_isP){showToast('⏸ นักเรียนคนนี้พักเทรนอยู่แล้วค่ะ (ไม่ได้เขียนทับวันเริ่มพัก)',3500);return;}
   try{
     await _fsWrite(db.collection('students').doc(uid).set({isPaused:true,pauseStartDate:todayStrTZ(tzOfUser(uid))},{merge:true})); // W1 | v74: วันของนักเรียน
     showToast('⏸ พักเทรนแล้วค่ะ วันจบจะถูกคำนวณใหม่');
@@ -5018,11 +5115,17 @@ async function resumeStudentProgram(uid){
     let doc=await Promise.race([_ref.get().catch(()=>null),new Promise(r=>setTimeout(()=>r(null),8000))]);
     if(!doc){doc=await _ref.get({source:'cache'}).catch(()=>null);}
     if(!doc){showToast('📡 เน็ตช้า — ลองใหม่อีกครั้งค่ะ',3500);return;}
+    // v76: ห้ามคำนวณวันพักจากสำเนาในเครื่อง — ถ้าโค้ชกดพักจากอีกเครื่องแล้วยังไม่ซิงค์
+    // จะได้ extra=0 แต่ยังเขียนทับอยู่ดี → วันพักที่สะสมไว้หายหมด
+    if(doc.metadata&&doc.metadata.fromCache){showToast('📡 ข้อมูลในเครื่องอาจไม่ใช่ล่าสุด — ลองอีกครั้งตอนเน็ตดีนะคะ',4000);return;}
     const d=doc.data()||{};
     let extra=0;
     if(d.pauseStartDate){
-      const pauseStart=new Date(d.pauseStartDate+'T00:00:00');
-      extra=Math.max(0,Math.floor((new Date()-pauseStart)/(1000*60*60*24)));
+      // v76: นับเป็น "จำนวนวัน" ตามปฏิทินของนักเรียน ไม่ใช่เวลาเครื่องโค้ช (v74 แก้ฝั่งพักไปแล้ว ฝั่งนี้ยังตกค้าง)
+      // ยึดเที่ยงวัน UTC ทั้งคู่ → DST ไม่ทำให้เพี้ยน
+      const _p=new Date(d.pauseStartDate+'T12:00:00Z');
+      const _n=new Date(todayStrTZ(tzOfUser(uid))+'T12:00:00Z');
+      extra=Math.max(0,Math.round((_n-_p)/86400000));
     }
     const prevPaused=d.pausedDays||0;
     await _fsWrite(db.collection('students').doc(uid).set({isPaused:false,pauseStartDate:null,pausedDays:prevPaused+extra},{merge:true})); // W1
@@ -5328,9 +5431,13 @@ function buildCorrPanel(s,cs){
     cState[s.id]._sub=s; // store ref so updateHandCorrPreview can access it
     const hd=s.handData||{};
     const density=cs.carbDensity||(hd.carbSlots?.[0]?.density||'normal');
-    const carbQty=cs.carbQty!==undefined?cs.carbQty:(hd.carbSlots?.reduce((t,sl)=>t+(sl.qty||0),0)||1.5);
+    // v75 BUGFIX: เดิมใช้ || ซึ่งมองเลข 0 เป็น "ไม่มีค่า" แล้วตกไปใช้ default
+    //   นักเรียนกรอกคาร์บ 0 ทัพพี → โค้ชกด ✏️ แก้ไข → ช่องเด้งเป็น 1.5 เอง (โปรตีน 0 → เด้งเป็น 1)
+    //   โค้ชต้องมานั่งกดลดกลับเป็น 0 ทั้งที่นักเรียนกรอก 0 มาถูกแล้ว
+    const _hdCarb=hd.carbSlots?hd.carbSlots.reduce((t,sl)=>t+(sl.qty||0),0):undefined;
+    const carbQty=cs.carbQty!==undefined?cs.carbQty:(_hdCarb!==undefined?_hdCarb:1.5);
     const protType=cs.protType||hd.protType||'lean';
-    const protQty=cs.protQty!==undefined?cs.protQty:(hd.protein||1);
+    const protQty=cs.protQty!==undefined?cs.protQty:(hd.protein!==undefined?hd.protein:1);
     const cookMethod=cs.cookMethod||hd.cookMethod||'none';
     const visFat=cs.visFat!==undefined?cs.visFat:(hd.visibleFat||0);
     const cd=CARB_D[density]||CARB_D.normal;
@@ -5349,7 +5456,7 @@ function buildCorrPanel(s,cs){
     const fruitC=fruitLadles*15;
     const preC=Math.round(cd.c*carbQty+pt.c*protQty+eggsC+avoC+fruitC);
     const preP=Math.round(cd.p*carbQty+pt.p*protQty+eggsP+avoP);
-    const preF=Math.round(cd.f*carbQty+pt.f*protQty+ck.f+visFat*VIS_FAT_G+eggsF+avoF);
+    const preF=Math.round(cd.f*carbQty+pt.f*protQty+cookFat(cookMethod,[carbQty,protQty,eggWhole,eggWhite,avoQty,fruitLadles])+visFat*VIS_FAT_G+eggsF+avoF); // v75
     const preKcal=Math.round(preC*4+preP*4+preF*9);
     const origTotal=s.total||{c:0,p:0,f:0,kcal:0};
     const dBtn=(d)=>`<button class="dens-btn${d===density?' active':''}" data-d="${d}" onclick="setHCorrCarbD('${s.id}','${d}')">${CARB_D[d].emoji} ${CARB_D[d].label}</button>`;
@@ -5549,9 +5656,11 @@ function calcHandCorrMacros(id){
   const hd=s.handData||{};
   const st=cState[id]||{};
   const density=st.carbDensity||(hd.carbSlots?.[0]?.density||'normal');
-  const carbQty=st.carbQty!==undefined?st.carbQty:(hd.carbSlots?.reduce((t,sl)=>t+(sl.qty||0),0)||1.5);
+  // v75 BUGFIX: เหมือน B1 — 0 ต้องเป็น 0 ไม่ใช่ตกไปใช้ default
+  const _hdCarb2=hd.carbSlots?hd.carbSlots.reduce((t,sl)=>t+(sl.qty||0),0):undefined;
+  const carbQty=st.carbQty!==undefined?st.carbQty:(_hdCarb2!==undefined?_hdCarb2:1.5);
   const protType=st.protType||hd.protType||'lean';
-  const protQty=st.protQty!==undefined?st.protQty:(hd.protein||1);
+  const protQty=st.protQty!==undefined?st.protQty:(hd.protein!==undefined?hd.protein:1);
   const cookMethod=st.cookMethod||hd.cookMethod||'none';
   const visFat=st.visFat!==undefined?st.visFat:(hd.visibleFat||0);
   const cd=CARB_D[density]||CARB_D.normal;
@@ -5570,7 +5679,7 @@ function calcHandCorrMacros(id){
   const fruitC=fruitL*15;
   const C=Math.round(cd.c*carbQty+pt.c*protQty+eggsC+avoC+fruitC);
   const P=Math.round(cd.p*carbQty+pt.p*protQty+eggsP+avoP);
-  const F=Math.round(cd.f*carbQty+pt.f*protQty+ck.f+visFat*VIS_FAT_G+eggsF+avoF);
+  const F=Math.round(cd.f*carbQty+pt.f*protQty+cookFat(cookMethod,[carbQty,protQty,eggW,eggWh,avoQ,fruitL])+visFat*VIS_FAT_G+eggsF+avoF); // v75
   return{C,P,F,kcal:Math.round(C*4+P*4+F*9)};
 }
 function updateHandCorrPreview(id){
@@ -5616,9 +5725,10 @@ function genCorrNote(id){
   const ta=document.getElementById(`cc-note-${id}`);
   if(ta){ta.value=`โค้ชปรับค่าให้นะคะ 💪\n${lines.join('\n')}\n\n`;ta.focus();cState[id]=cState[id]||{};cState[id].note=ta.value;} // v54.1: จำไว้กันหน้าวาดใหม่แล้วหาย
 }
-function approveCard(id){if(!cState[id])cState[id]={};cState[id].approveOpen=!cState[id].approveOpen;renderCoach();}
+function approveCard(id){if(!cState[id])cState[id]={};cState[id].approveOpen=!cState[id].approveOpen;_updateCard(id);} // v75: วาดใบเดียวพอ (เหมือน toggleCorr/setCoachCorrMode) — เดิม renderCoach() ทั้งหน้า จอเด้งกลับบนสุด
 const _approveInProgress=new Set(); // M1: ป้องกัน double-tap
 async function doApproveQuiet(id){
+  _markCoachSelfWrite(id); // v76: ฟังก์ชันนี้เรียก renderCoach() เองด้านล่าง
   _justActedIds.add(id); // v59: จำไว้ว่าโค้ชเพิ่งจัดการรายการนี้ → ยังกดดูรูปได้แม้หลุด 10 ล่าสุด
   if(cState[id])delete cState[id]; // v59: ล้างสถานะการ์ด (รวม _sub ที่กินหน่วยความจำ) หลังจัดการเสร็จ
   if(_approveInProgress.has(id))return; // M1
@@ -5634,6 +5744,7 @@ async function doApproveQuiet(id){
   finally{_approveInProgress.delete(id);} // M1
 }
 async function doApprove(id){
+  _markCoachSelfWrite(id); // v76: ฟังก์ชันนี้เรียก renderCoach() เองด้านล่าง
   _justActedIds.add(id); // v59: จำไว้ว่าโค้ชเพิ่งจัดการรายการนี้ → ยังกดดูรูปได้แม้หลุด 10 ล่าสุด
   if(_approveInProgress.has(id))return; // M1
   _approveInProgress.add(id);
@@ -5674,6 +5785,7 @@ const _corrInProgress=new Set(); // M2: ป้องกัน double-tap correct
 async function sendCorrection(id,action='save'){
   _justActedIds.add(id); // v59: จำไว้ว่าโค้ชเพิ่งจัดการรายการนี้ → ยังกดดูรูปได้แม้หลุด 10 ล่าสุด
   if(action==='save'){
+    _markCoachSelfWrite(id); // v76: เฉพาะตอนเขียนจริง — ปุ่ม "Copy ข้อความ" ไม่ได้เขียนอะไรเลย
     if(_corrInProgress.has(id))return; // M2
     _corrInProgress.add(id);
   }
@@ -5754,7 +5866,9 @@ function formatTime(date){
   if(diff<86400000)return Math.floor(diff/3600000)+' ชม.ที่แล้ว';
   return date.toLocaleDateString('th-TH',{day:'numeric',month:'short'});
 }
-function escHtml(str){if(!str)return'';return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+// v76: เติม ' และ ` — เดิมทุกจุดเรียกใช้บังเอิญอยู่ใน attribute ที่ครอบด้วย " เลยยังไม่พัง
+// แต่ถ้าวันหลังเผลอเอาไปใส่ใน onclick="fn('...')" จะโดนทันที (บรรทัด 1020 ต้องมานั่ง replace ' ทิ้งเองอยู่แล้ว)
+function escHtml(str){if(!str)return'';return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/`/g,'&#96;');}
 function showToast(msg,dur){
   dur=dur||2500;
   var t=document.getElementById('_toast');
@@ -5962,7 +6076,7 @@ function buildStudentWeeklySummary(subs, byDate, healthLogs, weeklySummaries){
     const{weekId,subs:wSubs}=wk;
     const saved=weeklySummaries[weekId]||{};
     const mon=weekId;
-    const sat=new Date(mon+'T00:00:00');sat.setDate(sat.getDate()+5);
+    const sat=new Date(mon+'T00:00:00');sat.setDate(sat.getDate()+6); // v76: getWeekId จัดวันอาทิตย์เข้าสัปดาห์นี้ (จ→อา 7 วัน) เดิม +5 ทำให้ป้ายวันที่และค่าเฉลี่ยนอน/ก้าว/คาร์ดิโอตัดวันอาทิตย์ทิ้ง ทั้งที่ค่าเฉลี่ยแคลนับรวม
     const satStr=_ymdLocal(sat); // BUGFIX v47: toISOString ทำให้ช่วงสัปดาห์เลื่อน 1 วัน (ตัดวันศุกร์-เสาร์ทิ้ง)
     const rangeLabel=formatDateShort(mon)+' – '+formatDateShort(satStr);
     const datesWithSub=[...new Set(wSubs.map(s=>subDate(s)))];
@@ -6035,7 +6149,7 @@ function buildWeeklySummaryAccordion(u, byDate, targets, healthLogs, weeklySumma
     const saved=weeklySummaries[weekId]||{};
     // date range label
     const mon=weekId; // YYYY-MM-DD of Monday
-    const sat=new Date(mon+'T00:00:00');sat.setDate(sat.getDate()+5);
+    const sat=new Date(mon+'T00:00:00');sat.setDate(sat.getDate()+6); // v76: getWeekId จัดวันอาทิตย์เข้าสัปดาห์นี้ (จ→อา 7 วัน) เดิม +5 ทำให้ป้ายวันที่และค่าเฉลี่ยนอน/ก้าว/คาร์ดิโอตัดวันอาทิตย์ทิ้ง ทั้งที่ค่าเฉลี่ยแคลนับรวม
     const satStr=_ymdLocal(sat); // BUGFIX v47: toISOString ทำให้ช่วงสัปดาห์เลื่อน 1 วัน (ตัดวันศุกร์-เสาร์ทิ้ง)
     const rangeLabel=formatDateShort(mon)+' – '+formatDateShort(satStr);
     // calc stats (skip days with no subs)
@@ -6214,13 +6328,21 @@ async function checkTestimonialEligibility(weeklyChecks){
   if(!weeklyChecks||weeklyChecks.length<2)return;
   // BUGFIX v48.1: เดิมตั้งธงก่อน return 2 จุดที่อยู่นอก try/finally → ธงค้าง true ตลอด session
   // ผลคือนักเรียนที่ยังลดไม่ถึง 3% ตอนเปิดแอปครั้งแรก จะไม่มีทางได้การ์ดขอ testimonial อีกเลยในรอบนั้น
-  const first=weeklyChecks[0].weight_kg;
+  let first=weeklyChecks[0].weight_kg;
   const last=weeklyChecks[weeklyChecks.length-1].weight_kg;
   if(!first||!last)return;
-  const lossPct=(first-last)/first;
-  if(lossPct<0.03)return; // ต้องลดอย่างน้อย 3%
+  // v76 BUGFIX: weeklyChecks ดึงมาแค่ 20 ครั้งล่าสุด — คนที่ชั่งเกิน 20 ครั้ง first จะเลื่อนตามหน้าต่าง
+  //   กลายเป็นเทียบกันเองภายใน 20 สัปดาห์ล่าสุดตลอด → ลดไปแล้ว 15 กก. จริงแต่การ์ดไม่เคยเด้ง
+  //   ยังไม่เต็มเพดาน = first คือครั้งแรกจริงอยู่แล้ว ไม่ต้องยิง query เพิ่ม
+  if(weeklyChecks.length<20&&(first-last)/first<0.03)return;
   _testimonialInProgress=true;
   try{
+    if(weeklyChecks.length>=20){
+      const _fq=await db.collection('weeklyChecks').doc(user.userId).collection('entries').orderBy('date','asc').limit(1).get().catch(()=>null);
+      if(_fq&&!_fq.empty){const _w=_fq.docs[0].data().weight_kg;if(_w)first=_w;}
+    }
+    const lossPct=(first-last)/first;
+    if(lossPct<0.03)return; // ต้องลดอย่างน้อย 3%
     // เช็คว่าเคยส่งแล้วหรือยัง
     const doc=await db.collection('students').doc(user.userId).get();
     if(doc.exists&&doc.data().testimonialSent)return;
@@ -6484,7 +6606,7 @@ function buildFeedbackFlex(mealCount, totC, totP, totF, totKcal, currentSub, day
     }
     // fat (cooking + visible)
     const ck=COOK_M[hd.cookMethod]||COOK_M.none;
-    const fatTsp=(ck.f/VIS_FAT_G)+((hd.visibleFat)||0)+((hd.avo||0)*AVO.f/VIS_FAT_G);
+    const fatTsp=(cookFatHD(hd)/VIS_FAT_G)+((hd.visibleFat)||0)+((hd.avo||0)*AVO.f/VIS_FAT_G); // v75
     if(fatTsp>0){
       mealRows.push({type:'box',layout:'horizontal',margin:'sm',contents:[
         {type:'text',text:`🫙 น้ำมัน ${Math.round(fatTsp*10)/10} ช้อนชา`,size:'xs',color:'#92400E',flex:1},
@@ -6607,33 +6729,49 @@ function buildFeedbackFlex(mealCount, totC, totP, totF, totKcal, currentSub, day
 // ===== EDIT SUBMISSION =====
 let _editSubId=null,_editSubMode=null;
 let _editSubOrigC=0,_editSubOrigP=0,_editSubOrigF=0,_editSubOrigName='';
-let _editSubCurrentPhoto=null,_editSubNewFile=null,_editPhotoRemoved=false;
+let _editSubCurrentPhoto=null,_editSubNewPhoto=null,_editPhotoRemoved=false;
+let _editPhotoBusy=false; // v76: กำลังย่อรูปอยู่ — ห้ามกดบันทึก ไม่งั้นรูปหายเงียบ
+function _editSaveLock(on){
+  _editPhotoBusy=on;
+  const b=document.getElementById('esm-save-btn');
+  if(b){b.disabled=on;b.style.opacity=on?'0.55':'';b.textContent=on?'⏳ กำลังย่อรูป...':'💾 บันทึก';}
+}
 
 function closeEditSub(){
   document.getElementById('edit-sub-modal').style.display='none';
   _editSubId=null;_editSubMode=null;
-  _editSubCurrentPhoto=null;_editSubNewFile=null;_editPhotoRemoved=false;
+  _editSubCurrentPhoto=null;_editSubNewPhoto=null;_editPhotoRemoved=false;
   _editSubOrigC=0;_editSubOrigP=0;_editSubOrigF=0;_editSubOrigName='';
 }
 
-function onEditPhotoChange(input){
+async function onEditPhotoChange(input){
   const file=input.files[0];
   if(!file)return;
-  _editSubNewFile=file;_editPhotoRemoved=false;
-  const reader=new FileReader();
-  reader.onload=e=>{
+  const st=document.getElementById('esm-photo-status');
+  if(st)st.textContent='⏳ กำลังย่อรูป...';
+  _editSaveLock(true); // v76: กันโค้ชกดบันทึกระหว่างย่อรูป → เดิมบันทึกผ่านโดยไม่มีรูป เงียบๆ
+  // v75: ย่อรูปก่อนเสมอ (800px q0.7) เหมือนฝั่งนักเรียน
+  // เดิมอ่านไฟล์ดิบ 2 รอบ (พรีวิว + อัปโหลด) → รูปกล้อง 3-12MB กลายเป็น base64 ใหญ่กว่าเดิม 33% สองชุดพร้อมกัน
+  // แล้วอัปทั้งก้อน มีสิทธิ์ชน timeout 20 วิ สูงมากบนเน็ตมือถือ
+  try{
+    const b64=await compressPhoto(file);
+    _editSubNewPhoto=b64;_editPhotoRemoved=false;
     const img=document.getElementById('esm-photo-preview');
-    if(img){img.src=e.target.result;img.style.display='block';}
+    if(img){img.src=b64;img.style.display='block';}
     const rb=document.getElementById('esm-photo-remove');
     if(rb)rb.style.display='inline';
-    const st=document.getElementById('esm-photo-status');
     if(st)st.textContent='✅ เลือกรูปใหม่แล้ว';
-  };
-  reader.readAsDataURL(file);
+  }catch(e){
+    _editSubNewPhoto=null;
+    if(st)st.textContent='⚠️ '+((e&&e.message)||'อ่านรูปไม่ได้')+' — ลองเลือกใหม่อีกครั้งค่ะ';
+  }finally{
+    _editSaveLock(false); // v76: ปลดล็อกเสมอ ทั้งสำเร็จและล้มเหลว
+    const _inp=document.getElementById('esm-photo-input');if(_inp)_inp.value=''; // เลือกไฟล์เดิมซ้ำได้
+  }
 }
 
 function removeEditPhoto(){
-  _editSubNewFile=null;_editPhotoRemoved=true;_editSubCurrentPhoto=null;
+  _editSubNewPhoto=null;_editPhotoRemoved=true;_editSubCurrentPhoto=null;
   const img=document.getElementById('esm-photo-preview');
   if(img){img.src='';img.style.display='none';}
   const rb=document.getElementById('esm-photo-remove');
@@ -6724,7 +6862,7 @@ async function editHistSub(id){
 
   // Photo state
   _editSubCurrentPhoto=s.photoUrl||s.photoBase64||null;
-  _editSubNewFile=null;_editPhotoRemoved=false;
+  _editSubNewPhoto=null;_editPhotoRemoved=false;
   const esmImg=document.getElementById('esm-photo-preview');
   if(esmImg){esmImg.src=_editSubCurrentPhoto||'';esmImg.style.display=_editSubCurrentPhoto?'block':'none';}
   const esmRb=document.getElementById('esm-photo-remove');
@@ -6771,6 +6909,7 @@ function switchEditMode(mode){
 
 async function saveHistEdit(){
   if(!_editSubId)return;
+  if(_editPhotoBusy){showToast('⏳ กำลังย่อรูปอยู่ค่ะ รออีกครู่แล้วกดบันทึกอีกทีนะคะ',3000);return;} // v76
   const btn=document.getElementById('esm-save-btn');
   btn.disabled=true;btn.textContent='กำลังบันทึก...';
 
@@ -6833,12 +6972,9 @@ async function saveHistEdit(){
     if(s&&(s.status==='corrected'||s.correction)){upd.status='pending';upd.correction=null;}
 
     // Photo: อัปโหลดรูปใหม่ หรือลบรูปเดิม
-    if(_editSubNewFile){
+    if(_editSubNewPhoto){
       try{
-        const base64=await new Promise((res,rej)=>{
-          const r=new FileReader();r.onload=e=>res(e.target.result);r.onerror=rej;
-          r.readAsDataURL(_editSubNewFile);
-        });
+        const base64=_editSubNewPhoto; // v75: ย่อไว้แล้วตอนเลือกรูป ไม่ต้องอ่านไฟล์ซ้ำ
         const uid=s?.userId||user?.userId||'unknown';
         const photoRef=storage.ref(`photos/${uid}/${Date.now()}.jpg`);
         const uploadP=photoRef.putString(base64,'data_url').then(()=>photoRef.getDownloadURL());
