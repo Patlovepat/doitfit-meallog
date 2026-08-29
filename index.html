@@ -390,6 +390,11 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
 .stu-name{font-size:14px;font-weight:600;color:var(--text)}
 .stu-streak{font-size:11px;color:#C2410C;background:#FFF7ED;border:1px solid #FED7AA;border-radius:12px;padding:2px 7px;font-weight:600;margin-left:auto}
 .stu-testimonial-badge{font-size:11px;color:#7C3AED;background:#F5F3FF;border:1px solid #DDD6FE;border-radius:12px;padding:2px 7px;font-weight:600}
+/* v77: ป้ายบอกสถานะการส่งของนักเรียนบนการ์ดฝั่งโค้ช */
+.stu-nosub{font-size:11px;color:#6B7280;background:#F3F4F6;border:1px solid #E5E7EB;border-radius:12px;padding:2px 7px;font-weight:600}
+.stu-gap{font-size:11px;color:#B45309;background:#FFFBEB;border:1px solid #FDE68A;border-radius:12px;padding:2px 7px;font-weight:600}
+.stu-gap.long{color:#B91C1C;background:#FEF2F2;border-color:#FECACA}
+.coach-warn{background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;padding:9px 12px;margin-bottom:10px;font-size:11.5px;line-height:1.6;color:#92400E;font-family:'Prompt',sans-serif}
 .stu-week-row{display:flex;gap:4px;align-items:center;margin-bottom:8px}
 .stu-dot{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600}
 .stu-dot.done{background:var(--primary);color:white}
@@ -926,7 +931,7 @@ db.enablePersistence({synchronizeTabs:true}).catch(e=>{console.warn('Persistence
 // ===== AUTO ERROR REPORTING → Firestore errorLogs =====
 // JS error ที่เกิดบนเครื่องลูกค้าจะถูกส่งเข้า collection 'errorLogs' อัตโนมัติ
 // ดูได้ใน Firebase Console → Firestore → errorLogs (เรียงตาม at ล่าสุด)
-const APP_VERSION='v76-2026-08-27'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
+const APP_VERSION='v78-2026-08-29'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
 const _errLogged=new Set();let _errCount=0;
 function _reportError(type,msg,stack,src){
   try{
@@ -1582,6 +1587,12 @@ function shiftYmd(ymd,days){
   const p=n=>String(n).padStart(2,'0');
   return `${t.getUTCFullYear()}-${p(t.getUTCMonth()+1)}-${p(t.getUTCDate())}`;
 }
+// v77: ห่างกันกี่วัน (ยึดเที่ยงวัน UTC ทั้งคู่ → DST ไม่ทำให้เพี้ยน)
+function daysBetweenYmd(a,b){
+  if(!a||!b)return 0;
+  const p=s=>{const x=String(s).split('-').map(Number);return Date.UTC(x[0],x[1]-1,x[2],12,0,0);};
+  return Math.round((p(b)-p(a))/86400000);
+}
 function dowOfYmd(ymd){const a=String(ymd).split('-').map(Number);return new Date(Date.UTC(a[0],a[1]-1,a[2],12,0,0)).getUTCDay();}
 // timezone ของนักเรียน — อ่านจากมื้อล่าสุดที่มี tz ติดมา (subs เรียงใหม่→เก่าอยู่แล้ว)
 function subsTZ(subs){
@@ -1667,8 +1678,28 @@ async function init(){
   }
 }
 
+// v77: ล็อกอินแล้วต้องขึ้นในระบบหลังบ้านทันที ไม่ต้องรอส่งมื้อแรก
+// เดิมรายชื่อนักเรียนฝั่งโค้ชสร้างจาก collection submissions ล้วนๆ
+// นักเรียนที่ล็อกอินแล้วแต่ยังไม่เคยกดส่ง จะไม่มีตัวตนในระบบเลย โค้ชตามไม่ได้ว่าใครยังไม่เริ่ม
+// เขียนวันละครั้งพอ (กันเขียนซ้ำทุกครั้งที่เปิดแอป) และ merge เฉพาะ 4 ฟิลด์นี้ ไม่แตะข้อมูลที่โค้ชตั้งไว้
+function _touchStudentDoc(){
+  try{
+    if(!user||!user.userId||isCoach)return;
+    const k='difSeen:'+user.userId, today=todayStr();
+    let seen=null;try{seen=localStorage.getItem(k);}catch(_){}
+    if(seen===today)return;
+    try{localStorage.setItem(k,today);}catch(_){}
+    // เขียนชื่อ/รูปเฉพาะตอนมีค่าจริง — fast-path ใช้ค่าจาก cache ซึ่งอาจว่าง ห้ามเขียนทับของดี
+    const _p={tz:LOCAL_TZ||null,lastSeenAt:firebase.firestore.FieldValue.serverTimestamp()};
+    if(user.displayName)_p.displayName=user.displayName;
+    if(user.pictureUrl)_p.pictureUrl=user.pictureUrl;
+    db.collection('students').doc(user.userId).set(_p,{merge:true})
+      .catch(()=>{try{localStorage.removeItem(k);}catch(_){}}); // เขียนไม่ผ่าน → ลองใหม่รอบหน้า
+  }catch(_){}
+}
 function startStudent(){
   document.getElementById('student-view').style.display='block';
+  _touchStudentDoc(); // v77
   const pic=document.getElementById('user-pic');
   if(user.pictureUrl){pic.src=user.pictureUrl;}else{pic.style.display='none';}
   document.getElementById('user-id-bar').style.display='block';
@@ -1698,7 +1729,7 @@ async function loadStudentData(){
       // BUGFIX v53.1: 30 รายการ = แค่ ~10 วันสำหรับคนบันทึกวันละ 3 มื้อ → 🔥 วันติด ตันที่ 10 วัน และประวัติย้อนหลังได้แค่ 10 วัน
       _qf(db.collection('submissions').where('userId','==',user.userId).orderBy('createdAt','desc').limit(_STU_LIMIT)),
       _qf(db.collection('students').doc(user.userId)),
-      _qf(db.collection('users').doc(user.userId).collection('savedMenus').limit(12)),
+      _qf(db.collection('users').doc(user.userId).collection('savedMenus').limit(40)), // v78: ดึงเผื่อ แล้วเรียง/ตัดในเครื่อง
     ]);
     // NB7: ล้มเหลว (null) ≠ ไม่มีข้อมูล — อย่า cache เป็น [] ปล่อย null ให้ retry รอบถัดไป
     if(snap){
@@ -1730,7 +1761,12 @@ async function loadStudentData(){
       maybeAskProfile(); // v70: ยังไม่เคยกรอก → ชวนกรอก (ข้ามได้)
     }
     // NW1: ถ้าผลมาจาก offline cache แล้วว่างเปล่า → อย่าทับ ปล่อย null ให้ loadSavedMenus retry ได้
-    if(savedSnap&&!(savedSnap.metadata&&savedSnap.metadata.fromCache&&savedSnap.empty)){savedMenusCache=savedSnap.docs.map(d=>({id:d.id,...d.data()}));_persistMenus();}
+    if(savedSnap&&!(savedSnap.metadata&&savedSnap.metadata.fromCache&&savedSnap.empty)){
+      // v78: เดิมไม่เรียงเลย → ลำดับชิปตอนเปิดแอปกับตอนโหลดซ้ำไม่ตรงกัน
+      savedMenusCache=savedSnap.docs.map(d=>({id:d.id,...d.data()}))
+        .sort((a,b)=>{const at=a.createdAt?.seconds||0,bt=b.createdAt?.seconds||0;return bt-at;}).slice(0,12);
+      _persistMenus();
+    }
     renderStreak();
     renderTodayProgress();
     refreshAllChips();
@@ -1869,7 +1905,7 @@ function renderHealthLog(){
       <div class="hl-title">😴 ชั่วโมงนอน</div>
       <div class="hl-stepper">
         <button onclick="adjHL('sleep',-0.5)">−</button>
-        <input class="hl-input" id="hl-sleep" type="number" value="${hlSleep}" step="0.5" min="0" max="24" oninput="hlSleep=parseFloat(this.value)||0">
+        <input class="hl-input" id="hl-sleep" type="number" value="${hlSleep}" step="0.5" min="0" max="24" oninput="if(this.value!=='')hlSleep=Math.max(0,parseFloat(this.value)||0)">
         <span class="hl-unit">ชั่วโมง</span>
         <button onclick="adjHL('sleep',0.5)">+</button>
       </div>
@@ -1892,7 +1928,7 @@ function renderHealthLog(){
       <div class="hl-title">👟 จำนวนก้าววันนี้</div>
       <div class="hl-stepper">
         <button onclick="adjHL('steps',-500)">−</button>
-        <input class="hl-input" id="hl-steps" type="number" value="${hlSteps}" step="500" min="0" oninput="hlSteps=parseInt(this.value)||0" style="width:84px">
+        <input class="hl-input" id="hl-steps" type="number" value="${hlSteps}" step="500" min="0" oninput="if(this.value!=='')hlSteps=Math.max(0,parseInt(this.value)||0)" style="width:84px">
         <span class="hl-unit">ก้าว</span>
         <button onclick="adjHL('steps',500)">+</button>
       </div>
@@ -1904,7 +1940,7 @@ function renderHealthLog(){
       <div class="hl-title">🏃 คาร์ดิโอ</div>
       <div class="hl-stepper">
         <button onclick="adjHL('cardio',-5)">−</button>
-        <input class="hl-input" id="hl-cardio" type="number" value="${hlCardio}" step="5" min="0" oninput="hlCardio=parseInt(this.value)||0">
+        <input class="hl-input" id="hl-cardio" type="number" value="${hlCardio}" step="5" min="0" oninput="if(this.value!=='')hlCardio=Math.max(0,parseInt(this.value)||0)">
         <span class="hl-unit">นาที</span>
         <button onclick="adjHL('cardio',5)">+</button>
       </div>
@@ -1922,7 +1958,7 @@ function renderHealthLog(){
       <div id="hl-weight-stepper" style="${hlMuscle==='none'?'display:none':''}">
         <div class="hl-stepper">
           <button onclick="adjHL('weight',-5)">−</button>
-          <input class="hl-input" id="hl-weight" type="number" value="${hlWeightMin}" step="5" min="0" oninput="hlWeightMin=parseInt(this.value)||0">
+          <input class="hl-input" id="hl-weight" type="number" value="${hlWeightMin}" step="5" min="0" oninput="if(this.value!=='')hlWeightMin=Math.max(0,parseInt(this.value)||0)">
           <span class="hl-unit">นาที</span>
           <button onclick="adjHL('weight',5)">+</button>
         </div>
@@ -2146,7 +2182,16 @@ async function sendHealthLogCard(){
 async function saveWeeklyCheck(){
   const weight=parseFloat(document.getElementById('wc-weight').value);
   if(!weight||isNaN(weight)){showToast('กรุณากรอกน้ำหนักอย่างน้อยหนึ่งช่องค่ะ');return;}
-  const getV=id=>{const v=parseFloat(document.getElementById(id).value);return isNaN(v)?null:v;};
+  // v78: เดิม !weight ไม่จับค่าติดลบ (-65.5 เป็น truthy และไม่ NaN) → ไหลเข้ากราฟเป็น "70 → -65.5 กก. ▲194%"
+  // min/max บน input เป็นแค่คำใบ้ ไม่มีใครบังคับใน JS
+  if(weight<20||weight>250){showToast('น้ำหนักต้องอยู่ระหว่าง 20–250 กก. ค่ะ ลองเช็คตัวเลขอีกครั้งนะคะ',4500);return;}
+  const _bad=[];
+  const getV=id=>{
+    const v=parseFloat(document.getElementById(id).value);
+    if(isNaN(v))return null;
+    if(v<=0||v>250){_bad.push(id);return null;} // ค่าที่เป็นไปไม่ได้ → ไม่เก็บ ดีกว่าเก็บของเสีย
+    return v;
+  };
   const entry={
     date:selectedDate, weight_kg:weight,
     bodyFat_pct:getV('wc-bf'), muscle_mass_kg:getV('wc-mm'),
@@ -2157,6 +2202,7 @@ async function saveWeeklyCheck(){
   };
   // remove null fields
   Object.keys(entry).forEach(k=>{if(entry[k]===null)delete entry[k];});
+  if(_bad.length){showToast('⚠️ มีช่องที่กรอกค่าผิดปกติ ('+_bad.length+' ช่อง) ระบบข้ามช่องนั้นให้ค่ะ',4500);} // v78
   const _wcBtn=document.querySelector('button[onclick="saveWeeklyCheck()"]');
   if(_wcBtn){_wcBtn.disabled=true;_wcBtn.textContent='⏳ กำลังบันทึก...';} // UX: feedback ทันทีที่กด
   try{
@@ -3120,12 +3166,16 @@ async function loadSavedMenus(){
   if(!user)return[];
   try{
     const _smT=ms=>new Promise(r=>setTimeout(()=>r(null),ms));
-    const q=db.collection('users').doc(user.userId).collection('savedMenus').limit(12);
+    // v78 BUGFIX: limit(12) เฉยๆ ไม่มี orderBy → Firestore เรียงตาม document id (รหัสสุ่ม) ไม่ใช่เวลาบันทึก
+    //   คนที่มีเมนูเกิน 12 บันทึกใบใหม่แล้วอาจไม่ติดมาใน 12 ใบที่ดึง → กดบันทึกสำเร็จแต่ชิปไม่โผล่
+    //   ดึงเผื่อ 40 แล้วเรียงเองในเครื่อง (ปลอดภัยกว่าใส่ orderBy ซึ่งจะตัดเอกสารเก่าที่ไม่มี createdAt ทิ้ง)
+    const q=db.collection('users').doc(user.userId).collection('savedMenus').limit(40);
     let snap=await Promise.race([q.get().catch(()=>null),_smT(8000)]);
     if(!snap){snap=await q.get({source:'cache'}).catch(()=>null);} // NW1: เน็ตช้า → อ่าน cache ในเครื่อง
     if(!snap||(snap.metadata&&snap.metadata.fromCache&&snap.empty))return savedMenusCache||[];
     savedMenusCache=snap.docs.map(d=>({id:d.id,...d.data()}))
-      .sort((a,b)=>{const at=a.createdAt?.seconds||0,bt=b.createdAt?.seconds||0;return bt-at;});
+      .sort((a,b)=>{const at=a.createdAt?.seconds||0,bt=b.createdAt?.seconds||0;return bt-at;})
+      .slice(0,12); // v78: โชว์ 12 ใบล่าสุดจริงๆ
     _persistMenus();
     return savedMenusCache;
   }catch(e){console.warn('loadSavedMenus',e);savedMenusCache=savedMenusCache||[];return savedMenusCache;}
@@ -3179,6 +3229,11 @@ async function deleteSavedMenu(id){
   }catch(e){showToast('⚠️ ลบไม่สำเร็จ: '+e.message,4000);} // W2
 }
 async function saveCurrentMenu(){
+  // v78: เพดาน 12 ใบต้องบอกตรงๆ — เดิมบันทึกผ่านเงียบๆ แล้วชิปไม่โผล่ นักเรียนงงว่าหายไปไหน
+  if((savedMenusCache||[]).length>=12){
+    showToast('⭐ เมนูโปรดเต็ม 12 รายการแล้วค่ะ — ลบอันที่ไม่ใช้ก่อนแล้วค่อยบันทึกใหม่นะคะ',5000);
+    return;
+  }
   const name=await askText('ตั้งชื่อเมนูนี้ว่า:','',{icon:'⭐',placeholder:'เช่น ข้าวไก่ย่างมื้อเช้า',okText:'บันทึก'}); // v65
   if(!name||!name.trim())return;
   let data={name:name.trim(),mode:curMode,createdAt:firebase.firestore.FieldValue.serverTimestamp()};
@@ -3231,9 +3286,13 @@ async function saveCurrentMenu(){
     const sb=document.getElementById('btn-save-success');if(sb)sb.style.display='none';
   }catch(e){showToast('⚠️ บันทึกไม่สำเร็จ: '+e.message,4000);} // W2: toast แทน alert
 }
-function applySavedMenu(id){
+async function applySavedMenu(id){
   const menu=(savedMenusCache||[]).find(m=>m.id===id);
   if(!menu)return;
+  // v78: เดิมทับฟอร์มทันทีที่แตะชิป — กรอกค้างครึ่งทางแล้วเผลอแตะ = หายหมด (deleteSavedMenu ยังถามเลย)
+  if(typeof hasUnsavedData==='function'&&hasUnsavedData(curMode)){
+    if(!await askConfirm('มีข้อมูลที่กรอกค้างไว้อยู่นะคะ\nใช้เมนูโปรดนี้แทนไหม?',{icon:'⭐',okText:'ใช้เมนูนี้',cancelText:'เก็บของเดิม'}))return;
+  }
   if(menu.mode==='weigh'&&menu.inputText){
     document.getElementById('ai-food-input').value=menu.inputText;
     aiParsedData={items:JSON.parse(JSON.stringify(menu.items)),total:JSON.parse(JSON.stringify(menu.total))};
@@ -3850,9 +3909,69 @@ function exitCoachLog(){
 }
 // COACH
 let _coachUnsub=null; // H1: เก็บ unsubscribe เพื่อ cancel listener เก่าก่อนสร้างใหม่
+// ═══ v77: ทะเบียนนักเรียน (collection students) ═══
+// รายชื่อฝั่งโค้ช = "คนที่ส่งมื้อเข้ามา" ∪ "คนที่ล็อกอินแล้ว"
+// เดิมมีแต่ชุดแรก → คนที่ยังไม่เคยส่ง และคนที่ไม่ได้ส่งเกินหน้าต่าง 90 วัน/800 รายการ หายไปทั้งคน
+const _COACH_IDS=['Ud83289516016ac0d07ac9394bfd6137a','U105e1c5b5d6d2dc54d07d1de16ec4939'];
+// v78: ที่อื่นเช็คความเป็นโค้ชจาก collection coaches ซึ่งเพิ่มคนได้ (บรรทัด ~1670)
+// v77 กรองแค่ 2 id ที่ hardcode → โค้ชคนที่ 3 จะโผล่เป็นนักเรียนในจอโค้ชคนอื่น และโดนแก้เป้าหมายได้
+const _coachIdSet=new Set(_COACH_IDS);
+function _isCoachId(uid){return !!uid&&(_coachIdSet.has(uid)||uid===(user&&user.userId));}
+let _stuReg=null,_stuRegAt=0,_stuRegLoading=false,_stuRegFailAt=0;
+async function loadStudentsRegistry(force){
+  if(_stuRegLoading)return;
+  if(!force&&_stuReg&&(Date.now()-_stuRegAt)<300000)return; // cache 5 นาที — กันยิงซ้ำทุกครั้งที่วาดหน้า
+  // v78 BUGFIX: v77 แคชแต่ "ความสำเร็จ" — ถ้า query timeout/พัง _stuReg ยังเป็น null การ์ดข้างบนไม่มีวันทำงาน
+  //   แล้ว loadStudentList ถูกเรียกทุกครั้งที่นักเรียนคนไหนก็ได้ส่งมื้อ (ผ่าน onSnapshot → renderCoach)
+  //   = ยิงอ่านทั้ง collection ซ้ำๆ ไม่มีเบรก บนเน็ตที่แย่ที่สุดคือตอนที่ยิงถี่ที่สุด
+  if(!force&&(Date.now()-_stuRegFailAt)<60000)return; // เพิ่งล้มเหลว → พัก 60 วิ
+  _stuRegLoading=true;
+  try{
+    const snap=await Promise.race([
+      db.collection('students').get().catch(()=>null),
+      new Promise(r=>setTimeout(()=>r(null),8000))
+    ]);
+    if(snap){
+      const m={},_before=_stuReg?Object.keys(_stuReg).length:-1;
+      snap.docs.forEach(d=>{
+        if(_isCoachId(d.id))return;                  // v78: ตัวโค้ชเอง + โค้ชคนอื่น (รวมที่เพิ่มผ่าน coaches)
+        const x=d.data()||{};
+        m[d.id]={displayName:x.displayName||'',pictureUrl:x.pictureUrl||'',tz:x.tz||null,
+          lastSeenAt:x.lastSeenAt||null,programStart:x.programStart||'',isPaused:!!x.isPaused};
+      });
+      _stuReg=m;_stuRegAt=Date.now();
+      // วาดใหม่รอบเดียวตอนทะเบียนมาถึง (รอบถัดไปจะติด cache 5 นาที ไม่วนซ้ำ)
+      if(Object.keys(m).length!==_before&&coachTab==='students'&&typeof renderCoach==='function')renderCoach();
+    }else{_stuRegFailAt=Date.now();} // v78: timeout/พัง → จำไว้ แล้วพักก่อนลองใหม่
+  }catch(_){_stuRegFailAt=Date.now();}
+  finally{_stuRegLoading=false;}
+}
+// รวมสองแหล่งเป็น map เดียว — ใช้ทั้งหน้ารายชื่อและหน้ารายละเอียด
+function _coachUserMap(){
+  const m=allSubs.reduce((acc,s)=>{
+    if(_isCoachId(s.userId))return acc; // v78: มื้อที่โค้ชบันทึกเองไม่ควรกลายเป็นการ์ดนักเรียน (ยังอยู่ในแท็บรออนุมัติตามเดิม)
+    if(!acc[s.userId])acc[s.userId]={userId:s.userId,displayName:s.displayName,pictureUrl:s.pictureUrl,subs:[]};
+    acc[s.userId].subs.push(s);return acc;
+  },{});
+  const reg=_stuReg||{};
+  Object.keys(reg).forEach(uid=>{
+    // v78: กรองตรงนี้ด้วย ไม่ใช่แค่ตอนโหลดทะเบียน — รายชื่อโค้ชจาก collection coaches
+    // อาจมาถึงหลังทะเบียนโหลดเสร็จไปแล้ว ทำให้โค้ชค้างอยู่ใน _stuReg ได้นานถึง 5 นาที
+    if(_isCoachId(uid))return;
+    const r=reg[uid];
+    if(!m[uid])m[uid]={userId:uid,displayName:r.displayName||'นักเรียน',pictureUrl:r.pictureUrl||'',subs:[]};
+    else if(!m[uid].displayName&&r.displayName)m[uid].displayName=r.displayName;
+    m[uid]._reg=r;
+  });
+  return m;
+}
+function _coachUser(userId){return _coachUserMap()[userId]||null;}
 function startCoach(){
   if(_coachUnsub){_coachUnsub();_coachUnsub=null;} // H1: ยกเลิก listener เก่า
   document.getElementById('coach-view').style.display='block';
+  loadStudentsRegistry(true); // v77: โหลดทะเบียนคู่ขนานไปกับ submissions
+  // v78: เติมรายชื่อโค้ชจริงจาก collection coaches (อ่านครั้งเดียวตอนเปิด ไม่กระทบ path ปกติถ้าล้ม)
+  db.collection('coaches').get().then(s=>{s.docs.forEach(d=>_coachIdSet.add(d.id));}).catch(()=>{});
   // จำกัดแค่ 30 วันล่าสุด + limit 200 docs — ลดข้อมูลโหลดจาก "ทั้งหมด" เป็น "เดือนนี้"
   // BUGFIX v53.1: เดิมดึงย้อนหลัง 30 วัน + จำกัด 200 รายการ "รวมทุกคน"
   // นักเรียน 10 คน × วันละ 3 มื้อ = 30 รายการ/วัน → 200 รายการครอบคลุมแค่ ~7 วัน
@@ -3974,13 +4093,9 @@ function setCoachFilter(f){
 async function loadStudentList(){
   const container=document.getElementById('cards-container');
   try{
-    // group submissions by userId
-    const byUser={};
-    allSubs.forEach(s=>{
-      if(!byUser[s.userId])byUser[s.userId]={userId:s.userId,displayName:s.displayName,pictureUrl:s.pictureUrl,subs:[]};
-      byUser[s.userId].subs.push(s);
-    });
-    const users=Object.values(byUser);
+    loadStudentsRegistry(); // v77: fire-and-forget — ติด cache 5 นาที ไม่ยิงซ้ำทุกครั้งที่วาด
+    // v77: รายชื่อ = คนที่ส่งมื้อ + คนที่ล็อกอินแล้ว (เดิมมีแต่คนที่ส่งมื้อ)
+    const users=Object.values(_coachUserMap());
     if(!users.length){container.innerHTML='<div class="empty-state"><div class="es-icon">👤</div><p>ยังไม่มีนักเรียนค่ะ</p></div>';return;}
 
     // Task #9: คำนวณ MON_WEEK ครั้งเดียว แทนที่จะ getMonWeekDates() ใน buildStudentCard ทุก card
@@ -3995,7 +4110,14 @@ async function loadStudentList(){
     const pending=users.filter(u=>u.subs.some(s=>s.status==='pending')).length;
     const notSubmitted=totalStudents-submittedToday;
 
+    // v77: ชนเพดาน 800 มื้อ = ตัวเลข 🔥/log/avg ของทุกคนต่ำกว่าความจริง — เดิมบอกแค่ "+" เล็กๆ ข้างเลข
+    // v78: totalStudents ตอนนี้รวมคนที่ยังไม่เคยส่งด้วย (ผลจาก v77 เอง) — คนพวกนี้ไม่ได้สร้างมื้อ
+    // เอามาหารทำให้ตัวเลข "≈ N วัน" เพี้ยน ต้องนับเฉพาะคนที่มีมื้ออยู่ในหน้าต่างจริงๆ
+    const _activeN=Math.max(1,users.filter(u=>u.subs.length).length);
+    const _days=Math.max(1,Math.round(800/(_activeN*3)));
+    const _truncWarn=_subsTruncated?`<div class="coach-warn">⚠️ <b>ดึงข้อมูลได้ 800 มื้อล่าสุดเท่านั้น</b> (นักเรียน ${totalStudents} คน ≈ ${_days} วันย้อนหลัง)<br>เลข 🔥 วันติด · log N วัน · avg kcal ของทุกคนอาจ<b>ต่ำกว่าความจริง</b> — รายชื่อยังครบเพราะดึงจากทะเบียนนักเรียนด้วย</div>`:'';
     container.innerHTML=`
+      ${_truncWarn}
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px">
         <div class="stat-box"><div class="stat-val">${totalStudents}</div><div class="stat-lbl">ทั้งหมด</div></div>
         <div class="stat-box highlight"><div class="stat-val">${submittedToday}</div><div class="stat-lbl">ส่งแล้ว</div></div>
@@ -4036,6 +4158,24 @@ function buildStudentCard(u,MON){
   // testimonial badge: streak ≥14 หรือ log ≥20 วัน
   const uniqueDays=new Set(u.subs.map(s=>subDate(s))).size;
   const showTestiBadge=streak>=14||uniqueDays>=20;
+  // v77: ป้ายบอกว่าคนนี้เงียบไปนานแค่ไหน — เดิมไม่มีอะไรบอกเลย ต้องเปิดดูทีละคน
+  const _rg=u._reg||null;
+  const _tzc=_tz||(_rg&&_rg.tz)||null;
+  const _lastSub=realSubs(u.subs).map(s=>subDate(s)).sort().pop()||null;
+  let _statusBadge='';
+  if(!_lastSub){
+    let _seen='';
+    try{if(_rg&&_rg.lastSeenAt&&_rg.lastSeenAt.toDate)_seen=' · เข้าล่าสุด '+formatDateShort(ymdTZ(_rg.lastSeenAt.toDate(),_tzc));}catch(_){}
+    // v78: subs ว่างได้ 2 สาเหตุ — ไม่เคยส่งจริง หรือมื้อหลุดเพดาน 800 ไปแล้ว
+    // v77 เขียนเหมือนมีสาเหตุเดียว → คนที่ขยันที่สุดโดนป้าย "ยังไม่เคยส่ง" ซึ่งแย่กว่าตอนที่เขาหายไปเฉยๆ
+    // ตัวเลข 🔥/log บนการ์ดใบเดียวกันมี "+" เตือนอยู่แล้ว ป้ายนี้ต้องระวังตัวเท่ากัน
+    _statusBadge=_subsTruncated
+      ?`<span class="stu-nosub" title="ดึงได้แค่ 800 มื้อล่าสุด — มื้อของคนนี้อาจตกขอบไปแล้ว ไม่ได้แปลว่าไม่เคยส่ง">ข้อมูลไม่พอ${_seen}</span>`
+      :`<span class="stu-nosub">ยังไม่เคยส่ง${_seen}</span>`;
+  }else{
+    const _gap=daysBetweenYmd(_lastSub,todayStrTZ(_tzc));
+    if(_gap>=3)_statusBadge=`<span class="stu-gap${_gap>=7?' long':''}">ไม่ส่ง ${_gap} วัน</span>`;
+  }
   // v76 XSS: เดิมยัด URL ดิบเข้า src → ค่า  x" onerror="..."  รันโค้ดในเครื่องโค้ชได้ (safeImg มีอยู่แล้ว อีก 6 จุดใช้ถูกหมด)
   const avatarHtml=u.pictureUrl?`<img src="${safeImg(u.pictureUrl)}" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display='none'">`:'👤';
   return`<div class="stu-card" onclick="openStudentDetail('${u.userId}')" onmouseenter="prefetchStudent('${u.userId}')">
@@ -4046,6 +4186,7 @@ function buildStudentCard(u,MON){
           <div class="stu-name">${escHtml(u.displayName||'นักเรียน')}</div>
           ${streak>0?`<span class="stu-streak" title="${_subsTruncated?'ข้อมูลเกินเพดานที่ดึงมา ตัวเลขจริงอาจมากกว่านี้':''}">🔥 ${streak}${_subsTruncated?'+':''} วัน</span>`:''}
           ${showTestiBadge?`<span class="stu-testimonial-badge">⭐ ขอ Review</span>`:''}
+          ${_statusBadge}
         </div>
         <div style="font-size:11px;color:var(--gray);margin-top:2px">avg ${avgKcal} kcal/วัน <span style="font-size:9px">(สัปดาห์นี้)</span> · log ${uniqueDays}${_subsTruncated?'+':''} วัน</div>
       </div>
@@ -4145,9 +4286,8 @@ async function openStudentDetail(userId){
   const overlay=document.getElementById('student-detail');
   overlay.style.display='block';
   overlay.scrollTop=0;
-  const u=Object.values(
-    allSubs.reduce((acc,s)=>{if(!acc[s.userId])acc[s.userId]={userId:s.userId,displayName:s.displayName,pictureUrl:s.pictureUrl,subs:[]};acc[s.userId].subs.push(s);return acc;},{})
-  ).find(u=>u.userId===userId);
+  // v77: หาจากทะเบียนด้วย — เดิมหาจาก allSubs อย่างเดียว กดการ์ดคนที่ยังไม่เคยส่งแล้วจอปิดทันที
+  const u=_coachUser(userId);
   if(!u){overlay.style.display='none';return;} // L4: ปิด overlay ถ้าหา user ไม่เจอ
   currentStudentData=u;
   document.getElementById('sd-name').textContent=u.displayName||'นักเรียน';
@@ -4289,9 +4429,9 @@ async function loadMoreStudentHistory(userId){
     cur.lastWS=wsSnap.docs[wsSnap.docs.length-1];
     if(wsSnap.docs.length<4)cur.hasMoreWS=false;
   }else{cur.hasMoreWS=false;}
-  // rebuild student object from allSubs
+  // rebuild student object จาก allSubs + ทะเบียน (v77)
   const u=Object.values(
-    allSubs.reduce((acc,s)=>{if(!acc[s.userId])acc[s.userId]={userId:s.userId,displayName:s.displayName,pictureUrl:s.pictureUrl,subs:[]};acc[s.userId].subs.push(s);return acc;},{})
+    _coachUserMap()
   ).find(u=>u.userId===userId);
   if(!u){if(btn){btn.textContent='📅 ดูย้อนหลังเพิ่มเติม';btn.disabled=false;}return;} // NB5: คืนสภาพปุ่มก่อน return
   const byDate={};
@@ -6290,6 +6430,8 @@ async function saveTargets(userId){
 }
 
 async function autoMarkMissedDays(userId, byDate, tz){
+  // v77: คนที่ยังไม่เคยส่งสักมื้อ (เพิ่งล็อกอิน / เพิ่งสมัคร) ไม่ควรโดนมาร์กขาดส่งย้อนหลังทั้งสัปดาห์
+  if(!byDate||!Object.keys(byDate).length)return;
   const MON=getMonWeekDates(tz);
   // v73 SAFETY: ห้ามมาร์ก "ขาดส่ง" ในวันที่นักเรียนอาจยังใช้ชีวิตอยู่
   // เดิมใช้ "วันนี้" ของโค้ช — นักเรียนที่อเมริกาช้ากว่าไทยเกือบครึ่งวัน
@@ -6729,6 +6871,7 @@ function buildFeedbackFlex(mealCount, totC, totP, totF, totKcal, currentSub, day
 // ===== EDIT SUBMISSION =====
 let _editSubId=null,_editSubMode=null;
 let _editSubOrigC=0,_editSubOrigP=0,_editSubOrigF=0,_editSubOrigName='';
+let _editSubOrigDate=''; // v78: วันเดิมของมื้อ — อนุญาตให้คงค่าเดิมได้เสมอแม้หลุดช่วง 7 วันแล้ว
 let _editSubCurrentPhoto=null,_editSubNewPhoto=null,_editPhotoRemoved=false;
 let _editPhotoBusy=false; // v76: กำลังย่อรูปอยู่ — ห้ามกดบันทึก ไม่งั้นรูปหายเงียบ
 function _editSaveLock(on){
@@ -6838,7 +6981,15 @@ async function editHistSub(id){
   const _mealSel=document.getElementById('esm-meal');
   _mealSel.value=s.meal||'เช้า';
   if(!_mealSel.value)_mealSel.value='เช้า'; // ข้อมูลเก่าที่เคยถูกเขียนเป็นเลข → กลับมาเป็นค่าที่ใช้ได้
-  document.getElementById('esm-date').value=s.mealDate||'';
+  // v78 BUGFIX: ช่องวันที่ไม่เคยมีขอบเขต — date picker บนมือถือปัดโดนปีพลาดง่ายมาก
+  //   เผลอเปลี่ยนเป็น 2024 = มื้อหายจากยอดวันนี้ ไปโผล่ปีนั้น ยอดรวม/🔥 เพี้ยน และนักเรียนหาไม่เจอ
+  //   แถบวันที่หน้าบันทึกจำกัด 7 วันอยู่แล้ว หน้านี้ต้องเท่ากัน
+  const _esd=document.getElementById('esm-date');
+  _esd.value=s.mealDate||'';
+  _editSubOrigDate=s.mealDate||'';
+  const _esdHi=todayStr(),_esdLo=shiftYmd(_esdHi,-7);
+  _esd.max=_esdHi;
+  _esd.min=(_editSubOrigDate&&_editSubOrigDate<_esdLo)?_editSubOrigDate:_esdLo;
 
   let menuName='',menuDesc='',c=0,p=0,f=0;
   if(s.mode==='hand'&&s.handData){
@@ -6915,6 +7066,13 @@ async function saveHistEdit(){
 
   const meal=document.getElementById('esm-meal').value||'เช้า'; // BUGFIX v46.1: เป็นข้อความไทย ห้าม parseInt
   const mealDate=document.getElementById('esm-date').value;
+  // v78: ตรวจซ้ำในโค้ด — min/max บน input เป็นแค่คำใบ้ กดผ่านได้ถ้าพิมพ์เอง
+  const _hi=todayStr(),_lo=shiftYmd(_hi,-7);
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(mealDate)||mealDate>_hi||(mealDate<_lo&&mealDate!==_editSubOrigDate)){
+    showToast('วันที่ต้องอยู่ในช่วง 7 วันล่าสุด และไม่เกินวันนี้ค่ะ',4500);
+    if(btn){btn.disabled=false;btn.textContent='💾 บันทึก';}
+    return;
+  }
   const menuName=document.getElementById('esm-name').value.trim();
   const menuDesc=document.getElementById('esm-desc').value.trim();
   const c=parseFloat(document.getElementById('esm-carb').value)||0;
