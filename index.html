@@ -334,7 +334,10 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
 .mode-tag.hand{background:#DBEAFE;color:#1D4ED8}
 .mode-tag.label{background:#D1FAE5;color:#065F46}
 .mode-tag.weigh{background:#FEF3C7;color:#92400E}
-.card-photo{width:100%;max-height:220px;object-fit:cover;border-bottom:1px solid #F3F4F6}
+/* v83: เดิมไม่มีความสูงจอง + loading="lazy" → รูปที่ยังไม่โหลดสูง 0px
+   พอ renderCoach() เขียน innerHTML ใหม่ทั้งชุด ความสูงเอกสารยุบ เบราว์เซอร์ clamp scrollTop
+   = โค้ชกดอนุมัติ 1 ใบแล้วจอเด้งกลับบนสุดทุกครั้ง */
+.card-photo{width:100%;height:200px;max-height:220px;object-fit:cover;background:#F3F4F6;border-bottom:1px solid #F3F4F6}
 .card-body{padding:12px 14px}
 .est-chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
 .est-chip{background:var(--light);border:1px solid var(--border);border-radius:12px;padding:4px 10px;font-size:12px;color:var(--primary-dark);font-weight:600}
@@ -949,7 +952,7 @@ db.enablePersistence({synchronizeTabs:true}).catch(e=>{console.warn('Persistence
 // ===== AUTO ERROR REPORTING → Firestore errorLogs =====
 // JS error ที่เกิดบนเครื่องลูกค้าจะถูกส่งเข้า collection 'errorLogs' อัตโนมัติ
 // ดูได้ใน Firebase Console → Firestore → errorLogs (เรียงตาม at ล่าสุด)
-const APP_VERSION='v81-2026-08-30'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
+const APP_VERSION='v83-2026-08-30'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
 const _errLogged=new Set();let _errCount=0;
 function _reportError(type,msg,stack,src){
   try{
@@ -1435,6 +1438,21 @@ async function _flushBackupQueue(){
 }
 window.addEventListener('online',()=>setTimeout(_flushBackupQueue,1500));
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)setTimeout(_flushBackupQueue,1000);});
+// v83: เปิดแอปค้างข้ามเที่ยงคืน (หรือสลับแอปกลับมาหลังเที่ยงคืน) → ชิปที่เขียนว่า "วันนี้" ยังถือวันเมื่อวาน
+//   มื้อดึกจึงไปลงวันผิด · แถบ "วันนี้" ไม่ขยับ · 🔥 วันติดนับผิด
+//   ตรวจตอนกลับมาโฟกัส + ทุก 5 นาที ถ้าวันเปลี่ยนแล้วยังเลือก "วันนี้" ของเมื่อวานอยู่ ให้ขยับตาม
+function _checkDayRollover(){
+  try{
+    const now=todayStr();
+    if(!_stripDay||_stripDay===now)return;
+    const wasOnToday=(selectedDate===_stripDay);
+    if(wasOnToday)selectedDate=now;
+    buildDateStrip();
+    if(wasOnToday)showToast('🌅 ขึ้นวันใหม่แล้วนะคะ — เปลี่ยนให้เป็นวันนี้ให้อัตโนมัติค่ะ',3500);
+  }catch(_){}
+}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)_checkDayRollover();});
+setInterval(_checkDayRollover,300000);
 setTimeout(_flushBackupQueue,4000); // ตอนเปิดแอป — ส่งของที่ค้างจากรอบก่อน
 // W5: retry ทุก 60 วิ ตอนแอปเปิดอยู่ — เดิมถ้า flush รอบแรกพลาด (เน็ตเพิ่งกลับมา) ต้องรอสลับแอปเท่านั้น
 setInterval(()=>{try{if(localStorage.getItem('_dfq')!=='[]'&&localStorage.getItem('_dfq'))_flushBackupQueue();}catch(_){}},60000);
@@ -2473,14 +2491,16 @@ function buildProgressSection(weeklyChecks, userId){
 }
 
 // DATE STRIP
+// v83: ใช้ helper เดียวกับทั้งแอป (shiftYmd ยึดเที่ยงวัน UTC) แทนการบวกวันด้วย Date object
+let _stripDay=null;
 function buildDateStrip(){
   const strip=document.getElementById('date-strip');
+  if(!strip)return; // v83: _checkDayRollover เรียกได้ทุก 5 นาที รวมตอนโค้ชเปิดอยู่ (ไม่มีแถบนี้)
   let html='';
-  const today=new Date();
+  const today=todayStr();
+  _stripDay=today;
   for(let i=6;i>=0;i--){
-    const d=new Date(today);
-    d.setDate(today.getDate()-i);
-    const _lp=n=>String(n).padStart(2,'0');const str=`${d.getFullYear()}-${_lp(d.getMonth()+1)}-${_lp(d.getDate())}`;
+    const str=shiftYmd(today,-i);
     const isToday=i===0;
     const isActive=str===selectedDate;
     html+=`<button class="date-chip${isActive?' active':''}" onclick="selDate('${str}',this)">${isToday?'วันนี้':formatDateShort(str)}</button>`;
@@ -2698,10 +2718,13 @@ function calcLabel(){
   else{tot.style.display='none';}
 }
 function getLabelData(){
-  const c=parseFloat(document.getElementById('lb-carb').value)||0;
-  const p=parseFloat(document.getElementById('lb-prot').value)||0;
-  const f=parseFloat(document.getElementById('lb-fat').value)||0;
-  const s=parseFloat(document.getElementById('lb-serv').value)||1;
+  // v83: กันค่าติดลบ — `||0` ไม่จับ -50 (truthy และไม่ NaN) และ min="0" บน input เป็นแค่คำใบ้ พิมพ์ผ่านได้
+  //   ปล่อยไปแล้วยอดวันนั้นติดลบ แถบความคืบหน้าได้ width:-11% (CSS ไม่ถูกต้อง → แถบค้างค่าเก่า)
+  //   กฎเดียวกับที่ saveWeeklyCheck (v78) และแผนอาหาร (v81) กันไว้แล้ว
+  const c=Math.max(0,parseFloat(document.getElementById('lb-carb').value)||0);
+  const p=Math.max(0,parseFloat(document.getElementById('lb-prot').value)||0);
+  const f=Math.max(0,parseFloat(document.getElementById('lb-fat').value)||0);
+  const s=Math.max(0,parseFloat(document.getElementById('lb-serv').value)||1);
   // v80: kcal จากซอง (ถ้ากรอก) — เก็บเป็น null เมื่อไม่กรอก เพื่อให้ getSubMacros ตกไปคำนวณ 4·4·9 เอง
   const k=Math.max(0,parseFloat(document.getElementById('lb-kcal')?.value)||0);
   return{carb:c*s,protein:p*s,fat:f*s,kcal:k>0?Math.round(k*s):null};
@@ -3374,6 +3397,18 @@ async function applySavedMenu(id){
       const uel=document.getElementById('fu-'+f.id);if(uel)uel.style.display=fruitCounts[f.id]>0?'block':'none';
     });
     const fbar=document.getElementById('fruit-total-bar');if(fbar)fbar.style.display=getFruitLadles()>0?'flex':'none';
+    // v83 BUGFIX: เดิมซิงค์ DOM ให้แค่คาร์บกับผลไม้ ส่วน stepper โปรตีน/ไข่/น้ำมัน/อะโวคาโด
+    //   และไฮไลต์ปุ่ม lean-semilean / วิธีปรุง ไม่ถูกอัปเดตเลย
+    //   → แตะเมนูโปรด "ผัด semilean 2.5 ฝ่ามือ" แล้วกางหัวข้อดู ตัวเลขยังเป็น 1.0 ปุ่มยังไฮไลต์ Lean/ต้ม
+    //   ข้อมูลที่ส่งจริงถูก แต่หน้าจอโกหก และถ้านักเรียนกด + จาก 1.0 ที่เห็น adj() จะคิดจาก 2.5 → กระโดดเป็น 3.0
+    const _sv=(elId,val)=>{const e=document.getElementById(elId);if(e)e.textContent=val;};
+    _sv('v-protein',protQty.toFixed(1));
+    _sv('v-eggWhole',eggWhole);
+    _sv('v-eggWhite',eggWhite);
+    _sv('v-fat',visibleFat.toFixed(1));
+    _sv('v-avo',avoQty);
+    document.querySelectorAll('.ptype-btn').forEach(b=>b.classList.toggle('active',b.dataset.pt===protType));
+    document.querySelectorAll('.cook-btn').forEach(b=>b.classList.toggle('active',b.dataset.ck===cookMethod));
     renderCarbSlots();updateHandSummary();
   }
 }
@@ -3386,6 +3421,12 @@ async function submitMeal(){
     // btn.disabled ล็อกแค่ปุ่มส่ง — ชิปวันที่ (selDate) กับปุ่มมื้อ (selMeal) ยังกดได้ระหว่างรออัปรูป (ถึง 20 วิ/รูป)
     // เดิมอ่าน global ตอนสร้าง payload = อ่านค่า "หลังผู้ใช้กดเปลี่ยน" → มื้อไปลงผิดวันผิดมื้อ
     // เคสร้ายสุด: โหมดเปลี่ยน → ได้ mode:'label' แต่ labelData:null → getSubMacros คืน 0 ทั้งมื้อ หายจากยอดรวมเงียบๆ
+    // v83 BUGFIX: เดิมไม่เคยเช็ค _photoProcessing เลย
+    //   ระหว่าง compressPhoto ทำงาน (นานได้ถึง 20 วิ) photoBase64List ยังว่าง
+    //   → มื้อบันทึกสำเร็จ "ไม่มีรูป" เงียบสนิท ไม่มี toast ไม่มีชิป 📸
+    //   แล้วกด "บันทึกเพิ่ม" → resetStudent() ล้าง list ทิ้ง = รูปหายถาวร โค้ชได้การ์ดเปล่า
+    //   (โมดัลแก้ไขกันไว้แล้วตั้งแต่ v76 ด้วย _editPhotoBusy แต่หน้าบันทึกหลักไม่ได้กันตาม)
+    if(_photoProcessing){showToast('⏳ กำลังย่อรูปอยู่ค่ะ รออีกครู่แล้วกดส่งอีกทีนะคะ',3000);resetBtn();return;}
     const _meal=curMeal,_mode=curMode,_date=selectedDate;
     let handData=null,labelData=null,weighData=null;
     if(_mode==='hand'){
@@ -3408,6 +3449,9 @@ async function submitMeal(){
         totalCarb:C,totalProtein:P,totalFat:F,totalKcal:Math.round(C*4+P*4+F*9)};
     }else if(_mode==='label'){
       labelData=getLabelData();
+      // v83: เดิมแตะแท็บ 🏷️ แล้วกดส่งเลยโดยไม่กรอกอะไร → ได้มื้อ 0 kcal เข้าคิวโค้ชจริง
+      // (โหมด AI กับ saveCurrentMenu กันไว้แล้ว โหมดฉลากตกหล่น)
+      if(!labelData.carb&&!labelData.protein&&!labelData.fat&&!labelData.kcal){showToast('กรุณากรอกข้อมูลจากฉลากก่อนค่ะ');resetBtn();return;}
     }else if(_mode==='weigh'){
       weighData=getWeighData();
       if(!weighData){showToast('กรุณาให้ AI คำนวณก่อนค่ะ');resetBtn();return;}
@@ -3417,7 +3461,7 @@ async function submitMeal(){
     let _curKcal=0;
     if(_mode==='hand'&&handData)_curKcal=handData.totalKcal||0;
     else if(_mode==='label'&&labelData)_curKcal=labelData.kcal>0?Math.round(labelData.kcal):macroKcal(labelData.carb,labelData.protein,labelData.fat,0); // v80
-    else if(_mode==='weigh'&&weighData)_curKcal=weighData.kcal||Math.round((weighData.carb||0)*4+(weighData.protein||0)*4+(weighData.fat||0)*9);
+    else if(_mode==='weigh'&&weighData)_curKcal=weighData.kcal||macroKcal(weighData.carb,weighData.protein,weighData.fat,weighData.alc); // v83: สูตรเดียวกับบรรทัดบน
     const _dupRecent=(studentSubsCache||[]).find(s=>{
       if(s.mealDate!==_date||s.meal!=_meal||s.mode!==_mode)return false;
       const age=(Date.now()/1000)-(s.createdAt?.seconds||0);
@@ -4302,7 +4346,7 @@ function getMonWeekDates(tz){ // v73: tz = timezone ของนักเรี�
 }
 
 // Helper: date string N days ago (for healthLog range queries — avoids orderBy index requirement)
-function _hld(n){const d=new Date();d.setDate(d.getDate()-n);const p=v=>String(v).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;}
+function _hld(n){return shiftYmd(todayStr(),-n);} // v83: ใช้ helper เดียวกับทั้งแอป (DST-safe)
 
 // ===== STUDENT DETAIL =====
 let currentStudentData=null;
@@ -4495,7 +4539,7 @@ async function loadMoreStudentHistory(userId){
   if(btn){btn.textContent='⏳ กำลังโหลด...';btn.disabled=true;}
   // ยิง 2 queries พร้อมกัน
   // next window: 30 days before oldest loaded date
-  const _hlPrev=cur.lastHLDate?(()=>{const d=new Date(cur.lastHLDate+'T00:00:00');d.setDate(d.getDate()-30);const p=v=>String(v).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;})():null;
+  const _hlPrev=cur.lastHLDate?shiftYmd(cur.lastHLDate,-30):null; // v83
   // NB5: timeout 8s + cache fallback — กันปุ่มค้าง "กำลังโหลด" บนเน็ตช้า
   const _lmT=ms=>new Promise(r=>setTimeout(()=>r(null),ms));
   const _lmQ=q=>Promise.race([q.get().catch(()=>null),_lmT(8000)]).then(r=>r||q.get({source:'cache'}).catch(()=>null));
@@ -4566,7 +4610,7 @@ async function loadCoachStudentPlan(uid){
       const tC=Math.round(items.reduce((a,i)=>a+(i.c||0),0));
       const tP=Math.round(items.reduce((a,i)=>a+(i.p||0),0));
       const tF=Math.round(items.reduce((a,i)=>a+(i.f||0),0));
-      const tKcal=Math.round(tC*4+tP*4+tF*9);
+      const tKcal=Math.round(items.reduce((a,i)=>a+(i.kcal??macroKcal(i.c,i.p,i.f,0)),0)); // v83
       html+=`<div style="margin-bottom:12px">
         <div style="font-size:11px;font-weight:700;color:var(--primary-dark);margin-bottom:5px">📅 ${label} (${dateStr})</div>
         ${items.map(it=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 8px;background:white;border-radius:8px;border:1px solid var(--border);margin-bottom:3px">
@@ -4718,7 +4762,8 @@ function renderPlanPanel(){
   const totC=mealPlan.reduce((a,x)=>a+x.c,0);
   const totP=mealPlan.reduce((a,x)=>a+x.p,0);
   const totF=mealPlan.reduce((a,x)=>a+x.f,0);
-  const totK=Math.round(totC*4+totP*4+totF*9);
+  // v83: รายการที่มี kcal ติดมา (เมนูโปรดที่มีแอลกอฮอล์/แคลจากซอง) ใช้เลขนั้น ที่เหลือคิด 4·4·9 ตามเดิม
+  const totK=Math.round(mealPlan.reduce((a,x)=>a+(x.kcal??macroKcal(x.c,x.p,x.f,0)),0));
   const pct=(v,max)=>Math.min(100,Math.round(v/max*100));
   const bar=(v,max,col)=>`<div style="background:#E5E7EB;border-radius:4px;height:5px;overflow:hidden;flex:1"><div style="height:100%;background:${col};border-radius:4px;width:${pct(v,max)}%"></div></div>`;
   container.innerHTML=`
@@ -4758,7 +4803,7 @@ function renderPlanPanel(){
       </div>`}
     ${savedMenusCache&&savedMenusCache.length?`<div style="background:#FFFBEB;border:1.5px solid #FCD34D;border-radius:12px;padding:10px 12px;margin-top:6px;margin-bottom:2px">
       <div style="font-size:11px;color:#92400E;font-weight:700;margin-bottom:7px">⭐ เมนูโปรด — แตะเพื่อเพิ่มได้เลย</div>
-      <div style="display:flex;flex-wrap:wrap;gap:5px">${savedMenusCache.map(m=>{const sid=JSON.stringify(m.id).replace(/"/g,'&quot;');const kcal=Math.round((m.total?.c||0)*4+(m.total?.p||0)*4+(m.total?.f||0)*9);return`<button onclick="addSavedMenuToPlan(${sid})" style="font-size:11px;padding:5px 9px;border-radius:8px;border:1px solid #FCD34D;background:white;color:#92400E;cursor:pointer;font-family:'Prompt',sans-serif">${escHtml(m.name||'เมนู')}<span style="font-size:10px;color:#B45309;margin-left:3px">⚡${kcal}</span></button>`;}).join('')}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:5px">${savedMenusCache.map(m=>{const sid=JSON.stringify(m.id).replace(/"/g,'&quot;');const kcal=Math.round(m.total?.kcal??macroKcal(m.total?.c,m.total?.p,m.total?.f,0));return`<button onclick="addSavedMenuToPlan(${sid})" style="font-size:11px;padding:5px 9px;border-radius:8px;border:1px solid #FCD34D;background:white;color:#92400E;cursor:pointer;font-family:'Prompt',sans-serif">${escHtml(m.name||'เมนู')}<span style="font-size:10px;color:#B45309;margin-left:3px">⚡${kcal}</span></button>`;}).join('')}</div>
     </div>`:''}
     <button onclick="showAddPlanItem()" id="btn-add-plan"
       style="width:100%;padding:11px;background:var(--primary);color:white;border:none;border-radius:10px;font-size:14px;font-weight:700;font-family:'Prompt',sans-serif;cursor:pointer;margin-top:8px">
@@ -5084,8 +5129,12 @@ function addSavedMenuToPlan(id){
   const c=Math.round(menu.total?.c||0);
   const p=Math.round(menu.total?.p||0);
   const f=Math.round(menu.total?.f||0);
-  if(!c&&!p&&!f){showToast('เมนูนี้ไม่มีข้อมูล macro ค่ะ');return;}
-  mealPlan.push({name:menu.name||'เมนู',c,p,f,mode:'saved'});
+  // v83: เดิมโยน total.kcal ทิ้งตอนย้ายเข้าแผน → ทุกจุดปลายทางคิด 4·4·9 ใหม่
+  //   "ไวน์แดง 2 แก้ว" 207 kcal ในประวัติ กลายเป็น 32 ในแผนอาหาร (ของสิ่งเดียวกัน ห่างกัน 175)
+  //   และเมนูที่เป็นเหล้าเพียวๆ (C0 P0 F0) โดน guard ตีตกว่า "ไม่มีข้อมูล macro" ทั้งที่มี 98 kcal
+  const k=Math.round(menu.total?.kcal||0);
+  if(!c&&!p&&!f&&!k){showToast('เมนูนี้ไม่มีข้อมูล macro ค่ะ');return;}
+  mealPlan.push({name:menu.name||'เมนู',c,p,f,mode:'saved',...(k>0?{kcal:k}:{})});
   showToast('เพิ่ม '+escHtml(menu.name||'เมนู')+' แล้วค่ะ ✓');
   renderPlanPanel();
 }
@@ -5111,10 +5160,10 @@ async function sendPlanToLine(){
   const tC=Math.round(mealPlan.reduce((a,i)=>a+(i.c||0),0));
   const tP=Math.round(mealPlan.reduce((a,i)=>a+(i.p||0),0));
   const tF=Math.round(mealPlan.reduce((a,i)=>a+(i.f||0),0));
-  const tKcal=Math.round(tC*4+tP*4+tF*9);
+  const tKcal=Math.round(mealPlan.reduce((a,i)=>a+(i.kcal??macroKcal(i.c,i.p,i.f,0)),0)); // v83
   const dateLabel=formatDateLong(mealPlanDate);
   const lines=mealPlan.map((it,i)=>{
-    const kcal=Math.round((it.c||0)*4+(it.p||0)*4+(it.f||0)*9);
+    const kcal=Math.round(it.kcal??macroKcal(it.c,it.p,it.f,0)); // v83
     return`${i+1}. ${it.name} — C${it.c||0} P${it.p||0} F${it.f||0} ⚡${kcal} kcal`;
   }).join('\n');
   const msg=`📋 แผนมื้ออาหาร ${dateLabel}\n\n${lines}\n\n─────────────────\n🧮 รวม C${tC}g · P${tP}g · F${tF}g\n⚡ ${tKcal} kcal`;
@@ -5152,19 +5201,27 @@ async function loadPlanFromFirestore(){
 }
 
 // ===== PROGRAM HELPERS =====
-function calcProgramEndDate(prog){
+// v83 BUGFIX: เดิมบวก/ลบวันด้วย Date object ตรงๆ → นักเรียนยุโรป/อเมริกาเห็น "เหลือ 36 วัน" ทั้งที่จริง 35
+//   ตลอดช่วงก่อน DST แล้วพอเวลาถอยหลัง เลขค้างอยู่เลขเดิม 2 วันติด
+//   พ่วง: การ์ด "ใกล้จบคอร์ส" ยิงช้าไป 1 วัน และยิงได้ครั้งเดียวต่อคอร์ส (เขียน localStorage) แก้ย้อนหลังไม่ได้
+//   ไฟล์มี shiftYmd/daysBetweenYmd (ยึดเที่ยงวัน UTC) เขียนไว้เพื่อการนี้อยู่แล้ว
+function calcProgramEndYmd(prog){
   if(!prog||!prog.programStart)return null;
-  const start=new Date(prog.programStart+'T00:00:00');
-  const totalDays=(prog.programWeeks||12)*7+(prog.pausedDays||0);
-  const end=new Date(start);
-  end.setDate(start.getDate()+totalDays);
-  return end;
+  return shiftYmd(prog.programStart,(prog.programWeeks||12)*7+(prog.pausedDays||0));
 }
-function getProgramDaysLeft(prog){
-  const end=calcProgramEndDate(prog);
-  if(!end)return null;
-  const now=new Date();now.setHours(0,0,0,0);
-  return Math.ceil((end-now)/(1000*60*60*24));
+function calcProgramEndDate(prog){
+  const y=calcProgramEndYmd(prog);
+  return y?new Date(y+'T00:00:00'):null;
+}
+// tz: ระบุเมื่อโค้ชเปิดดูนักเรียนต่างโซน — ไม่งั้นโค้ชกับนักเรียนเห็นคนละเลขบนหน้าเดียวกัน
+function getProgramDaysLeft(prog,tz){
+  const y=calcProgramEndYmd(prog);
+  if(!y)return null;
+  return daysBetweenYmd(tz?todayStrTZ(tz):todayStr(),y);
+}
+function progElapsedDays(prog,tz){
+  if(!prog||!prog.programStart)return 0;
+  return Math.max(0,daysBetweenYmd(prog.programStart,tz?todayStrTZ(tz):todayStr()));
 }
 function formatDateLong(dateStr){
   if(!dateStr)return'-';
@@ -5177,9 +5234,8 @@ function renderProgramBar(){
   const prog=studentProgramData;
   if(!prog||!prog.programStart){bar.style.display='none';return;}
   const end=calcProgramEndDate(prog);if(!end){bar.style.display='none';return;}
-  const start=new Date(prog.programStart+'T00:00:00');
   const totalDays=(prog.programWeeks||12)*7+(prog.pausedDays||0);
-  const elapsed=Math.max(0,Math.floor((new Date()-start)/(1000*60*60*24)));
+  const elapsed=progElapsedDays(prog); // v83
   const pct=Math.min(100,Math.round(elapsed/totalDays*100));
   const left=getProgramDaysLeft(prog);
   const leftLabel=left===null?'':(left<=0?'✅ จบคอร์สแล้ว':left===1?'🔥 เหลือ 1 วัน':`⏰ เหลือ ${left} วัน`);
@@ -5252,10 +5308,11 @@ function buildNearEndCard(daysLeft,endDate,code,pct){
 function buildProgramSection(uid, prog){
   const hasProgram=!!prog.programStart;
   const end=hasProgram?calcProgramEndDate(prog):null;
-  const left=hasProgram?getProgramDaysLeft(prog):null;
+  // v83: ใช้ "วันนี้" ตามโซนของนักเรียน ไม่ใช่ของโค้ช — ไม่งั้นสองฝั่งเห็นคนละเลข
+  const _ptz=(typeof tzOfUser==='function'?tzOfUser(uid):null);
+  const left=hasProgram?getProgramDaysLeft(prog,_ptz):null;
   const totalDays=hasProgram?(prog.programWeeks||12)*7+(prog.pausedDays||0):0;
-  const start=hasProgram?new Date(prog.programStart+'T00:00:00'):null;
-  const elapsed=start?Math.max(0,Math.floor((new Date()-start)/(1000*60*60*24))):0;
+  const elapsed=hasProgram?progElapsedDays(prog,_ptz):0;
   const pct=totalDays>0?Math.min(100,Math.round(elapsed/totalDays*100)):0;
   const statusLine=!hasProgram?'ยังไม่ได้ตั้งค่าคอร์ส':
     left===null?'-':left<=0?'✅ จบคอร์สแล้ว':
@@ -5273,7 +5330,7 @@ function buildProgramSection(uid, prog){
     ${progBarHtml}
     <div style="margin-bottom:8px">
       <div style="font-size:10px;color:var(--gray);margin-bottom:2px">วันเริ่มเทรน</div>
-      <input type="date" id="prog-start-${uid}" class="prog-input" value="${prog.programStart||''}" oninput="updateProgEndPreview('${uid}');debounceSaveProg('${uid}')">
+      <input type="date" id="prog-start-${uid}" class="prog-input" value="${prog.programStart||''}" oninput="updateProgEndPreview('${uid}')" onchange="updateProgEndPreview('${uid}');debounceSaveProg('${uid}')">
     </div>
     <div style="margin-bottom:8px">
       <div style="font-size:10px;color:var(--gray);margin-bottom:2px">ระยะเวลา</div>
@@ -5311,6 +5368,9 @@ async function saveProgramSettings(uid){
   const startEl=document.getElementById(`prog-start-${uid}`);
   const weeksEl=document.getElementById(`prog-weeks-${uid}`);
   if(!startEl||!weeksEl)return;
+  // v83: ช่องวันที่ที่ยังกรอกไม่ครบ / โดนกดล้าง คืน '' — เดิมไหลเข้าไปเขียน programStart:''
+  //   พร้อมล้าง pausedDays/isPaused/pauseStartDate ทิ้ง (วันพักสะสมหายถาวร ย้อนคืนไม่ได้)
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(startEl.value||'')){showToast('กรุณาเลือกวันเริ่มเทรนให้ครบก่อนค่ะ',3000);return;}
   const payload={programStart:startEl.value,programWeeks:parseInt(weeksEl.value)||12}; // NB6: กัน NaN → Firestore reject
   // v76 BUGFIX: pausedDays / isPaused / pauseStartDate ไม่เคยถูกล้างที่ไหนเลยทั้งไฟล์ → ติดตัวนักเรียนข้ามคอร์ส
   //   วันจบคอร์สใหม่ = (สัปดาห์ × 7) + วันพักของคอร์สเก่า → เลื่อนสะสมไปเรื่อยๆ
@@ -5609,7 +5669,11 @@ function buildCard(s){
   const m=getSubMacros(s);
   const macroBar=`<div class="macro-summary"><div class="ms-item">${m.c}g<span>คาร์บ</span></div><div class="ms-item">${m.p}g<span>โปรตีน</span></div><div class="ms-item">${m.f}g<span>ไขมัน</span></div><div class="ms-kcal">⚡ ${m.kcal} kcal</div></div>`;
   const statusBadge={pending:'<span class="status-badge pending">รออนุมัติ</span>',approved:'<span class="status-badge approved">✓ อนุมัติ</span>',corrected:'<span class="status-badge corrected">✏️ แก้ไข</span>'}[s.status]||'';
-  const timeStr=s.createdAt?(s.createdAt.toDate?formatTime(s.createdAt.toDate()):formatTime(new Date(s.createdAt))):'';
+  // v83: มื้อที่เกิน 24 ชม. formatTime จะคืน "วันที่" ซึ่งเรนเดอร์ตาม tz ของโค้ช
+  //   → การ์ดใบเดียวโชว์ 2 วันขัดกัน (มุมซ้าย "อา 14 ก.ย." มุมขวา "15 ก.ย.")
+  //   ถ้ามี mealDate อยู่แล้ว (มุมซ้ายบอกวันถูกต้อง) มุมขวาโชว์แค่เวลาก็พอ
+  const _tRaw=s.createdAt?(s.createdAt.toDate?s.createdAt.toDate():new Date(s.createdAt)):null;
+  const timeStr=!_tRaw?'':((Date.now()-_tRaw)>=86400000&&s.mealDate?_tRaw.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'}):formatTime(_tRaw));
   const dateLabel=s.mealDate?formatDateTH(s.mealDate)+' · ':'';
   const corrNote=s.correction?`<div class="corr-note">✏️ ปรับค่า → C ${s.correction.carb} · P ${s.correction.protein} · F ${s.correction.fat}${s.correction.note?'<br>💬 '+escHtml(s.correction.note):''}</div>`:'';
   const _photos=(s.photoUrls||[]).filter(Boolean);
@@ -5664,6 +5728,56 @@ function buildCard(s){
   return`<div class="card" id="card-${s.id}"><div class="card-header">${avatarHtml}<div><div class="card-name">${escHtml(s.displayName||'นักเรียน')}<span class="mode-tag ${s.mode}">${modeLabel}</span>${testBadge}</div><div class="card-meta">${dateLabel}มื้อ${s.meal} &nbsp;${statusBadge}</div></div><div class="card-time">${timeStr}</div></div>${photoHtml}<div class="card-body"><div class="est-chips">${chips}</div>${macroBar}${corrNote}${actions}</div>${corrPanel}</div>`;
 }
 
+// v82 BUGFIX: โค้ชแก้มื้อโหมด Hand แล้วกลับมาแก้ซ้ำ → ปุ่มทุกตัวเด้งกลับเป็นค่าดั้งเดิมของนักเรียน
+//   เดิมบันทึกลง Firestore แค่ correction:{carb,protein,fat,note} = ตัวเลข 3 ตัว + โน้ต
+//   ไม่มีที่ไหนเก็บว่าโค้ชเลือก semilean / ทอด / น้ำมัน 2 ช้อน
+//   แผงจึง fallback ไปที่ s.handData (ของนักเรียน) เสมอ ขณะที่ป้ายด้านบนยังโชว์ค่าที่แก้ไว้
+//   → โค้ชกด carb +0.5 แล้วบันทึก = ไขมันหล่นจาก 30 เหลือ 8 เงียบๆ ไม่มีเตือน
+//   (โหมดฉลาก/AI ได้ fix นี้ไปแล้วตั้งแต่ F1 — hand ถูกข้ามเพราะ state มี 10 ช่อง ไม่ใช่ 3)
+// ลำดับการหาค่า: 1) ที่โค้ชกำลังกดอยู่รอบนี้ (cState) → 2) ที่โค้ชบันทึกไว้ (correction.hand) → 3) ของนักเรียน (handData)
+function _handCorrBase(s,cs){
+  const hd=(s&&s.handData)||{};
+  const hc=(s&&s.correction&&s.correction.hand)||null;
+  cs=cs||{};
+  const pick=(k,dflt)=>{
+    if(cs[k]!==undefined)return cs[k];
+    if(hc&&hc[k]!==undefined&&hc[k]!==null)return hc[k];
+    return dflt;
+  };
+  // v75: ใช้ !==undefined ไม่ใช่ || เพราะ 0 ต้องเป็น 0 ไม่ใช่ตกไปใช้ default
+  const _hdCarb=hd.carbSlots?hd.carbSlots.reduce((t,sl)=>t+((sl&&sl.qty)||0),0):undefined;
+  const density=pick('carbDensity',(hd.carbSlots&&hd.carbSlots[0]&&hd.carbSlots[0].density)||'normal');
+  const carbQty=pick('carbQty',_hdCarb!==undefined?_hdCarb:1.5);
+  const protType=pick('protType',hd.protType||'lean');
+  const protQty=pick('protQty',hd.protein!==undefined?hd.protein:1);
+  const cookMethod=pick('cookMethod',hd.cookMethod||'none');
+  const visFat=pick('visFat',hd.visibleFat||0);
+  const eggWhole=pick('eggWhole',hd.eggWhole||0);
+  const eggWhite=pick('eggWhite',hd.eggWhite||0);
+  const avoQty=pick('avoQty',hd.avo||0);
+  const fruitCounts=Object.assign({},pick('fruitCounts',hd.fruits||{}));
+  const fruitFromTypes=FRUIT_ITEMS.reduce((sum,f)=>sum+(fruitCounts[f.id]||0)/f.perLadle,0);
+  const fruitLadles=fruitFromTypes||cs.fruitLadles||(hc&&hc.fruitLadles)||hd.fruitLadles||0;
+  return{density,carbQty,protType,protQty,cookMethod,visFat,eggWhole,eggWhite,avoQty,fruitCounts,fruitLadles,hasSaved:!!hc};
+}
+// v82: สูตรคิดมาโครของแผงแก้ค่า — เดิมเขียนซ้ำ 2 ที่ (buildCorrPanel + calcHandCorrMacros)
+// ถ้าแก้ที่เดียวลืมอีกที่ = ตัวเลขที่โค้ชเห็น ไม่ตรงกับที่ระบบบันทึก
+function _handCorrMacros(b){
+  const cd=CARB_D[b.density]||CARB_D.normal;
+  const pt=PROT_T[b.protType]||PROT_T.lean;
+  const eggsC=b.eggWhole*EGG_W.c+b.eggWhite*EGG_WH.c;
+  const eggsP=b.eggWhole*EGG_W.p+b.eggWhite*EGG_WH.p;
+  const eggsF=b.eggWhole*EGG_W.f;
+  const avoC=b.avoQty*AVO.c,avoP=b.avoQty*AVO.p,avoF=b.avoQty*AVO.f;
+  const C=Math.round(cd.c*b.carbQty+pt.c*b.protQty+eggsC+avoC+b.fruitLadles*15);
+  const P=Math.round(cd.p*b.carbQty+pt.p*b.protQty+eggsP+avoP);
+  const F=Math.round(cd.f*b.carbQty+pt.f*b.protQty+cookFat(b.cookMethod,[b.carbQty,b.protQty,b.eggWhole,b.eggWhite,b.avoQty,b.fruitLadles])+b.visFat*VIS_FAT_G+eggsF+avoF); // v75
+  return{C,P,F,kcal:macroKcal(C,P,F,0)};
+}
+// v82: สร้าง object ที่จะเขียนลง correction.hand
+function _handCorrState(b){
+  return{carbDensity:b.density,carbQty:b.carbQty,protType:b.protType,protQty:b.protQty,cookMethod:b.cookMethod,visFat:b.visFat,eggWhole:b.eggWhole,eggWhite:b.eggWhite,avoQty:b.avoQty,fruitCounts:b.fruitCounts,fruitLadles:b.fruitLadles};
+}
 function buildCorrPanel(s,cs){
   const activeMode=cs.corrMode||s.mode;
   const _orig=getSubOrigMacros(s);
@@ -5674,41 +5788,28 @@ function buildCorrPanel(s,cs){
     if(!cState[s.id])cState[s.id]={};
     cState[s.id]._sub=s; // store ref so updateHandCorrPreview can access it
     const hd=s.handData||{};
-    const density=cs.carbDensity||(hd.carbSlots?.[0]?.density||'normal');
-    // v75 BUGFIX: เดิมใช้ || ซึ่งมองเลข 0 เป็น "ไม่มีค่า" แล้วตกไปใช้ default
-    //   นักเรียนกรอกคาร์บ 0 ทัพพี → โค้ชกด ✏️ แก้ไข → ช่องเด้งเป็น 1.5 เอง (โปรตีน 0 → เด้งเป็น 1)
-    //   โค้ชต้องมานั่งกดลดกลับเป็น 0 ทั้งที่นักเรียนกรอก 0 มาถูกแล้ว
-    const _hdCarb=hd.carbSlots?hd.carbSlots.reduce((t,sl)=>t+(sl.qty||0),0):undefined;
-    const carbQty=cs.carbQty!==undefined?cs.carbQty:(_hdCarb!==undefined?_hdCarb:1.5);
-    const protType=cs.protType||hd.protType||'lean';
-    const protQty=cs.protQty!==undefined?cs.protQty:(hd.protein!==undefined?hd.protein:1);
-    const cookMethod=cs.cookMethod||hd.cookMethod||'none';
-    const visFat=cs.visFat!==undefined?cs.visFat:(hd.visibleFat||0);
-    const cd=CARB_D[density]||CARB_D.normal;
-    const pt=PROT_T[protType]||PROT_T.lean;
-    const ck=COOK_M[cookMethod]||COOK_M.none;
-    const eggWhole=cs.eggWhole!==undefined?cs.eggWhole:(hd.eggWhole||0);
-    const eggWhite=cs.eggWhite!==undefined?cs.eggWhite:(hd.eggWhite||0);
-    const avoQty=cs.avoQty!==undefined?cs.avoQty:(hd.avo||0);
-    const baseFruits=cs.fruitCounts||(hd.fruits?{...hd.fruits}:{});
-    const fruitFromTypes=FRUIT_ITEMS.reduce((sum,f)=>sum+(baseFruits[f.id]||0)/f.perLadle,0);
-    const fruitLadles=fruitFromTypes||cs.fruitLadles||hd.fruitLadles||0;
-    const eggsC=eggWhole*EGG_W.c+eggWhite*EGG_WH.c;
-    const eggsP=eggWhole*EGG_W.p+eggWhite*EGG_WH.p;
-    const eggsF=eggWhole*EGG_W.f;
-    const avoC=avoQty*AVO.c,avoP=avoQty*AVO.p,avoF=avoQty*AVO.f;
-    const fruitC=fruitLadles*15;
-    const preC=Math.round(cd.c*carbQty+pt.c*protQty+eggsC+avoC+fruitC);
-    const preP=Math.round(cd.p*carbQty+pt.p*protQty+eggsP+avoP);
-    const preF=Math.round(cd.f*carbQty+pt.f*protQty+cookFat(cookMethod,[carbQty,protQty,eggWhole,eggWhite,avoQty,fruitLadles])+visFat*VIS_FAT_G+eggsF+avoF); // v75
-    const preKcal=Math.round(preC*4+preP*4+preF*9);
-    const origTotal=s.total||{c:0,p:0,f:0,kcal:0};
+    // v82: ทั้งแผงอ่านค่าจาก helper ตัวเดียว (cState → correction.hand → handData)
+    const _b=_handCorrBase(s,cs);
+    const density=_b.density,carbQty=_b.carbQty,protType=_b.protType,protQty=_b.protQty;
+    const cookMethod=_b.cookMethod,visFat=_b.visFat;
+    const eggWhole=_b.eggWhole,eggWhite=_b.eggWhite,avoQty=_b.avoQty;
+    const baseFruits=_b.fruitCounts,fruitLadles=_b.fruitLadles;
+    const _pv=_handCorrMacros(_b);
+    const preC=_pv.C,preP=_pv.P,preF=_pv.F,preKcal=_pv.kcal;
+    // v82: เดิมอ่าน s.total ตรงๆ → มื้อใหม่ไม่มี s.total เลยโชว์ 0 · และไม่ตรงกับตัวเลขที่เหลือทั้งแอป
+    const _oM=getSubOrigMacros(s);
+    const origTotal={c:_oM.c,p:_oM.p,f:_oM.f,kcal:getSubOrigKcal(s)};
+    // v82: มื้อที่โค้ชแก้ไว้ "ก่อน" อัปเดตนี้ ไม่มี correction.hand → ปุ่มยังเป็นของนักเรียนอยู่
+    // ต้องบอกให้โค้ชเห็นชัดๆ ว่ากดบันทึกตอนนี้แล้วมาโครจะเปลี่ยนไปเป็นเท่าไหร่
+    const _corrBanner=!s.correction?'':(_b.hasSaved
+      ?`<div style="background:#ECFDF5;border:1px solid #A7F3D0;border-radius:8px;padding:6px 10px;margin-bottom:8px;font-size:11px;color:#065F46;line-height:1.6">✅ <b>ฟอร์มด้านล่าง = ค่าที่โค้ชแก้ไว้ล่าสุด</b> (C ${s.correction.carb} · P ${s.correction.protein} · F ${s.correction.fat})<br>ปรับต่อได้เลย กดบันทึกแล้วทับของเดิมค่ะ</div>`
+      :`<div style="background:#FEF3C7;border:1px solid #FDE68A;border-radius:8px;padding:6px 10px;margin-bottom:8px;font-size:11px;color:#92400E;line-height:1.6">⚠️ <b>มื้อนี้แก้ไว้ก่อนอัปเดต — ระบบไม่ได้เก็บว่ากดปุ่มอะไรไว้</b><br>ปุ่มด้านล่างจึงเป็นค่าดั้งเดิมของนักเรียน ถ้ากดบันทึกตอนนี้ มาโครจะเปลี่ยนจาก <b>C ${s.correction.carb} · P ${s.correction.protein} · F ${s.correction.fat}</b> → <b>C ${preC} · P ${preP} · F ${preF}</b><br>ตั้งปุ่มให้ตรงก่อนกดบันทึกนะคะ</div>`);
     const dBtn=(d)=>`<button class="dens-btn${d===density?' active':''}" data-d="${d}" onclick="setHCorrCarbD('${s.id}','${d}')">${CARB_D[d].emoji} ${CARB_D[d].label}</button>`;
     const ptBtn=(t,lbl,sub)=>`<button class="ptype-btn${t===protType?' active':''}" data-pt="${t}" onclick="setHCorrProtT('${s.id}','${t}')">${lbl}<span class="ptype-sub">${sub}</span></button>`;
     const ckBtn=(m,lbl,sub)=>`<button class="cook-btn${m===cookMethod?' active':''}" data-ck="${m}" onclick="setHCorrCookM('${s.id}','${m}')">${lbl}<span class="dens-kcal">${sub}</span></button>`;
     return`<div class="correction-panel">
 ${_modeSwitchRow}<h4>✏️ แก้ค่า — Hand Portion</h4>
-${s.correction?`<div style="background:#FEF3C7;border:1px solid #FDE68A;border-radius:8px;padding:6px 10px;margin-bottom:8px;font-size:11px;color:#92400E;line-height:1.6">✅ <b>ค่าที่โค้ชแก้ไว้ล่าสุด: C ${s.correction.carb} · P ${s.correction.protein} · F ${s.correction.fat}</b><br>ฟอร์มด้านล่างเริ่มจากค่าดั้งเดิมของนักเรียน — ปรับใหม่แล้วกดบันทึกทับได้เลยค่ะ</div>`:''}
+${_corrBanner}
 <div style="margin-bottom:10px">
   <div class="hmb-subtitle" style="margin-bottom:5px">🌾 คาร์บ — ความหนาแน่น</div>
   <div class="dens-grid" style="margin-bottom:8px">${['veggie','light','normal','dense','heavy'].map(dBtn).join('')}</div>
@@ -5782,9 +5883,9 @@ ${s.correction?`<div style="background:#FEF3C7;border:1px solid #FDE68A;border-r
   return`<div class="correction-panel">${_modeSwitchRow}<h4>✏️ แก้ไขค่าที่ถูกต้อง</h4>
 <div style="text-align:center;font-size:12px;color:#9CA3AF;margin-bottom:8px">นักเรียนกรอก: <del>C ${origC}g · P ${origP}g · F ${origF}g${_cAlc>0?` · 🍷 ${_cAlc}g`:''} → ⚡ ${origKcal} kcal</del>${_cAlc>0?`<div style="font-size:10.5px;color:#9D174D;margin-top:2px">🍷 แอลกอฮอล์ ${_cAlc}g (${Math.round(_cAlc*ALC_KCAL)} kcal) ติดอยู่กับมื้อนี้ ไม่หายตอนแก้มาโคร</div>`:''}</div>
 <div class="corr-steppers">
-<div class="corr-s-item"><label>🟡 คาร์บ (g) <span id="badge-carb-${s.id}">${mBadge(carb-origC,4)}</span></label><div class="corr-s-row"><button onclick="adjCorr('${s.id}','carb',-1)">−</button><input type="number" class="corr-input" id="cc-carb-${s.id}" value="${carb}" min="0" step="1" onchange="syncCorr('${s.id}','carb')"><button onclick="adjCorr('${s.id}','carb',1)">+</button></div></div>
-<div class="corr-s-item"><label>🔴 โปรตีน (g) <span id="badge-protein-${s.id}">${mBadge(prot-origP,4)}</span></label><div class="corr-s-row"><button onclick="adjCorr('${s.id}','protein',-1)">−</button><input type="number" class="corr-input" id="cc-protein-${s.id}" value="${prot}" min="0" step="1" onchange="syncCorr('${s.id}','protein')"><button onclick="adjCorr('${s.id}','protein',1)">+</button></div></div>
-<div class="corr-s-item"><label>🟢 ไขมัน (g) <span id="badge-fat-${s.id}">${mBadge(fat-origF,9)}</span></label><div class="corr-s-row"><button onclick="adjCorr('${s.id}','fat',-1)">−</button><input type="number" class="corr-input" id="cc-fat-${s.id}" value="${fat}" min="0" step="1" onchange="syncCorr('${s.id}','fat')"><button onclick="adjCorr('${s.id}','fat',1)">+</button></div></div>
+<div class="corr-s-item"><label>🟡 คาร์บ (g) <span id="badge-carb-${s.id}">${mBadge(carb-origC,4)}</span></label><div class="corr-s-row"><button onclick="adjCorr('${s.id}','carb',-1)">−</button><input type="number" class="corr-input" id="cc-carb-${s.id}" value="${carb}" min="0" step="1" oninput="syncCorr('${s.id}','carb')"><button onclick="adjCorr('${s.id}','carb',1)">+</button></div></div>
+<div class="corr-s-item"><label>🔴 โปรตีน (g) <span id="badge-protein-${s.id}">${mBadge(prot-origP,4)}</span></label><div class="corr-s-row"><button onclick="adjCorr('${s.id}','protein',-1)">−</button><input type="number" class="corr-input" id="cc-protein-${s.id}" value="${prot}" min="0" step="1" oninput="syncCorr('${s.id}','protein')"><button onclick="adjCorr('${s.id}','protein',1)">+</button></div></div>
+<div class="corr-s-item"><label>🟢 ไขมัน (g) <span id="badge-fat-${s.id}">${mBadge(fat-origF,9)}</span></label><div class="corr-s-row"><button onclick="adjCorr('${s.id}','fat',-1)">−</button><input type="number" class="corr-input" id="cc-fat-${s.id}" value="${fat}" min="0" step="1" oninput="syncCorr('${s.id}','fat')"><button onclick="adjCorr('${s.id}','fat',1)">+</button></div></div>
 </div>
 <div id="corr-preview-${s.id}" data-origc="${origC}" data-origp="${origP}" data-origf="${origF}" style="background:#F0FDF4;border-radius:8px;padding:8px 12px;margin:6px 0 4px;font-size:13px;font-weight:700;color:#15803D;text-align:center">C ${carb}g · P ${prot}g · F ${fat}g → ⚡ ${prevKcal} kcal${kcalDiffBadge}</div>
 <div class="feedback-chips"><span class="fchip fchip-green" onclick="setCoachChip('${s.id}','✅ กรอกถูกแล้ว เก่งมากเลย!')">✅ กรอกถูกแล้ว</span><span class="fchip fchip-green" onclick="setCoachChip('${s.id}','✏️ โค้ชแก้ให้แล้ว เช็คดูได้เลยนะคะ')">✏️ โค้ชแก้ให้แล้ว</span><span class="fchip fchip-yellow" onclick="setCoachChip('${s.id}','🍚 คาร์บเยอะไปนิด ลองลดหน่อยนะคะ')">🍚 คาร์บเยอะไปนิด</span><span class="fchip fchip-yellow" onclick="setCoachChip('${s.id}','💪 โปรตีนน้อยไป ครั้งหน้าเพิ่มได้เลย')">💪 โปรตีนน้อยไป</span><span class="fchip fchip-yellow" onclick="setCoachChip('${s.id}','🥑 ไขมันเกินนิดนึง ระวังด้วยนะคะ')">🥑 ไขมันเกิน</span><span class="fchip fchip-gray" onclick="setCoachChip('${s.id}','🎉 วันนี้ทำได้ดีมาก! Keep going!')">🎉 ทำได้ดีมาก!</span><span class="fchip fchip-gray" onclick="setCoachChip('${s.id}','🥗 อย่าลืมเพิ่มผักด้วยนะคะ')">🥗 อย่าลืมผัก</span><span class="fchip fchip-gray" onclick="setCoachChip('${s.id}','💧 ดื่มน้ำให้ครบด้วยนะคะ')">💧 ดื่มน้ำให้ครบ</span></div>
@@ -5812,9 +5913,15 @@ function updateCorrPreview(id){
   const f=parseFloat(document.getElementById(`cc-fat-${id}`)?.value)||0;
   const el=document.getElementById(`corr-preview-${id}`);
   if(!el)return;
-  const kcal=Math.round(c*4+p*4+f*9);
+  // v83 BUGFIX: v81 แก้สูตรแคลตอน "วาดครั้งแรก" ไปแล้ว (buildCorrPanel) แต่ลืมจุดนี้
+  //   ซึ่งทำงานทุกครั้งที่โค้ชแตะปุ่ม −/+ หรือพิมพ์เลข
+  //   → เปิดแผงเห็น 680 กด − ครั้งเดียวเลขร่วงเป็น 501 (ทิ้งแอลกอฮอล์ 25g) แต่ระบบบันทึก 676
+  //   โหมดฉลากก็เพี้ยน: origKcal แอบเปลี่ยนจาก "แคลบนซอง" เป็น 4·4·9 ทำให้ badge ส่วนต่างโกหก
+  const _s=cState[id]&&cState[id]._sub;
+  const _a=(_s&&_s.weighData&&Math.max(0,+_s.weighData.alc||0))||0;
   const oC=parseFloat(el.dataset.origc)||0,oP=parseFloat(el.dataset.origp)||0,oF=parseFloat(el.dataset.origf)||0;
-  const origKcal=Math.round(oC*4+oP*4+oF*9);
+  const kcal=macroKcal(c,p,f,_a);
+  const origKcal=_s?getSubOrigKcal(_s):macroKcal(oC,oP,oF,0);
   const diff=kcal-origKcal;
   const diffBadge=diff===0?'':`<span style="font-size:11px;padding:2px 7px;border-radius:10px;margin-left:6px;background:${diff>0?'#FEE2E2':'#DCFCE7'};color:${diff>0?'#DC2626':'#059669'};font-weight:700">${diff>0?'+'+diff:diff} kcal</span>`;
   el.innerHTML=`C ${c}g · P ${p}g · F ${f}g → ⚡ ${kcal} kcal${diffBadge}`;
@@ -5877,8 +5984,8 @@ function syncHCorr(id,field){
 function adjHCorrFruit(sid,fruitId,delta){
   if(!cState[sid])cState[sid]={};
   if(!cState[sid].fruitCounts){
-    const hd=cState[sid]._sub?.handData||{};
-    cState[sid].fruitCounts={...(hd.fruits||{})};
+    // v82: เดิมเริ่มจาก handData เสมอ → กดผลไม้ครั้งแรกตอนแก้ซ้ำ ผลไม้ที่โค้ชเคยแก้ไว้หายทันที
+    cState[sid].fruitCounts=_handCorrBase(cState[sid]._sub,cState[sid]).fruitCounts;
   }
   const counts=cState[sid].fruitCounts;
   counts[fruitId]=Math.max(0,Math.round(((counts[fruitId]||0)+delta)*10)/10);
@@ -5897,37 +6004,11 @@ function adjHCorrFruit(sid,fruitId,delta){
   if(valEl)valEl.textContent=Number.isInteger(rd)?rd:rd.toFixed(1);
   updateHandCorrPreview(sid);
 }
+// v82: ใช้สูตร/ลำดับ fallback ตัวเดียวกับที่แผงใช้วาด — เดิมเขียนซ้ำกัน 2 ชุด
 function calcHandCorrMacros(id){
   const s=cState[id]?._sub;
   if(!s)return{C:0,P:0,F:0,kcal:0};
-  const hd=s.handData||{};
-  const st=cState[id]||{};
-  const density=st.carbDensity||(hd.carbSlots?.[0]?.density||'normal');
-  // v75 BUGFIX: เหมือน B1 — 0 ต้องเป็น 0 ไม่ใช่ตกไปใช้ default
-  const _hdCarb2=hd.carbSlots?hd.carbSlots.reduce((t,sl)=>t+(sl.qty||0),0):undefined;
-  const carbQty=st.carbQty!==undefined?st.carbQty:(_hdCarb2!==undefined?_hdCarb2:1.5);
-  const protType=st.protType||hd.protType||'lean';
-  const protQty=st.protQty!==undefined?st.protQty:(hd.protein!==undefined?hd.protein:1);
-  const cookMethod=st.cookMethod||hd.cookMethod||'none';
-  const visFat=st.visFat!==undefined?st.visFat:(hd.visibleFat||0);
-  const cd=CARB_D[density]||CARB_D.normal;
-  const pt=PROT_T[protType]||PROT_T.lean;
-  const ck=COOK_M[cookMethod]||COOK_M.none;
-  const eggW=st.eggWhole!==undefined?st.eggWhole:(hd.eggWhole||0);
-  const eggWh=st.eggWhite!==undefined?st.eggWhite:(hd.eggWhite||0);
-  const avoQ=st.avoQty!==undefined?st.avoQty:(hd.avo||0);
-  const baseFruits2=st.fruitCounts||(hd.fruits?{...hd.fruits}:{});
-  const fruitFromTypes2=FRUIT_ITEMS.reduce((sum,f)=>sum+(baseFruits2[f.id]||0)/f.perLadle,0);
-  const fruitL=fruitFromTypes2||st.fruitLadles||hd.fruitLadles||0;
-  const eggsC=eggW*EGG_W.c+eggWh*EGG_WH.c;
-  const eggsP=eggW*EGG_W.p+eggWh*EGG_WH.p;
-  const eggsF=eggW*EGG_W.f;
-  const avoC=avoQ*AVO.c,avoP=avoQ*AVO.p,avoF=avoQ*AVO.f;
-  const fruitC=fruitL*15;
-  const C=Math.round(cd.c*carbQty+pt.c*protQty+eggsC+avoC+fruitC);
-  const P=Math.round(cd.p*carbQty+pt.p*protQty+eggsP+avoP);
-  const F=Math.round(cd.f*carbQty+pt.f*protQty+cookFat(cookMethod,[carbQty,protQty,eggW,eggWh,avoQ,fruitL])+visFat*VIS_FAT_G+eggsF+avoF); // v75
-  return{C,P,F,kcal:Math.round(C*4+P*4+F*9)};
+  return _handCorrMacros(_handCorrBase(s,cState[id]||{}));
 }
 function updateHandCorrPreview(id){
   const{C,P,F,kcal}=calcHandCorrMacros(id);
@@ -5935,7 +6016,10 @@ function updateHandCorrPreview(id){
   if(el)el.textContent=`C ${C}g · P ${P}g · F ${F}g → ⚡ ${kcal} kcal`;
   const summaryEl=document.getElementById(`hc-summary-${id}`);
   if(summaryEl){
-    const orig=cState[id]?._sub?.total||{c:0,p:0,f:0,kcal:0};
+    // v82: เดิมอ่าน s.total ตรงๆ → มื้อใหม่ที่ไม่มี s.total โชว์ "C0 P0 F0 = 0kcal"
+    const _os=cState[id]?._sub;
+    const _om=getSubOrigMacros(_os);
+    const orig={c:_om.c,p:_om.p,f:_om.f,kcal:getSubOrigKcal(_os)};
     summaryEl.innerHTML=`นักเรียนกรอก: <del>C${orig.c}g · P${orig.p}g · F${orig.f}g = ${orig.kcal}kcal</del><br>แก้เป็น: <span style="color:#059669">C${C}g · P${P}g · F${F}g = ${kcal}kcal</span>`;
   }
 }
@@ -5977,9 +6061,13 @@ const _approveInProgress=new Set(); // M1: ป้องกัน double-tap
 async function doApproveQuiet(id){
   _markCoachSelfWrite(id); // v76: ฟังก์ชันนี้เรียก renderCoach() เองด้านล่าง
   _justActedIds.add(id); // v59: จำไว้ว่าโค้ชเพิ่งจัดการรายการนี้ → ยังกดดูรูปได้แม้หลุด 10 ล่าสุด
-  if(cState[id])delete cState[id]; // v59: ล้างสถานะการ์ด (รวม _sub ที่กินหน่วยความจำ) หลังจัดการเสร็จ
   if(_approveInProgress.has(id))return; // M1
   _approveInProgress.add(id);
+  // v83: เดิมลบ cState ทิ้ง "ก่อน" guard และก่อนอ่านอะไรเลย (doApprove แก้เรื่องนี้ไปแล้วใน v63.1 ตัวนี้ตกค้าง)
+  //   ปุ่ม "✅ อนุมัติ" กับ "💬 อนุมัติ + ข้อความ" อยู่ติดกันบนจอมือถือ — นิ้วโดนผิดปุ่ม = ข้อความที่พิมพ์ไว้หายเงียบ
+  const _pendingCmt=(document.getElementById(`approve-comment-${id}`)?.value||'').trim();
+  if(_pendingCmt&&!await askConfirm('มีข้อความที่ยังไม่ได้ส่งอยู่ในแผงนะคะ\nกด "อนุมัติเงียบ" ข้อความนี้จะไม่ถูกส่ง',{icon:'💬',okText:'อนุมัติเงียบ',cancelText:'กลับไปแก้'})){_approveInProgress.delete(id);return;}
+  if(cState[id])delete cState[id]; // v59: ล้างสถานะการ์ด (รวม _sub ที่กินหน่วยความจำ) หลังจัดการเสร็จ
   try{
     const _r=await _fsWrite(db.collection('submissions').doc(id).update({
       status:'approved',coachComment:'',coachCommentSent:true
@@ -6007,24 +6095,16 @@ async function doApprove(id){
       status:'approved',coachComment:comment,coachCommentTone:tone,
       coachCommentSent:false,coachCommentWithPhoto:withPhoto
     })); // W1
-    // ลองส่ง Card ทันทีจาก LIFF ของโค้ช
-    // ถ้าโค้ชเปิด LIFF จากใน chat เดียวกับนักเรียน → ส่งถึงนักเรียนเลย
-    let sentNow=false;
-    if(_r!=='timeout'&&s&&liff.isInClient()){
-      try{
-        const cardData=Object.assign({},s,{coachComment:comment,coachCommentTone:tone,coachCommentWithPhoto:withPhoto,status:'approved'});
-        const card=buildCoachCommentCard(cardData,comment,tone,withPhoto);
-        await liff.sendMessages([card]);
-        await _fsWrite(db.collection('submissions').doc(id).update({coachCommentSent:true})); // v63.1: เดิมไม่มี timeout เน็ตหลุดตรงนี้ = การ์ดล็อกถาวรทั้ง session
-        sentNow=true;
-      }catch(sendErr){
-        // ไม่ได้อยู่ใน chat → นักเรียนจะรับ Card ครั้งหน้าที่เปิดแอป
-        console.log('coach send card err',sendErr);
-      }
-    }
+    // v83 BUGFIX: ตัดการ "ส่ง Card ทันที" ทิ้ง
+    //   liff.sendMessages() ส่งเข้าห้องแชทที่ LIFF ถูกเปิดขึ้นมา = แชทของโค้ชเองกับบอท
+    //   (จะถึงนักเรียนก็ต่อเมื่อโค้ชเปิด dashboard จากในแชทของนักเรียนคนนั้นพอดี ซึ่งแทบไม่เกิดจริง)
+    //   ปัญหาไม่ใช่ว่าส่งผิดห้อง แต่คือ "มันถือว่าสำเร็จ" แล้วเขียน coachCommentSent:true
+    //   → ฝั่งนักเรียน checkCoachComments กรอง !coachCommentSent ทิ้ง = ไม่มีวันได้รับการ์ดใบนี้
+    //   แถม toast ยังบอกโค้ชว่า "ส่ง Card ให้นักเรียนแล้วค่ะ" ทั้งที่ไม่ได้ส่ง
+    //   ฝั่ง client พิสูจน์ไม่ได้ว่าส่งถึงใคร → ปล่อยให้นักเรียนรับตอนเปิดแอป (path นี้ทำงานถูกอยู่แล้ว)
     if(cState[id])cState[id].approveOpen=false;
     renderCoach();
-    showToast(_r==='timeout'?'📡 เน็ตช้า — อนุมัติไว้ในเครื่องแล้ว Card จะส่งเมื่อนักเรียนเปิดแอปค่ะ':(sentNow?'✅ ส่ง Card ให้นักเรียนแล้วค่ะ':'✅ อนุมัติแล้ว — Card จะส่งเมื่อนักเรียนเปิดแอปค่ะ'),_r==='timeout'?4500:2500);
+    showToast(_r==='timeout'?'📡 เน็ตช้า — อนุมัติไว้ในเครื่องแล้ว Card จะส่งเมื่อนักเรียนเปิดแอปค่ะ':'✅ อนุมัติแล้ว — Card จะส่งเมื่อนักเรียนเปิดแอปค่ะ',_r==='timeout'?4500:2800);
   }catch(e){showToast('⚠️ ไม่สำเร็จ: '+e.message,4000);} // v65: alert ถูก LINE บล็อกได้ = โค้ชไม่รู้ว่าพลาด
   finally{_approveInProgress.delete(id);} // M1
 }
@@ -6037,11 +6117,14 @@ async function sendCorrection(id,action='save'){
     _corrInProgress.add(id);
   }
   const existingSub=cState[id]?._sub||{};
-  let carb,prot,fat;
+  let carb,prot,fat,_handState=null;
   const _activeMode=cState[id]?.corrMode||existingSub.mode;
   if(_activeMode==='hand'){
-    const{C,P,F}=calcHandCorrMacros(id);
-    carb=C;prot=P;fat=F;
+    // v82: เก็บ state ของปุ่มทั้ง 10 ช่องไปด้วย เพื่อให้เปิดมาแก้ซ้ำแล้วได้ภาพเดิม
+    const _hb=_handCorrBase(existingSub,cState[id]||{});
+    const _hm=_handCorrMacros(_hb);
+    carb=_hm.C;prot=_hm.P;fat=_hm.F;
+    _handState=_handCorrState(_hb);
   }else{
     carb=parseFloat(document.getElementById(`cc-carb-${id}`)?.value)||0;
     prot=parseFloat(document.getElementById(`cc-protein-${id}`)?.value)||0;
@@ -6049,13 +6132,19 @@ async function sendCorrection(id,action='save'){
   }
   const note=document.getElementById(`cc-note-${id}`)?.value.trim()||'';
   const origM=getSubOrigMacros(existingSub);
-  const kcalNew=Math.round(carb*4+prot*4+fat*9);
-  const kcalOrig=Math.round(origM.c*4+origM.p*4+origM.f*9);
+  // v82: v81 แก้สูตรแคลในแผงไปแล้ว แต่ข้อความ "📋 Copy" ยังคิดเองด้วย 4·4·9
+  // → โค้ชวางข้อความใน LINE แล้วเลขไม่ตรงกับที่นักเรียนเห็นในแอป
+  const _sAlc=(existingSub.weighData&&Math.max(0,+existingSub.weighData.alc||0))||0;
+  const kcalNew=macroKcal(carb,prot,fat,_sAlc);
+  const kcalOrig=getSubOrigKcal(existingSub);
   const kcalDiff=kcalNew-kcalOrig;
   const kcalDiffStr=kcalDiff===0?'ไม่เปลี่ยน':(kcalDiff>0?`+${kcalDiff} kcal`:`${kcalDiff} kcal`);
   if(action==='copy'){
     const meal=existingSub.meal||'?';
-    const dateStr=existingSub.createdAt?new Date(existingSub.createdAt.seconds*1000).toLocaleDateString('th-TH',{day:'numeric',month:'short'}):'-';
+    // v83: เดิมใช้ createdAt (เวลาที่กดส่ง) + tz ของเครื่องโค้ช
+    //   นักเรียนที่เยอรมนีกินมื้อเย็น 21:00 วันที่ 14 = 02:00 วันที่ 15 ที่ไทย
+    //   → ข้อความที่โค้ชวางใน LINE บอก "15 ก.ย." แต่ในแอปนักเรียนมื้อนั้นอยู่ใต้ "14 ก.ย." หากันไม่เจอ
+    const dateStr=existingSub.mealDate?formatDateTH(existingSub.mealDate):(existingSub.createdAt?new Date(existingSub.createdAt.seconds*1000).toLocaleDateString('th-TH',{day:'numeric',month:'short'}):'-');
     const txt=[
       `✏️ โค้ชปรับค่ามื้อที่ ${meal} (${dateStr})`,
       ``,
@@ -6083,26 +6172,17 @@ async function sendCorrection(id,action='save'){
     const _modeChanged=cState[id]?.corrMode&&cState[id].corrMode!==existingSub.mode;
     const _corrNote=note||(_isReEdit?'โค้ชปรับค่าอัปเดตให้ใหม่นะคะ':'โค้ชปรับค่า macro ให้แล้วนะคะ');
     const _r=await _fsWrite(db.collection('submissions').doc(id).update({
-      status:'approved',correction:{carb,protein:prot,fat,note},
+      status:'approved',correction:{carb,protein:prot,fat,note,...(_handState?{hand:_handState}:{})}, // v82: hand = state ของปุ่ม
       coachComment:_corrNote,
       coachCommentTone:'fix',coachCommentSent:!_isReEdit,coachCommentWithPhoto:false, // F1: re-edit → sent:false ให้ Card อัปเดตส่งเมื่อนักเรียนเปิดแอป
       origMacros:{c:origM.c,p:origM.p,f:origM.f},
       editHistory,
       ...(_modeChanged?{mode:cState[id].corrMode}:{})
     })); // W1
-    // F1: ลองส่ง Card อัปเดตทันทีถ้าโค้ชเปิด LIFF ใน chat นักเรียน (fallback = ส่งเมื่อนักเรียนเปิดแอป)
-    let _sentNow=false;
-    if(_isReEdit&&_r!=='timeout'&&liff.isInClient()){
-      try{
-        const cardData=Object.assign({},existingSub,{correction:{carb,protein:prot,fat,note},status:'approved',coachComment:_corrNote,coachCommentTone:'fix'});
-        await liff.sendMessages([buildCoachCommentCard(cardData,_corrNote,'fix',false)]);
-        await _fsWrite(db.collection('submissions').doc(id).update({coachCommentSent:true}));
-        _sentNow=true;
-      }catch(_){}
-    }
+    // v83: ตัดการส่งทันทีทิ้งด้วยเหตุผลเดียวกับ doApprove — ส่งเข้าแชทโค้ชเองแล้วปิดธงถาวร
     cState[id]={};
     renderCoach();
-    showToast(_r==='timeout'?'📡 เน็ตช้า — บันทึกไว้ในเครื่องแล้ว จะซิงค์อัตโนมัติค่ะ':(_isReEdit?(_sentNow?'✅ แก้ไขแล้ว — ส่ง Card อัปเดตให้นักเรียนแล้วค่ะ':'✅ แก้ไขแล้ว — Card อัปเดตจะส่งเมื่อนักเรียนเปิดแอปค่ะ'):'✅ บันทึกแล้วค่ะ'),_r==='timeout'?4000:3000);
+    showToast(_r==='timeout'?'📡 เน็ตช้า — บันทึกไว้ในเครื่องแล้ว จะซิงค์อัตโนมัติค่ะ':(_isReEdit?'✅ แก้ไขแล้ว — Card อัปเดตจะส่งเมื่อนักเรียนเปิดแอปค่ะ':'✅ บันทึกแล้วค่ะ'),_r==='timeout'?4000:3200);
   }catch(e){showToast('⚠️ ไม่สำเร็จ: '+e.message,4000);} // v65: alert ถูก LINE บล็อกได้ = โค้ชไม่รู้ว่าพลาด
   finally{_corrInProgress.delete(id);} // M2
 }
@@ -6474,6 +6554,10 @@ async function saveWeeklyNote(userId,weekId){
     await db.collection('students').doc(userId).collection('weeklySummaries').doc(weekId).set({
       weekId,weekStart:weekId,coachNote:ta.value.trim(),updatedAt:firebase.firestore.FieldValue.serverTimestamp()
     },{merge:true});
+    // v83 BUGFIX: เดิมไม่ล้าง cache (saveCoachNotes/saveTargets ทำถูกทั้งคู่ ตัวนี้ตกหล่น)
+    //   → ปิดหน้าแล้วเปิดคนเดิมซ้ำ ช่องว่างเปล่าเหมือนไม่เคยบันทึก
+    //   โค้ชนึกว่าเน็ตหลุด พิมพ์ใหม่สั้นๆ กดบันทึก → merge ระดับ field = โน้ตยาวเดิมถูกทับหายจริง
+    delete _sdCache[userId]; // invalidate cache
     ta.style.background='#D1FAE5';
     setTimeout(()=>{ta.style.background='white';},1200);
   }catch(e){showToast('⚠️ บันทึกไม่ได้: '+e.message,4000);} // v65
@@ -6539,6 +6623,10 @@ async function saveTargets(userId){
 async function autoMarkMissedDays(userId, byDate, tz){
   // v77: คนที่ยังไม่เคยส่งสักมื้อ (เพิ่งล็อกอิน / เพิ่งสมัคร) ไม่ควรโดนมาร์กขาดส่งย้อนหลังทั้งสัปดาห์
   if(!byDate||!Object.keys(byDate).length)return;
+  // v83: ข้อมูลชนเพดาน query (800 มื้อ) = วันเก่าถูกตัดหายไปทั้งที่นักเรียนส่งจริง
+  //   นักเรียน 40 คน × 3 มื้อ × 7 วัน = 840 > 800 → สัปดาห์ปัจจุบันเองก็ล้นได้
+  //   มาร์ก "ขาดส่ง" ผิด = ลบคืนไม่ได้ (คอมเมนต์ v73 ด้านล่างเตือนไว้เอง) → ไม่รู้แน่ก็อย่ามาร์ก
+  if(typeof _subsTruncated!=='undefined'&&_subsTruncated)return;
   const MON=getMonWeekDates(tz);
   // v73 SAFETY: ห้ามมาร์ก "ขาดส่ง" ในวันที่นักเรียนอาจยังใช้ชีวิตอยู่
   // เดิมใช้ "วันนี้" ของโค้ช — นักเรียนที่อเมริกาช้ากว่าไทยเกือบครึ่งวัน
@@ -7201,13 +7289,20 @@ async function saveHistEdit(){
     let upd={meal,mealDate,mode:_editSubMode,edited:true,editedAt:firebase.firestore.FieldValue.serverTimestamp()};
     if(histEntry)upd.editHistory=firebase.firestore.FieldValue.arrayUnion(histEntry);
 
+    // v83 BUGFIX: ย้าย lookup นี้ขึ้นมาจากด้านล่าง
+    //   เดิมสาขาโหมด AI อ้าง `currentSub` ซึ่ง "ไม่มีอยู่จริง" ทั้งไฟล์มีชื่อนี้แค่เป็นพารามิเตอร์ของฟังก์ชันอื่น
+    //   → นักเรียนกด 💾 บันทึกในโมดัลแก้ไขโหมด AI = ReferenceError ทุกครั้ง 100% แก้มื้อไม่ได้เลย
+    //   และเพราะ throw อยู่ใน try/catch จึงไม่เข้า errorLogs ด้วย — โค้ชไม่มีทางรู้ว่ามีคนติดปัญหานี้อยู่
+    const s=(histCache||studentSubsCache||[]).find(x=>x.id===_editSubId);
+    const _oldAlc=(s&&s.weighData&&Math.max(0,+s.weighData.alc||0))||0;
+
     if(_editSubMode==='hand'){
       upd['handData.menuName']=menuName;
       upd['handData.menuDesc']=menuDesc;
       upd['handData.totalCarb']=c;
       upd['handData.totalProtein']=p;
       upd['handData.totalFat']=f;
-      upd['handData.totalKcal']=Math.round(c*4+p*4+f*9);
+      upd['handData.totalKcal']=macroKcal(c,p,f,0); // v83: สูตรเดียวกับทั้งแอป
     }else if(_editSubMode==='label'){
       upd['labelData.menuName']=menuName;
       upd['labelData.food']=menuName; // backward compat
@@ -7224,18 +7319,18 @@ async function saveHistEdit(){
       upd['weighData.carb']=c;
       upd['weighData.protein']=p;
       upd['weighData.fat']=f;
-      upd['weighData.kcal']=macroKcal(c,p,f,(currentSub&&currentSub.weighData&&currentSub.weighData.alc)||0); // v79: อย่าทิ้งแคลแอลกอฮอล์ตอนแก้มาโคร
+      upd['weighData.kcal']=macroKcal(c,p,f,_oldAlc); // v79: อย่าทิ้งแคลแอลกอฮอล์ตอนแก้มาโคร (v83: ใช้ s ที่หาไว้ด้านบน)
       // BUGFIX v47: ล้างรายการย่อยเดิมทิ้ง — ไม่งั้นการ์ดโค้ช/ประวัติยังโชว์รายการเก่าที่บวกแล้วไม่เท่ายอดใหม่
       upd['weighData.aiItems']=null;
     }
 
     // อัปเดต top-level total ให้ตรงกับค่าที่แก้ (ใช้เป็น fallback + reference)
-    upd.total={c,p,f,kcal:Math.round(c*4+p*4+f*9)};
+    // v83: เดิมคิด 4·4·9 → เอกสารเดียวกันเก็บแคลไว้ 2 เลขที่ขัดกัน (weighData.kcal มีแอลกอฮอล์ total.kcal ไม่มี)
+    upd.total={c,p,f,kcal:macroKcal(c,p,f,_editSubMode==='weigh'?_oldAlc:0)};
 
     // ถ้าโค้ชเคย correct → reset กลับ pending ให้โค้ช review ใหม่
     // BUGFIX v44: correction ของโค้ชถูกเซฟเป็น status:'approved'+correction (ไม่ใช่ 'corrected') — เดิมเช็คแค่ 'corrected'
     // ทำให้ correction เก่าค้างอยู่และ override ค่าที่แก้ใหม่ (getSubMacros อ่าน correction ก่อนเสมอ) → แก้แล้วเหมือนไม่แก้
-    const s=(histCache||studentSubsCache||[]).find(x=>x.id===_editSubId);
     if(s&&(s.status==='corrected'||s.correction)){upd.status='pending';upd.correction=null;}
 
     // Photo: อัปโหลดรูปใหม่ หรือลบรูปเดิม
@@ -7246,9 +7341,18 @@ async function saveHistEdit(){
         const photoRef=storage.ref(`photos/${uid}/${Date.now()}.jpg`);
         const uploadP=photoRef.putString(base64,'data_url').then(()=>photoRef.getDownloadURL());
         const timeoutP=new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),20000)); // L1: 10s→20s
-        upd.photoUrl=await Promise.race([uploadP,timeoutP]);
+        const _newUrl=await Promise.race([uploadP,timeoutP]);
+        upd.photoUrl=_newUrl;
+        // v83 BUGFIX: เดิมเขียนแค่ photoUrl — การ์ดฝั่งโค้ชอ่าน photoUrls ก่อนเสมอ (buildCard)
+        //   นักเรียนเปลี่ยนเป็นรูปที่ชัดกว่า เห็นรูปใหม่ในประวัติตัวเอง แต่โค้ชยังเห็นรูปเก่า
+        //   (ฝั่ง "ลบรูป" ข้างล่างแก้บั๊กเดียวกันนี้ไปแล้วตั้งแต่ v50.1)
+        upd.photoUrls=[_newUrl];
         upd.photoBase64=null;
-      }catch(photoErr){console.log('edit photo upload skipped:',photoErr.message);}
+      }catch(photoErr){
+        // v83: เดิมมีแค่ console.log → อัปไม่ขึ้น = โมดัลปิดพร้อมข้อความว่าสำเร็จ นักเรียนไม่มีทางรู้ว่ารูปไม่ไป
+        console.log('edit photo upload skipped:',photoErr.message);
+        showToast('📷 รูปใหม่อัปโหลดไม่ขึ้น (เน็ตช้า) — ข้อมูลอื่นบันทึกแล้ว ลองเปลี่ยนรูปอีกครั้งได้ค่ะ',5000);
+      }
     }else if(_editPhotoRemoved){
       upd.photoUrl=null;upd.photoBase64=null;upd.photoUrls=null; // BUGFIX v50.1: เดิมไม่ล้าง photoUrls → นักเรียนลบรูปแล้ว แต่การ์ดฝั่งโค้ชยังเห็นรูปเดิม
     }
@@ -7455,7 +7559,7 @@ async function downloadDashboard(elId, name, type){
       windowHeight:H+200,
     });
 
-    const fname=(name||'dashboard')+'_'+new Date().toISOString().split('T')[0];
+    const fname=(name||'dashboard')+'_'+todayStr(); // v83: toISOString = UTC → ไทยได้ชื่อไฟล์เป็นเมื่อวานก่อน 7 โมงเช้า
     if(type==='pdf'){
       const {jsPDF}=window.jspdf;
       const imgW=canvas.width/2,imgH=canvas.height/2;
