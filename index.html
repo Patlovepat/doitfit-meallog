@@ -176,6 +176,15 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
 .label-field input{width:100%;border:1.5px solid #E5E7EB;border-radius:8px;padding:8px 6px;font-size:14px;font-family:'Prompt',sans-serif;text-align:center;color:var(--text)}
 .label-field input:focus{outline:none;border-color:var(--primary)}
 .serving-row{display:flex;align-items:center;gap:10px;margin-top:4px}
+/* v80: ช่องพลังงานจากฉลาก — ไม่บังคับ แต่ถ้ากรอกจะแม่นกว่าคูณ 4·4·9 เอง */
+.lb-kcal-row{display:flex;align-items:center;gap:10px;margin-top:10px;padding-top:10px;border-top:1px dashed #E5E7EB}
+.lb-kcal-row label{font-size:13px;color:var(--gray);white-space:nowrap}
+.lb-kcal-row input{width:86px;border:1.5px solid #E5E7EB;border-radius:8px;padding:8px;font-size:14px;font-family:'Prompt',sans-serif;text-align:center;color:var(--text)}
+.lb-kcal-row input:focus{outline:none;border-color:var(--primary)}
+.lb-kcal-hint{font-size:11px;color:var(--gray);line-height:1.6;margin-top:6px}
+.lb-src{font-size:11px;font-weight:600;border-radius:6px;padding:2px 7px;white-space:nowrap}
+.lb-src.label{background:#ECFDF5;color:#065F46;border:1px solid #A7F3D0}
+.lb-src.calc{background:#F3F4F6;color:#6B7280;border:1px solid #E5E7EB}
 .serving-row label{font-size:13px;color:var(--gray);white-space:nowrap}
 .serving-row input{width:70px;border:1.5px solid #E5E7EB;border-radius:8px;padding:8px;font-size:14px;font-family:'Prompt',sans-serif;text-align:center}
 .label-total{background:var(--light);border-radius:10px;padding:12px;margin-top:10px;display:flex;justify-content:space-around}
@@ -738,10 +747,19 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
           <label>จำนวนหน่วยบริโภค:</label>
           <input type="number" id="lb-serv" min="0.5" step="0.5" value="1" oninput="calcLabel()">
         </div>
+        <!-- v80: เลขแคลบนซองแม่นกว่าที่เราคูณเอง เพราะผู้ผลิตคิดตามกฎหมายมาแล้ว
+             (ใยอาหารคิด 2 kcal/g · น้ำตาลแอลกอฮอล์ 2.4 — ไม่ใช่ 4 ทั้งหมดแบบที่เราคูณ)
+             และ "คาร์บ" บนฉลากยุโรปไม่รวมใยอาหาร แต่ฉลากไทยรวม — เลขแคลเป็นเลขเดียวที่ตรงกันทุกประเทศ -->
+        <div class="lb-kcal-row">
+          <label>พลังงานบนซอง (kcal):</label>
+          <input type="number" id="lb-kcal" min="0" step="1" placeholder="ไม่บังคับ" oninput="calcLabel()">
+        </div>
+        <div class="lb-kcal-hint">มีตัวเลขพลังงานบนซองไหมคะ? กรอกมาเลย — จะตรงกับซองเป๊ะ<br>ถ้าไม่กรอก ระบบคำนวณให้จากคาร์บ/โปรตีน/ไขมันเหมือนเดิมค่ะ</div>
         <div class="label-total" id="label-total" style="display:none">
           <div class="lbl-t-item"><div class="val" id="lt-carb">0</div><div class="name">คาร์บ (ก.)</div></div>
           <div class="lbl-t-item"><div class="val" id="lt-prot">0</div><div class="name">โปรตีน (ก.)</div></div>
           <div class="lbl-t-item"><div class="val" id="lt-fat">0</div><div class="name">ไขมัน (ก.)</div></div>
+          <div class="lbl-t-item"><div class="val" id="lt-kcal">0</div><div class="name" id="lt-kcal-src">kcal</div></div>
         </div>
       </div>
     </div>
@@ -931,7 +949,7 @@ db.enablePersistence({synchronizeTabs:true}).catch(e=>{console.warn('Persistence
 // ===== AUTO ERROR REPORTING → Firestore errorLogs =====
 // JS error ที่เกิดบนเครื่องลูกค้าจะถูกส่งเข้า collection 'errorLogs' อัตโนมัติ
 // ดูได้ใน Firebase Console → Firestore → errorLogs (เรียงตาม at ล่าสุด)
-const APP_VERSION='v78-2026-08-29'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
+const APP_VERSION='v81-2026-08-30'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
 const _errLogged=new Set();let _errCount=0;
 function _reportError(type,msg,stack,src){
   try{
@@ -2665,8 +2683,18 @@ function calcLabel(){
   const p=parseFloat(document.getElementById('lb-prot').value)||0;
   const f=parseFloat(document.getElementById('lb-fat').value)||0;
   const s=parseFloat(document.getElementById('lb-serv').value)||1;
+  const k=Math.max(0,parseFloat(document.getElementById('lb-kcal')?.value)||0); // v80
   const tot=document.getElementById('label-total');
-  if(c||p||f){tot.style.display='flex';document.getElementById('lt-carb').textContent=(c*s).toFixed(1);document.getElementById('lt-prot').textContent=(p*s).toFixed(1);document.getElementById('lt-fat').textContent=(f*s).toFixed(1);}
+  if(c||p||f||k){
+    tot.style.display='flex';
+    document.getElementById('lt-carb').textContent=(c*s).toFixed(1);
+    document.getElementById('lt-prot').textContent=(p*s).toFixed(1);
+    document.getElementById('lt-fat').textContent=(f*s).toFixed(1);
+    // v80: กรอกแคลมา → ใช้เลขนั้น × จำนวนหน่วยบริโภค | ไม่กรอก → คูณ 4·4·9 เหมือนเดิม
+    const _kEl=document.getElementById('lt-kcal'),_sEl=document.getElementById('lt-kcal-src');
+    if(_kEl)_kEl.textContent=k>0?Math.round(k*s):macroKcal(c*s,p*s,f*s,0);
+    if(_sEl){_sEl.textContent=k>0?'kcal · จากซอง':'kcal · คำนวณให้';_sEl.className='name';}
+  }
   else{tot.style.display='none';}
 }
 function getLabelData(){
@@ -2674,7 +2702,9 @@ function getLabelData(){
   const p=parseFloat(document.getElementById('lb-prot').value)||0;
   const f=parseFloat(document.getElementById('lb-fat').value)||0;
   const s=parseFloat(document.getElementById('lb-serv').value)||1;
-  return{carb:c*s,protein:p*s,fat:f*s};
+  // v80: kcal จากซอง (ถ้ากรอก) — เก็บเป็น null เมื่อไม่กรอก เพื่อให้ getSubMacros ตกไปคำนวณ 4·4·9 เอง
+  const k=Math.max(0,parseFloat(document.getElementById('lb-kcal')?.value)||0);
+  return{carb:c*s,protein:p*s,fat:f*s,kcal:k>0?Math.round(k*s):null};
 }
 
 // === THAI FOOD NUTRITION DATABASE (USDA FoodData Central + Thai FCD Mahidol) — 126 items ===
@@ -2830,12 +2860,19 @@ async function _callGeminiAI(){
 8. ถ้าผู้ใช้บอก "ไม่มี X" หรือ "ไม่ใส่ X" ให้คำนวณโดยตัด X ออก อย่าใช้ค่า DB ที่รวม X อยู่ด้วย
 9. ถ้าผู้ใช้ระบุส่วนประกอบในวงเล็บ เช่น "เกาเหลา 1 ชาม (สันในหมู 70g หมูสับ 20g ลูกชิ้น 2 ลูก ไข่ขาว 1 ฟอง กะหล่ำปลี)" ให้แตก items ออกมาทีละส่วนประกอบในวงเล็บ ห้ามรวมเป็น item เดียวชื่อเมนู — เพราะโค้ชต้องตรวจ macro แยกทีละชิ้นส่วน ถ้าส่วนประกอบไม่ระบุกรัม ให้ประมาณปริมาณสมเหตุสมผลแล้วระบุใน amount
 10. น้ำหนักดิบ/สุก สำคัญมาก ต่างกันได้ถึง 3 เท่า — ถ้าระบุ "ดิบ/สด/แห้ง/ข้าวสาร" ให้คิดจากน้ำหนักดิบ (ข้าวสาร 100g = C79 P7 F0.7 · พาสต้าแห้ง 100g = C75 P13 F1.5) · ถ้าระบุ "สุก/ต้มแล้ว" หรือไม่ระบุ ให้ถือว่าเป็นน้ำหนักหลังปรุง (ข้าวสวย 100g = C28 P2.7 F0.3) · ห้ามแปลงหน่วยข้ามกันเอง
+12. แอลกอฮอล์ (a) — เอทานอลให้ 7 kcal/g ระบบมีช่องแยกให้แล้ว **ห้ามยัดเข้า c/p/f เด็ดขาด**
+   สูตร: กรัมเอทานอล = ปริมาณ(มล.) × %ABV ÷ 100 × 0.789
+   ค่าตั้งต้นเมื่อผู้ใช้ไม่ระบุ: เบียร์ 5% (กระป๋อง/ขวดเล็ก 330 มล.) · ไวน์ 13% (แก้ว 150 มล.) · สุรากลั่น/วิสกี้/วอดก้า/เหล้าขาว 40% (ช็อต 45 มล.) · สาเก 15% (แก้ว 90 มล.) · โซจู 17% (ช็อต 50 มล.)
+   ตัวอย่าง: ไวน์แดง 1 แก้ว = a 15.4, c 3.9, p 0.1, f 0 (≈123 kcal) · เบียร์ 1 กระป๋อง = a 13, c 11, p 1.5, f 0 (≈135 kcal) · วิสกี้ 1 ช็อต = a 14.2, c 0, p 0, f 0 (≈99 kcal)
+   ค็อกเทล/เครื่องดื่มผสม ให้แยกส่วนเหล้ากับส่วนผสมที่มีน้ำตาลออกจากกัน · อาหารที่ใส่เหล้าแล้วผ่านความร้อน (ผัดเหล้า ต้มไวน์) แอลกอฮอล์ระเหยเกือบหมด ให้ a=0
+   อาหารทั่วไปที่ไม่มีแอลกอฮอล์ ให้ a=0 เสมอ
+   ถ้ารายการไหนมี a>0 ต้องใส่ข้อสันนิษฐานบอก %ABV และขนาดแก้วที่ใช้ลงใน assumptions ด้วย
 11. ใส่ข้อสันนิษฐานที่อาจทำให้ตัวเลขคลาดเคลื่อนลงใน assumptions เป็นภาษาไทยสั้นๆ ไม่เกินข้อละ 40 ตัวอักษร เช่น "ถือว่าข้าวเป็นข้าวสุก" / "ผัดคิดน้ำมัน 10g" / "ไก่ไม่ระบุวิธีปรุง ใช้ค่าย่าง" — ถ้าผู้ใช้ระบุครบจนไม่ต้องเดาเลย ให้ส่ง [] มา สูงสุด 4 ข้อ`;
   const userPrompt=`รายการอาหาร: ${text}${dbSection}
 
 ตอบด้วย JSON เท่านั้น:
-{"items":[{"name":"ชื่ออาหาร","amount":"จำนวน+หน่วย","c":0.0,"p":0.0,"f":0.0}],"assumptions":["ข้อสันนิษฐานสั้นๆ"]}
-กฎ: c=คาร์บ p=โปรตีน f=ไขมัน หน่วยกรัม ทศนิยม1ตำแหน่ง | amount ต้องมีตัวเลขเสมอ เช่น "100 กรัม" "1 ทัพพี" "2 ลูก" — ห้ามใช้คำอธิบายอย่างเดียว | ห้ามใส่ kcal และห้ามใส่ total ระบบคำนวณเอง`;
+{"items":[{"name":"ชื่ออาหาร","amount":"จำนวน+หน่วย","c":0.0,"p":0.0,"f":0.0,"a":0.0}],"assumptions":["ข้อสันนิษฐานสั้นๆ"]}
+กฎ: c=คาร์บ p=โปรตีน f=ไขมัน a=แอลกอฮอล์(เอทานอล) หน่วยกรัม ทศนิยม1ตำแหน่ง | a=0 เสมอถ้าไม่ใช่เครื่องดื่มแอลกอฮอล์ ห้ามยัดแอลกอฮอล์เข้า c/p/f | amount ต้องมีตัวเลขเสมอ เช่น "100 กรัม" "1 ทัพพี" "2 ลูก" — ห้ามใช้คำอธิบายอย่างเดียว | ห้ามใส่ kcal และห้ามใส่ total ระบบคำนวณเอง`;
   const _fullPrompt=sysMsg+'\n\n'+userPrompt;
   let _netMs=0,_respChars=0;
   // BUGFIX v46.1: ล้างผลเก่าก่อนเริ่ม — เดิมถ้า AI ล้มเหลว aiParsedData ของ "มื้อก่อนหน้า" ยังค้างอยู่
@@ -2912,6 +2949,11 @@ async function _callGeminiAI(){
     btn.disabled=false;btn.textContent='✨ ให้ AI คำนวณ';
   }
 }
+// v79: เอทานอล 7 kcal/g — ระบบเดิมมีแต่ C×4 + P×4 + F×9 แคลจากแอลกอฮอล์เลยหายทั้งก้อน
+// ไวน์ 2 แก้ว = 32 kcal (จริง ~249) · วิสกี้ 1 ช็อต = 0 kcal (จริง ~99) เพราะไม่มีคาร์บเลย
+// แยกช่องไว้ต่างหาก ไม่ยัดเข้า C/P/F เพื่อให้เป้ามาโครของนักเรียนไม่เพี้ยน
+const ALC_KCAL=7;
+function macroKcal(c,p,f,a){return Math.round((+c||0)*4+(+p||0)*4+(+f||0)*9+Math.max(0,+a||0)*ALC_KCAL);}
 // v46.1: ตัวเติมข้อมูลกลาง — ใช้ทุกทางที่ตั้งค่า aiParsedData (ผล AI ใหม่ / cache เก่า / เมนูโปรด)
 // เดิมมีแค่ทางเดียวที่ตั้ง _src ทำให้เมนูโปรดและ cache ที่บันทึกไว้ก่อน v46 ขึ้นป้าย "🤖 AI ประมาณเองทั้งหมด" ผิดๆ
 // และซ่อมกรณี total หาย (cache รุ่นเก่า) ซึ่งเดิมทำให้ปุ่ม ✨ ค้างเงียบไม่มีอะไรเกิดขึ้น
@@ -2932,15 +2974,16 @@ function _noQtyLines(txt){
 function _enrichAIData(data,srcText){
   if(!data)return data;
   if(!Array.isArray(data.items))data.items=[];
-  let c=0,p=0,f=0;
+  let c=0,p=0,f=0,a=0;
   data.items.forEach(it=>{
     it.c=Math.max(0,+it.c||0);it.p=Math.max(0,+it.p||0);it.f=Math.max(0,+it.f||0); // v76: ||0 ไม่กันค่าติดลบ
-    it.kcal=Math.round(it.c*4+it.p*4+it.f*9);
+    it.a=Math.max(0,+it.a||0); // v79: กรัมแอลกอฮอล์ (เอทานอล)
+    it.kcal=macroKcal(it.c,it.p,it.f,it.a);
     if(it._src!=='db'&&it._src!=='ai'){const r=dbLookup(it.name||'');it._src=r?'db':'ai';it._ref=r?r[0]:null;}
-    c+=it.c;p+=it.p;f+=it.f;
+    c+=it.c;p+=it.p;f+=it.f;a+=it.a;
   });
-  c=Math.round(c*10)/10;p=Math.round(p*10)/10;f=Math.round(f*10)/10;
-  data.total={c,p,f,kcal:Math.round(c*4+p*4+f*9)};
+  c=Math.round(c*10)/10;p=Math.round(p*10)/10;f=Math.round(f*10)/10;a=Math.round(a*10)/10;
+  data.total={c,p,f,a,kcal:macroKcal(c,p,f,a)};
   if(!Array.isArray(data._dbRefs))data._dbRefs=srcText?buildDBContext(srcText):[];
   data._noQty=_noQtyLines(srcText); // v71
   return data;
@@ -2988,12 +3031,20 @@ function renderAIResult(data){
       <b>🧠 AI สมมติแบบนี้ให้:</b><br>${_asm.map(x=>'· '+escHtml(x)).join('<br>')}
       <div style="margin-top:4px">ถ้าข้อไหนไม่ตรงกับที่กินจริง แก้ตัวเลขด้านล่างได้เลย ระบบคำนวณใหม่ให้อัตโนมัติค่ะ</div>
     </div>`:'';
-  const rows=_hint+_qtyHtml+_asmHtml+_srcHtml+data.items.map((it,i)=>`<div class="ai-item-row" data-idx="${i}">
+  // v79: มื้อที่มีแอลกอฮอล์ ตัวเลข C/P/F จะบวกกันไม่เท่าแคลรวม ต้องอธิบายตรงนั้นเลย ไม่ให้คิดว่าระบบคำนวณพลาด
+  const _alcG=(data.items||[]).reduce((s,x)=>s+(+x.a||0),0);
+  const _alcHtml=_alcG>0?`<div style="background:#FDF2F8;border:1px solid #FBCFE8;border-radius:9px;padding:8px 10px;margin-bottom:8px;font-size:10.5px;line-height:1.75;color:#9D174D">
+      <b>🍷 มื้อนี้มีแอลกอฮอล์ ${Math.round(_alcG*10)/10} g = ${Math.round(_alcG*ALC_KCAL)} kcal</b><br>
+      แอลกอฮอล์ให้พลังงาน 7 kcal/g (มากกว่าคาร์บและโปรตีนที่ให้ 4) แต่<b>ไม่ใช่คาร์บ ไม่ใช่ไขมัน</b> จึงแยกช่องไว้ต่างหาก<br>
+      ตัวเลข C/P/F ด้านล่างบวกกันแล้วจะ<b>น้อยกว่าแคลรวม</b> — ไม่ใช่คำนวณผิดนะคะ ส่วนต่างคือแคลจากแอลกอฮอล์ค่ะ
+    </div>`:'';
+  const rows=_hint+_qtyHtml+_asmHtml+_alcHtml+_srcHtml+data.items.map((it,i)=>`<div class="ai-item-row" data-idx="${i}">
     <div class="ai-item-name">${escHtml(it.name||'')}${it._src==='db'?`<span title="อ้างอิงฐานข้อมูล: ${escHtml(it._ref||'')}" style="font-size:9px;background:#DCFCE7;color:#166534;border-radius:4px;padding:1px 4px;margin-left:4px;font-weight:600">📚</span>`:`<span title="ไม่มีในฐานข้อมูล — AI ประมาณให้" style="font-size:9px;background:#FEF3C7;color:#92400E;border-radius:4px;padding:1px 4px;margin-left:4px;font-weight:600">🤖 ประมาณ</span>`}<br><input type="text" class="ai-amount-input" value="${escHtml(it.amount||'')}" placeholder="ปริมาณ" onchange="updateAIAmount(${i},this.value)"><br><span id="ai-kcal-${i}" style="font-size:10.5px;font-weight:700;color:var(--primary-dark)">⚡ ${it.kcal||0} kcal</span></div>
     <div class="ai-item-mac" style="display:flex;align-items:center;gap:2px;flex-shrink:0">
       C<input type="number" class="ai-edit-input" value="${it.c}" step="0.1" min="0" oninput="updateAIItem(${i},'c',this.value)">
       P<input type="number" class="ai-edit-input" value="${it.p}" step="0.1" min="0" oninput="updateAIItem(${i},'p',this.value)">
       F<input type="number" class="ai-edit-input" value="${it.f}" step="0.1" min="0" oninput="updateAIItem(${i},'f',this.value)">
+      ${(it.a>0)?`<span title="แอลกอฮอล์ (เอทานอล) — ให้ 7 kcal/g ไม่นับเป็นคาร์บ/โปรตีน/ไขมัน">🍷</span><input type="number" class="ai-edit-input" value="${it.a}" step="0.1" min="0" oninput="updateAIItem(${i},'a',this.value)">`:''}
     </div>
     <button class="ai-del-btn" onclick="deleteAIItem(${i})">🗑️</button>
   </div>`).join('');
@@ -3001,16 +3052,16 @@ function renderAIResult(data){
     ${rows}
     <div class="ai-total-bar" id="ai-total-bar">
       <span class="ai-total-kcal" id="ai-total-kcal">${data.total.kcal} kcal</span>
-      <span class="ai-total-mac" id="ai-total-mac">C ${data.total.c}g · P ${data.total.p}g · F ${data.total.f}g</span>
+      <span class="ai-total-mac" id="ai-total-mac">C ${data.total.c}g · P ${data.total.p}g · F ${data.total.f}g${(data.total.a>0)?` · 🍷 ${data.total.a}g`:''}</span>
     </div>
   </div>`;
   area.style.display='block';
 }
 function updateAIItem(idx,field,val){
   if(!aiParsedData||!aiParsedData.items[idx])return;
-  aiParsedData.items[idx][field]=parseFloat(val)||0;
+  aiParsedData.items[idx][field]=Math.max(0,parseFloat(val)||0);
   const it=aiParsedData.items[idx];
-  it.kcal=Math.round(it.c*4+it.p*4+it.f*9);
+  it.kcal=macroKcal(it.c,it.p,it.f,it.a); // v79
   // v46: อัปเดตเฉพาะตัวเลข kcal ของแถวนี้ ห้าม re-render ทั้งก้อน
   // (ฟังก์ชันนี้ยิงทุกครั้งที่พิมพ์ 1 ตัวอักษร — ถ้า re-render เคอร์เซอร์จะเด้งออกจากช่อง พิมพ์ต่อไม่ได้)
   const _k=document.getElementById('ai-kcal-'+idx);
@@ -3034,7 +3085,7 @@ function updateAIAmount(idx,val){
   // บันทึกค่าเดิมก่อน edit ครั้งแรก
   if(!it._orig){
     const origNum=parseFloat((it.amount||'').match(/[\d.]+/)?.[0])||0;
-    it._orig={c:it.c,p:it.p,f:it.f,num:origNum,unit:_aiExtractUnit(it.amount||'')};
+    it._orig={c:it.c,p:it.p,f:it.f,a:it.a||0,num:origNum,unit:_aiExtractUnit(it.amount||'')};
   }
   // คำนวณ scale เฉพาะเมื่อหน่วยเหมือนกัน — ป้องกัน "1 ฝ่ามือ"→"150 กรัม" สเกล×150
   const newNum=parseFloat((val||'').match(/[\d.]+/)?.[0])||0;
@@ -3045,7 +3096,8 @@ function updateAIAmount(idx,val){
     it.c=Math.round(it._orig.c*scale*10)/10;
     it.p=Math.round(it._orig.p*scale*10)/10;
     it.f=Math.round(it._orig.f*scale*10)/10;
-    it.kcal=Math.round(it.c*4+it.p*4+it.f*9);
+    it.a=Math.round((it._orig.a||0)*scale*10)/10; // v79: แก้ "1 แก้ว"→"2 แก้ว" แอลกอฮอล์ต้องสเกลตาม
+    it.kcal=macroKcal(it.c,it.p,it.f,it.a);
   }
   it.amount=val;
   // v71.1 ลบเฉพาะบรรทัดที่ตรงกับรายการที่เพิ่งแก้ — เดิมล้างทั้งกล่อง รายการอื่นที่ยังไม่บอกปริมาณเลยเงียบไปด้วย
@@ -3059,15 +3111,15 @@ function updateAIAmount(idx,val){
 }
 function recalcAITotal(){
   if(!aiParsedData)return;
-  let c=0,p=0,f=0;
-  aiParsedData.items.forEach(it=>{c+=it.c||0;p+=it.p||0;f+=it.f||0;});
-  c=Math.round(c*10)/10;p=Math.round(p*10)/10;f=Math.round(f*10)/10;
-  const kcal=Math.round(c*4+p*4+f*9);
-  aiParsedData.total={c,p,f,kcal};
+  let c=0,p=0,f=0,a=0;
+  aiParsedData.items.forEach(it=>{c+=it.c||0;p+=it.p||0;f+=it.f||0;a+=it.a||0;});
+  c=Math.round(c*10)/10;p=Math.round(p*10)/10;f=Math.round(f*10)/10;a=Math.round(a*10)/10;
+  const kcal=macroKcal(c,p,f,a); // v79
+  aiParsedData.total={c,p,f,a,kcal};
   const tcEl=document.getElementById('ai-total-kcal');
   const tmEl=document.getElementById('ai-total-mac');
   if(tcEl)tcEl.textContent=kcal+' kcal';
-  if(tmEl)tmEl.textContent=`C ${c}g · P ${p}g · F ${f}g`;
+  if(tmEl)tmEl.textContent=`C ${c}g · P ${p}g · F ${f}g`+(a>0?` · 🍷 ${a}g`:''); // v79
 }
 function getWeighData(){
   if(!aiParsedData)return null;
@@ -3076,7 +3128,8 @@ function getWeighData(){
   const preview=fullText.substring(0,50).split('\n').join(' ');
   // v46.1: ตัด _orig (ค่าก่อนแก้ปริมาณ ใช้ในหน้าจอเท่านั้น) ออกก่อนเซฟ — ไม่ต้องเก็บลง Firestore
   const _cleanItems=(aiParsedData.items||[]).map(it=>{const{_orig,...rest}=it;return rest;});
-  return{food:'AI: '+preview,grams:0,carb:t.c,protein:t.p,fat:t.f,kcal:t.kcal,aiItems:_cleanItems,aiText:fullText,aiAssumptions:(aiParsedData.assumptions||[]).slice(0,4)}; // v72: เก็บข้อสันนิษฐานไว้ให้โค้ชเห็นตอนตรวจด้วย
+  // v79: alc = กรัมแอลกอฮอล์รวมของมื้อนี้ — getSubMacros เอาไปคูณ 7 kcal/g
+  return{food:'AI: '+preview,grams:0,carb:t.c,protein:t.p,fat:t.f,alc:+t.a||0,kcal:t.kcal,aiItems:_cleanItems,aiText:fullText,aiAssumptions:(aiParsedData.assumptions||[]).slice(0,4)}; // v72: เก็บข้อสันนิษฐานไว้ให้โค้ชเห็นตอนตรวจด้วย
 }
 
 // PHOTO (multi-photo: สูงสุด 3 รูป)
@@ -3248,8 +3301,9 @@ async function saveCurrentMenu(){
     const f=parseFloat(document.getElementById('lb-fat').value)||0;
     const s=parseFloat(document.getElementById('lb-serv').value)||1;
     if(!c&&!p&&!f){showToast('กรุณากรอกข้อมูลจากฉลากก่อนค่ะ');return;}
-    data.labelData={carbPerServ:c,protPerServ:p,fatPerServ:f,servings:s};
-    data.total={c:Math.round(c*s*10)/10,p:Math.round(p*s*10)/10,f:Math.round(f*s*10)/10,kcal:Math.round((c*s)*4+(p*s)*4+(f*s)*9)};
+    const k=Math.max(0,parseFloat(document.getElementById('lb-kcal')?.value)||0); // v80
+    data.labelData={carbPerServ:c,protPerServ:p,fatPerServ:f,servings:s,kcalPerServ:k||null};
+    data.total={c:Math.round(c*s*10)/10,p:Math.round(p*s*10)/10,f:Math.round(f*s*10)/10,kcal:k>0?Math.round(k*s):macroKcal(c*s,p*s,f*s,0)};
   }else if(curMode==='hand'){
     const pm=PROT_T[protType],ck=COOK_M[cookMethod];
     let C=0,P=0,F=0;
@@ -3304,6 +3358,7 @@ async function applySavedMenu(id){
     document.getElementById('lb-prot').value=menu.labelData.protPerServ;
     document.getElementById('lb-fat').value=menu.labelData.fatPerServ;
     document.getElementById('lb-serv').value=menu.labelData.servings;
+    const _lk=document.getElementById('lb-kcal');if(_lk)_lk.value=menu.labelData.kcalPerServ||''; // v80
     calcLabel();
   }else if(menu.mode==='hand'&&menu.handData){
     const hd=menu.handData;
@@ -3361,7 +3416,7 @@ async function submitMeal(){
     // ส่งทีละหมวด (AI แล้วต่อฉลาก) หรือส่งโหมดเดิมแต่คนละเมนู → ผ่านเงียบๆ ไม่มีกล่องถาม
     let _curKcal=0;
     if(_mode==='hand'&&handData)_curKcal=handData.totalKcal||0;
-    else if(_mode==='label'&&labelData)_curKcal=Math.round((labelData.carb||0)*4+(labelData.protein||0)*4+(labelData.fat||0)*9);
+    else if(_mode==='label'&&labelData)_curKcal=labelData.kcal>0?Math.round(labelData.kcal):macroKcal(labelData.carb,labelData.protein,labelData.fat,0); // v80
     else if(_mode==='weigh'&&weighData)_curKcal=weighData.kcal||Math.round((weighData.carb||0)*4+(weighData.protein||0)*4+(weighData.fat||0)*9);
     const _dupRecent=(studentSubsCache||[]).find(s=>{
       if(s.mealDate!==_date||s.meal!=_meal||s.mode!==_mode)return false;
@@ -3488,10 +3543,13 @@ function showSuccess(mode,handData,labelData,weighData,_sDate,_sMeal){ // v74: �
     }
     chips+=`<span class="chip">⚡ ${hd.totalKcal} kcal</span>`; // BUGFIX v44: 's' ไม่มีใน scope นี้ (showSuccess ไม่มี submission object) — เดิม throw ReferenceError ทุกครั้งที่ส่ง hand mode → block sendFeedbackCard + ขึ้น toast "ส่งไม่สำเร็จ" ทั้งที่ save ไปแล้วจริง
   }else if(mode==='label'&&labelData){
-    chips+=`<span class="chip">คาร์บ ${labelData.carb.toFixed(1)}g</span><span class="chip">โปรตีน ${labelData.protein.toFixed(1)}g</span><span class="chip">ไขมัน ${labelData.fat.toFixed(1)}g</span>`;
+    // v80: โชว์แคลด้วย และบอกว่ามาจากซองหรือคำนวณให้
+    const _lk=labelData.kcal>0?Math.round(labelData.kcal):macroKcal(labelData.carb,labelData.protein,labelData.fat,0);
+    chips+=`<span class="chip">คาร์บ ${labelData.carb.toFixed(1)}g</span><span class="chip">โปรตีน ${labelData.protein.toFixed(1)}g</span><span class="chip">ไขมัน ${labelData.fat.toFixed(1)}g</span><span class="chip">⚡ ${_lk} kcal${labelData.kcal>0?' (จากซอง)':''}</span>`;
   }else if(mode==='weigh'&&weighData){
-    const wKcal=Math.round((weighData.carb||0)*4+(weighData.protein||0)*4+(weighData.fat||0)*9);
-    chips+=`<span class="chip">${escHtml(weighData.food)}</span><span class="chip">คาร์บ ${(weighData.carb||0).toFixed(1)}g</span><span class="chip">โปรตีน ${(weighData.protein||0).toFixed(1)}g</span><span class="chip">ไขมัน ${(weighData.fat||0).toFixed(1)}g</span><span class="chip">⚡ ${wKcal} kcal</span>`;
+    const _wAlc=Math.max(0,+weighData.alc||0); // v79
+    const wKcal=macroKcal(weighData.carb,weighData.protein,weighData.fat,_wAlc);
+    chips+=`<span class="chip">${escHtml(weighData.food)}</span><span class="chip">คาร์บ ${(weighData.carb||0).toFixed(1)}g</span><span class="chip">โปรตีน ${(weighData.protein||0).toFixed(1)}g</span><span class="chip">ไขมัน ${(weighData.fat||0).toFixed(1)}g</span>${_wAlc>0?`<span class="chip">🍷 แอลกอฮอล์ ${_wAlc.toFixed(1)}g (${Math.round(_wAlc*ALC_KCAL)} kcal)</span>`:''}<span class="chip">⚡ ${wKcal} kcal</span>`;
   }
   if(photoBase64List.length>0)chips+=`<span class="chip">📸 ${photoBase64List.length>1?photoBase64List.length+' รูป':'มีรูป'}</span>`;
   // CARD-UX: สรุปรวมวันแบบเดียวกับ LINE card บนหน้านี้เลย — นักเรียนเห็นเสมอแม้ card ในแชทไม่เด้ง
@@ -3583,11 +3641,13 @@ function buildHistCard(s){
     chips=s.correction
       ?`<span class="chip">C <del style="opacity:.55">${(s.labelData.carb||0).toFixed(1)}</del> ${_lm44.c}g</span><span class="chip">P <del style="opacity:.55">${(s.labelData.protein||0).toFixed(1)}</del> ${_lm44.p}g</span><span class="chip">F <del style="opacity:.55">${(s.labelData.fat||0).toFixed(1)}</del> ${_lm44.f}g</span>`
       :`<span class="chip">C ${(s.labelData.carb||0).toFixed(1)}g</span><span class="chip">P ${(s.labelData.protein||0).toFixed(1)}g</span><span class="chip">F ${(s.labelData.fat||0).toFixed(1)}g</span>`; // NB4: null-safe
-    chips+=`<span class="chip">⚡ ${s.correction?`<del style="opacity:.55">${Math.round((s.labelData.carb||0)*4+(s.labelData.protein||0)*4+(s.labelData.fat||0)*9)}</del> ${_lm44.kcal}`:Math.round((s.labelData.carb||0)*4+(s.labelData.protein||0)*4+(s.labelData.fat||0)*9)} kcal</span>`; // BUGFIX v44
+    // v80: ค่าเดิมของมื้อนี้ = แคลจากซองถ้ามี ไม่งั้นคูณ 4·4·9
+    const _lOrig=s.labelData.kcal>0?Math.round(s.labelData.kcal):macroKcal(s.labelData.carb,s.labelData.protein,s.labelData.fat,0);
+    chips+=`<span class="chip">⚡ ${s.correction?`<del style="opacity:.55">${_lOrig}</del> ${_lm44.kcal}`:_lOrig} kcal${(!s.correction&&s.labelData.kcal>0)?' <span style="font-size:9px;opacity:.7">จากซอง</span>':''}</span>`; // BUGFIX v44 · v80
   }else if(s.mode==='weigh'&&s.weighData){
     const wd=s.weighData;
     if(wd.aiItems&&wd.aiItems.length){
-      chips=wd.aiItems.map(it=>`<span class="chip">${escHtml(it.name||'')} ${escHtml(it.amount||'')} · C${it.c} P${it.p} F${it.f}</span>`).join('');
+      chips=wd.aiItems.map(it=>`<span class="chip">${escHtml(it.name||'')} ${escHtml(it.amount||'')} · C${it.c} P${it.p} F${it.f}${it.a>0?` 🍷${it.a}`:''}</span>`).join(''); // v79
     }else{
       chips=`<span class="chip">${escHtml(wd.food||'')}</span>`;
     }
@@ -3649,25 +3709,59 @@ async function deleteHistSub(id){
 }
 
 // DASHBOARD
+// v81 BUGFIX: ค่ามาโครดิบเคยผูกกับ field "mode" อย่างเดียว
+//   แต่ mode ถูกเขียนทับได้ เมื่อโค้ชกดสลับโหมดในแผงแก้ค่า (sendCorrection เขียน mode ใหม่ลงเอกสาร)
+//   เช่น นักเรียนส่งโหมด hand → โค้ชสลับไปโหมดฉลาก → เอกสารได้ mode:'label' ทั้งที่ labelData ไม่เคยมี
+//   ผลคือไม่เข้าสาขาไหนเลย แล้วคืน 0/0/0 เงียบๆ → ป้ายส่วนต่างเพี้ยน · ชิปการ์ดหาย
+//   และ editHistory ถูกเขียนว่า "Carb 0g → 45g" ซึ่งโชว์ให้นักเรียนเห็นถาวร ทั้งที่เขากรอก 45 มาแต่แรก
+//   ตอนนี้ถ้า mode ไม่ตรงกับ data ที่มีจริง จะตกไปใช้ data ที่มีอยู่แทน
+function _rawMacros(s){
+  if(!s)return{c:0,p:0,f:0,a:0};
+  const _hd=()=>({c:s.handData.totalCarb??s.total?.c??0,p:s.handData.totalProtein??s.total?.p??0,f:s.handData.totalFat??s.total?.f??0,a:0});
+  const _ld=()=>({c:s.labelData.carb||0,p:s.labelData.protein||0,f:s.labelData.fat||0,a:0});
+  const _wd=()=>({c:s.weighData.carb||0,p:s.weighData.protein||0,f:s.weighData.fat||0,a:Math.max(0,+s.weighData.alc||0)});
+  if(s.mode==='hand'&&s.handData)return _hd();
+  if(s.mode==='label'&&s.labelData)return _ld();
+  if(s.mode==='weigh'&&s.weighData)return _wd();
+  if(s.handData)return _hd();          // สำรอง: mode ถูกเขียนทับ แต่ data เดิมยังอยู่
+  if(s.labelData)return _ld();
+  if(s.weighData)return _wd();
+  if(s.total)return{c:s.total.c||0,p:s.total.p||0,f:s.total.f||0,a:0};
+  return{c:0,p:0,f:0,a:0};
+}
 function getSubMacros(s){
-  let c=0,p=0,f=0;
-  if(s.mode==='hand'&&s.handData){c=s.handData.totalCarb??s.total?.c??0;p=s.handData.totalProtein??s.total?.p??0;f=s.handData.totalFat??s.total?.f??0;}
-  else if(s.mode==='label'&&s.labelData){c=s.labelData.carb||0;p=s.labelData.protein||0;f=s.labelData.fat||0;}
-  else if(s.mode==='weigh'&&s.weighData){c=s.weighData.carb||0;p=s.weighData.protein||0;f=s.weighData.fat||0;}
+  const _r=_rawMacros(s);
+  let c=_r.c,p=_r.p,f=_r.f,a=_r.a;
   if(s.correction){
     if(s.correction.carb!==undefined)c=s.correction.carb;
     if(s.correction.protein!==undefined)p=s.correction.protein;
     if(s.correction.fat!==undefined)f=s.correction.fat;
+    // v79: โค้ชแก้ C/P/F แต่แอลกอฮอล์ยังอยู่ตามเดิม (ไม่ใช่มาโครที่โค้ชปรับ) — จะหายก็ต่อเมื่อโค้ชแก้เอง
+    if(s.correction.alc!==undefined)a=Math.max(0,+s.correction.alc||0);
   }
-  const kcal=(s.mode==='weigh'&&s.weighData&&s.weighData.kcal&&!s.correction)?s.weighData.kcal:Math.round(c*4+p*4+f*9);
-  return{kcal,c,p,f};
+  // v79: มีแอลกอฮอล์เมื่อไหร่ต้องคำนวณใหม่เสมอ — ค่า kcal ที่เก็บไว้ก่อน v79 ไม่ได้รวมแอลกอฮอล์
+  // v80: โหมดฉลาก ถ้านักเรียนกรอกแคลจากซองมา ให้เชื่อเลขนั้น — ผู้ผลิตคิดตามกฎหมายมาแล้ว
+  //   (ใยอาหาร 2 kcal/g · น้ำตาลแอลกอฮอล์ 2.4 — ไม่ใช่ 4 ทั้งหมดแบบที่เราคูณเอง)
+  //   โค้ชแก้มาโครเมื่อไหร่ ค่อยกลับไปคำนวณ 4·4·9 เพราะเลขบนซองไม่ตรงกับค่าที่โค้ชแก้แล้ว
+  let kcal;
+  // v81: เช็คจาก "data ที่มีจริง" ไม่ใช่ field mode ด้วยเหตุผลเดียวกับ _rawMacros
+  if(s.weighData&&s.weighData.kcal&&!s.correction&&!a)kcal=s.weighData.kcal;
+  else if(s.labelData&&s.labelData.kcal>0&&!s.correction)kcal=Math.round(s.labelData.kcal);
+  else kcal=macroKcal(c,p,f,a);
+  return{kcal,c,p,f,a};
 }
 function getSubOrigMacros(s){
-  let c=0,p=0,f=0;
-  if(s.mode==='hand'&&s.handData){c=s.handData.totalCarb??s.total?.c??0;p=s.handData.totalProtein??s.total?.p??0;f=s.handData.totalFat??s.total?.f??0;}
-  else if(s.mode==='label'&&s.labelData){c=s.labelData.carb||0;p=s.labelData.protein||0;f=s.labelData.fat||0;}
-  else if(s.mode==='weigh'&&s.weighData){c=s.weighData.carb||0;p=s.weighData.protein||0;f=s.weighData.fat||0;}
-  return{c:Math.round(c),p:Math.round(p),f:Math.round(f)};
+  const _r=_rawMacros(s); // v81: ใช้ตัวเดียวกับ getSubMacros — เดิมคืน 0/0/0 เมื่อ mode ถูกสลับ
+  return{c:Math.round(_r.c),p:Math.round(_r.p),f:Math.round(_r.f)};
+}
+// v81: แคลของมื้อ "ก่อนโค้ชแก้" — ต้องรวมแอลกอฮอล์ (v79) และแคลจากซอง (v80) ด้วย
+// ไม่งั้นแผงแก้ค่าจะโชว์เลขหนึ่ง แต่ทุกที่ในแอปแสดงอีกเลข
+function getSubOrigKcal(s){
+  if(!s)return 0;
+  const _r=_rawMacros(s);
+  if(s.labelData&&s.labelData.kcal>0)return Math.round(s.labelData.kcal);
+  if(s.weighData&&s.weighData.kcal&&!_r.a)return Math.round(s.weighData.kcal);
+  return macroKcal(_r.c,_r.p,_r.f,_r.a);
 }
 
 let dashCache=null,_dashCacheAt=0,_dashRefreshing=false; // v50.1: เวลาที่ cache ถูกสร้าง (ใช้ตัดสินว่าควรดึงใหม่เบื้องหลังไหม)
@@ -3856,7 +3950,7 @@ function resetStudent(){
   renderPhotoThumbs();
   document.getElementById('btn-submit').disabled=false;
   document.getElementById('btn-submit').textContent='ส่งให้โค้ชตรวจ ✓';
-  ['lb-carb','lb-prot','lb-fat'].forEach(id=>document.getElementById(id).value='');
+  ['lb-carb','lb-prot','lb-fat','lb-kcal'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';}); // v80
   document.getElementById('lb-serv').value='1';
   document.getElementById('label-total').style.display='none';
   aiParsedData=null;
@@ -4493,9 +4587,12 @@ function buildMacro7Html(MON, TH_SHORT, byDate, targets){
       <span style="font-size:11px;color:var(--gray)">${TH_SHORT[i]} ${parseInt(d.split('-')[2])}</span>
       <span style="font-size:10px;color:#D1D5DB">ไม่ส่ง</span>
     </div>`;
-    let tc=0,tp=0,tf=0;
-    daySubs.forEach(s=>{const m=getSubMacros(s);tc+=m.c;tp+=m.p;tf+=m.f;});
-    const kcal=Math.round(tc*4+tp*4+tf*9);
+    // v81 BUGFIX: เดิมรวมมาโครจาก getSubMacros ถูก แต่คิดแคลเองใหม่ด้วย 4·4·9
+    //   → ทิ้งแคลจากแอลกอฮอล์ (v79) และแคลจากซอง (v80) หมด
+    //   ทำให้แคลวันเดียวกันในตารางนี้ ไม่ตรงกับสรุปสัปดาห์/zigzag/การ์ด ที่อยู่บนจอเดียวกัน
+    let tc=0,tp=0,tf=0,tk=0;
+    daySubs.forEach(s=>{const m=getSubMacros(s);tc+=m.c;tp+=m.p;tf+=m.f;tk+=m.kcal;});
+    const kcal=Math.round(tk);
     const pBar=(val,max,col)=>`<div class="m7-bar-track"><div class="m7-bar-fill" style="width:${Math.min(100,Math.round(val/max*100))}%;background:${col}"></div></div>`;
     const chipColor=kcal>targets.kcal+200?'color:#EF4444':kcal<targets.kcal-200?'color:#3B82F6':'color:#22C55E';
     return`<div style="padding:7px 0;border-bottom:1px solid #F3F4F6">
@@ -4610,9 +4707,9 @@ function buildCoachCommentCard(s,comment,tone,withPhoto){
 
 // ===== MEAL PLANNING =====
 function tomorrowStr(){
-  const d=new Date();d.setDate(d.getDate()+1);
-  const pad=n=>String(n).padStart(2,'0');
-  return`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  // v81: ใช้ helper ตัวเดียวกับที่ฝั่งโค้ชใช้หาแผน (v74 เปลี่ยนไปใช้ todayStrTZ + shiftYmd แล้ว)
+  // เดิมบวกวันด้วย Date object ตรงๆ → doc ID ที่นักเรียนบันทึก อาจไม่ตรงกับวันที่โค้ชเปิดหา
+  return shiftYmd(todayStr(),1);
 }
 function renderPlanPanel(){
   if(!mealPlanDate)mealPlanDate=tomorrowStr();
@@ -4962,9 +5059,10 @@ function addPlanItem(){
     if(!c&&!p&&!f){showToast('ปรับ qty คาร์บหรือโปรตีนก่อนนะคะ');return;}
     autoName=`${cd.emoji} ${cd.label} ${planHandCarbQty}ทัพพี + ${planHandProtType==='lean'?'💪':'🍗'} โปรตีน ${planHandProtQty}ฝ่ามือ`;
   }else if(planAddMode==='fill'){
-    c=parseFloat(document.getElementById('plan-carb')?.value)||0;
-    p=parseFloat(document.getElementById('plan-prot')?.value)||0;
-    f=parseFloat(document.getElementById('plan-fat')?.value)||0;
+    // v81: -50 เป็น truthy และไม่ NaN → เดิมผ่านเข้าลิสต์ ทำให้ยอดรวมและแท่งกราฟเพี้ยน
+    c=Math.max(0,parseFloat(document.getElementById('plan-carb')?.value)||0);
+    p=Math.max(0,parseFloat(document.getElementById('plan-prot')?.value)||0);
+    f=Math.max(0,parseFloat(document.getElementById('plan-fat')?.value)||0);
     if(!c&&!p&&!f){showToast('กรอก macro อย่างน้อย 1 ช่องนะคะ');return;}
   }else if(planAddMode==='ai'){
     if(!planAIData){showToast('กด ✨ AI คำนวณ ก่อนนะคะ');return;}
@@ -4998,7 +5096,9 @@ async function savePlanToFirestore(){
   try{
     const _plPath=`mealPlans/${user.userId}/plans/${mealPlanDate}`;
     const _plBase={items:mealPlan,date:mealPlanDate,userId:user.userId};
-    const _r=await _fsWrite(db.doc(_plPath).set({..._plBase,updatedAt:firebase.firestore.FieldValue.serverTimestamp()})); // W1
+    // v81: ใส่ merge กันไว้ก่อน — เดิม set() เขียนทับทั้งเอกสาร
+    // ถ้าวันหลังเพิ่มช่องให้โค้ชคอมเมนต์แผนได้จริง นักเรียนกดบันทึกครั้งเดียวคอมเมนต์จะหายทันที
+    const _r=await _fsWrite(db.doc(_plPath).set({..._plBase,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true})); // W1
     if(_r==='timeout')_queueBackup(_plPath,{..._plBase,updatedAt:{__ts:Date.now()}}); // W3
     else _dropBackup(_plPath);
     showToast(_r==='timeout'?'📡 เน็ตช้า — บันทึกแผนไว้ในเครื่องแล้ว จะซิงค์อัตโนมัติค่ะ':'บันทึกแผนอาหารแล้วค่ะ ✅',_r==='timeout'?4000:2500);
@@ -5492,14 +5592,18 @@ function buildCard(s){
     chips=s.correction
       ?`<span class="est-chip gram">คาร์บ <del style="opacity:.55">${s.labelData.carb.toFixed(1)}</del> ${_lm44b.c}g</span><span class="est-chip gram">โปรตีน <del style="opacity:.55">${s.labelData.protein.toFixed(1)}</del> ${_lm44b.p}g</span><span class="est-chip gram">ไขมัน <del style="opacity:.55">${s.labelData.fat.toFixed(1)}</del> ${_lm44b.f}g</span>`
       :`<span class="est-chip gram">คาร์บ ${s.labelData.carb.toFixed(1)}g</span><span class="est-chip gram">โปรตีน ${s.labelData.protein.toFixed(1)}g</span><span class="est-chip gram">ไขมัน ${s.labelData.fat.toFixed(1)}g</span>`; // BUGFIX v44: เดิมไม่แสดงค่าที่โค้ชแก้เหมือน hand mode
+    // v80: บอกโค้ชว่าแคลมื้อนี้มาจากเลขบนซอง ไม่ใช่ที่ระบบคูณเอง — จะได้ไม่งงว่าทำไม C/P/F บวกกันแล้วไม่เท่า
+    if(!s.correction&&s.labelData.kcal>0)chips+=`<span class="est-chip gram" style="background:#ECFDF5;color:#065F46" title="ใช้เลขพลังงานที่พิมพ์บนซอง แม่นกว่าการคูณ 4·4·9 เพราะผู้ผลิตคิดใยอาหาร/น้ำตาลแอลกอฮอล์ตามกฎหมายแล้ว">🏷️ แคลจากซอง</span>`;
   }else if(s.mode==='weigh'&&s.weighData){
     const wd=s.weighData;
     if(wd.aiItems&&wd.aiItems.length){
       // v46: ป้าย 🤖 = ไม่มีในฐานข้อมูล AI ประมาณเอง → โค้ชควรตรวจรายการนี้เป็นพิเศษ
-      chips=wd.aiItems.map(it=>`<span class="est-chip gram"${it._src&&it._src!=='db'?' style="background:#FEF3C7;color:#92400E" title="AI ประมาณเอง (ไม่มีในฐานข้อมูล) — ควรตรวจ"':''}>${it._src&&it._src!=='db'?'🤖 ':''}${escHtml(it.name||'')} ${escHtml(it.amount||'')} · C${it.c} P${it.p} F${it.f}</span>`).join('');
+      chips=wd.aiItems.map(it=>`<span class="est-chip gram"${it._src&&it._src!=='db'?' style="background:#FEF3C7;color:#92400E" title="AI ประมาณเอง (ไม่มีในฐานข้อมูล) — ควรตรวจ"':''}>${it._src&&it._src!=='db'?'🤖 ':''}${escHtml(it.name||'')} ${escHtml(it.amount||'')} · C${it.c} P${it.p} F${it.f}${it.a>0?` 🍷${it.a}`:''}</span>`).join(''); // v79
     }else{
-      const wKcalC=Math.round((wd.carb||0)*4+(wd.protein||0)*4+(wd.fat||0)*9);
-      chips=`<span class="est-chip gram">${escHtml(wd.food||'')}</span><span class="est-chip gram">C:${wd.carb||0}g</span><span class="est-chip gram">P:${wd.protein||0}g</span><span class="est-chip gram">F:${wd.fat||0}g</span><span class="est-chip gram">⚡${wKcalC}kcal</span>`;
+      // v79: มื้อที่ไม่มีรายการย่อย (เช่นโค้ชเคยแก้จนล้าง aiItems) ก็ต้องรวมแคลแอลกอฮอล์เหมือนกัน
+      const _wdAlc=Math.max(0,+wd.alc||0);
+      const wKcalC=macroKcal(wd.carb,wd.protein,wd.fat,_wdAlc);
+      chips=`<span class="est-chip gram">${escHtml(wd.food||'')}</span><span class="est-chip gram">C:${wd.carb||0}g</span><span class="est-chip gram">P:${wd.protein||0}g</span><span class="est-chip gram">F:${wd.fat||0}g</span>${_wdAlc>0?`<span class="est-chip gram" style="background:#FDF2F8;color:#9D174D" title="แอลกอฮอล์ ${_wdAlc}g = ${Math.round(_wdAlc*ALC_KCAL)} kcal">🍷${_wdAlc}g</span>`:''}<span class="est-chip gram">⚡${wKcalC}kcal</span>`;
     }
   }
   const m=getSubMacros(s);
@@ -5666,14 +5770,17 @@ ${s.correction?`<div style="background:#FEF3C7;border:1px solid #FDE68A;border-r
   carb=cs.carb!==undefined?cs.carb:(s.correction?.carb??origC);
   prot=cs.protein!==undefined?cs.protein:(s.correction?.protein??origP);
   fat=cs.fat!==undefined?cs.fat:(s.correction?.fat??origF);
-  const origKcal=Math.round(origC*4+origP*4+origF*9);
-  const prevKcal=Math.round(carb*4+prot*4+fat*9);
+  // v81: เดิมคิด kcal เองด้วย 4·4·9 → โค้ชเห็นเลขหนึ่งตอนกด แต่ระบบบันทึกอีกเลข (ต่างกันได้ถึง ~100 kcal)
+  // แอลกอฮอล์ไม่ใช่มาโครที่โค้ชปรับ จึงติดอยู่กับมื้อทั้งก่อนและหลังแก้
+  const _cAlc=(s.weighData&&Math.max(0,+s.weighData.alc||0))||0;
+  const origKcal=getSubOrigKcal(s);
+  const prevKcal=macroKcal(carb,prot,fat,_cAlc);
   const kcalDiff=prevKcal-origKcal;
   const kcalDiffStr=kcalDiff===0?'':(kcalDiff>0?`+${kcalDiff}`:`${kcalDiff}`);
   const kcalDiffBadge=kcalDiff===0?'':`<span style="font-size:11px;padding:2px 7px;border-radius:10px;margin-left:6px;background:${kcalDiff>0?'#FEE2E2':'#DCFCE7'};color:${kcalDiff>0?'#DC2626':'#059669'};font-weight:700">${kcalDiffStr} kcal</span>`;
   const mBadge=(dv,mult)=>{const kc=Math.round(dv*mult);if(Math.abs(kc)<1)return'';const sg=kc>0?'+':'';return`<span style="font-size:10px;padding:1px 5px;border-radius:8px;background:${kc>0?'#FEE2E2':'#DCFCE7'};color:${kc>0?'#DC2626':'#059669'};font-weight:700">${sg}${kc} kcal</span>`;};
   return`<div class="correction-panel">${_modeSwitchRow}<h4>✏️ แก้ไขค่าที่ถูกต้อง</h4>
-<div style="text-align:center;font-size:12px;color:#9CA3AF;margin-bottom:8px">นักเรียนกรอก: <del>C ${origC}g · P ${origP}g · F ${origF}g → ⚡ ${origKcal} kcal</del></div>
+<div style="text-align:center;font-size:12px;color:#9CA3AF;margin-bottom:8px">นักเรียนกรอก: <del>C ${origC}g · P ${origP}g · F ${origF}g${_cAlc>0?` · 🍷 ${_cAlc}g`:''} → ⚡ ${origKcal} kcal</del>${_cAlc>0?`<div style="font-size:10.5px;color:#9D174D;margin-top:2px">🍷 แอลกอฮอล์ ${_cAlc}g (${Math.round(_cAlc*ALC_KCAL)} kcal) ติดอยู่กับมื้อนี้ ไม่หายตอนแก้มาโคร</div>`:''}</div>
 <div class="corr-steppers">
 <div class="corr-s-item"><label>🟡 คาร์บ (g) <span id="badge-carb-${s.id}">${mBadge(carb-origC,4)}</span></label><div class="corr-s-row"><button onclick="adjCorr('${s.id}','carb',-1)">−</button><input type="number" class="corr-input" id="cc-carb-${s.id}" value="${carb}" min="0" step="1" onchange="syncCorr('${s.id}','carb')"><button onclick="adjCorr('${s.id}','carb',1)">+</button></div></div>
 <div class="corr-s-item"><label>🔴 โปรตีน (g) <span id="badge-protein-${s.id}">${mBadge(prot-origP,4)}</span></label><div class="corr-s-row"><button onclick="adjCorr('${s.id}','protein',-1)">−</button><input type="number" class="corr-input" id="cc-protein-${s.id}" value="${prot}" min="0" step="1" onchange="syncCorr('${s.id}','protein')"><button onclick="adjCorr('${s.id}','protein',1)">+</button></div></div>
@@ -6772,7 +6879,7 @@ function buildFeedbackFlex(mealCount, totC, totP, totF, totKcal, currentSub, day
   } else if(mode==='label'&&ld){
     mealLabel='🏷️ กรอกฉลาก';
     mealBg='#F0FDF4';mealLabelColor='#065F46';
-    const lKcal=Math.round((ld.carb||0)*4+(ld.protein||0)*4+(ld.fat||0)*9);
+    const lKcal=ld.kcal>0?Math.round(ld.kcal):macroKcal(ld.carb,ld.protein,ld.fat,0); // v80
     mealRows.push({type:'box',layout:'horizontal',margin:'sm',contents:[
       {type:'text',text:`C${Math.round(ld.carb||0)}g · P${Math.round(ld.protein||0)}g · F${Math.round(ld.fat||0)}g`,size:'xs',color:'#065F46',flex:1},
       {type:'text',text:`${lKcal} kcal`,size:'xs',weight:'bold',color:'#059669',align:'end',flex:0}
@@ -7052,7 +7159,7 @@ function switchEditMode(mode){
   // note
   const note=document.getElementById('esm-mode-note');
   if(note){
-    if(mode==='label')note.textContent='📋 กรอกค่าตรงจากฉลากโภชนาการ (Carb / Protein / Fat)';
+    if(mode==='label')note.textContent='📋 กรอกค่าตรงจากฉลากโภชนาการ (Carb / Protein / Fat) — แก้ตรงนี้แล้วแคลจะคำนวณใหม่จากค่าที่แก้';
     else if(mode==='hand')note.textContent='👊 กรอกตามสัดส่วน / ปริมาณที่ประเมินเอง';
     else note.textContent='✨ กรอกค่ารวม Macro ที่ได้จาก AI';
   }
@@ -7107,6 +7214,8 @@ async function saveHistEdit(){
       upd['labelData.menuDesc']=menuDesc;
       upd['labelData.carb']=c;
       upd['labelData.protein']=p;
+      // v80: แก้มาโครแล้วเลขบนซองไม่ตรงกับค่าใหม่ — ล้างทิ้ง ให้กลับไปคำนวณ 4·4·9 จากค่าที่แก้
+      upd['labelData.kcal']=null;
       upd['labelData.fat']=f;
     }else if(_editSubMode==='weigh'){
       upd['weighData.menuName']=menuName;
@@ -7115,7 +7224,7 @@ async function saveHistEdit(){
       upd['weighData.carb']=c;
       upd['weighData.protein']=p;
       upd['weighData.fat']=f;
-      upd['weighData.kcal']=Math.round(c*4+p*4+f*9); // อัปเดต kcal ให้ตรงกับค่าที่แก้
+      upd['weighData.kcal']=macroKcal(c,p,f,(currentSub&&currentSub.weighData&&currentSub.weighData.alc)||0); // v79: อย่าทิ้งแคลแอลกอฮอล์ตอนแก้มาโคร
       // BUGFIX v47: ล้างรายการย่อยเดิมทิ้ง — ไม่งั้นการ์ดโค้ช/ประวัติยังโชว์รายการเก่าที่บวกแล้วไม่เท่ายอดใหม่
       upd['weighData.aiItems']=null;
     }
@@ -7377,7 +7486,7 @@ async function downloadDashboard(elId, name, type){
 let _pendingTab=null;
 function hasUnsavedData(mode){
   if(mode==='hand'){return protQty!==1.0||carbSlots.length>1||(carbSlots[0]&&carbSlots[0].qty!==1.5)||eggWhole>0||eggWhite>0||visibleFat>0||avoQty>0||Object.values(fruitCounts).some(v=>v>0);}
-  if(mode==='label'){return !!(parseFloat(document.getElementById('lb-carb')?.value)||parseFloat(document.getElementById('lb-prot')?.value)||parseFloat(document.getElementById('lb-fat')?.value));}
+  if(mode==='label'){return !!(parseFloat(document.getElementById('lb-carb')?.value)||parseFloat(document.getElementById('lb-prot')?.value)||parseFloat(document.getElementById('lb-fat')?.value)||parseFloat(document.getElementById('lb-kcal')?.value));} // v80
   if(mode==='weigh'){const ta=document.getElementById('ai-food-input');return !!(ta?.value?.trim())||!!aiParsedData;}
   return false;
 }
