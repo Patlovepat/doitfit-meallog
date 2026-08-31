@@ -952,7 +952,7 @@ db.enablePersistence({synchronizeTabs:true}).catch(e=>{console.warn('Persistence
 // ===== AUTO ERROR REPORTING → Firestore errorLogs =====
 // JS error ที่เกิดบนเครื่องลูกค้าจะถูกส่งเข้า collection 'errorLogs' อัตโนมัติ
 // ดูได้ใน Firebase Console → Firestore → errorLogs (เรียงตาม at ล่าสุด)
-const APP_VERSION='v83-2026-08-30'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
+const APP_VERSION='v84-2026-08-31'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
 const _errLogged=new Set();let _errCount=0;
 function _reportError(type,msg,stack,src){
   try{
@@ -1759,13 +1759,23 @@ async function loadStudentData(){
         .catch(()=>{});
     }
     // NW1: server query (8s) → timeout แล้ว fallback อ่าน Firestore offline cache ในเครื่อง
-    const _lsdt=ms=>new Promise(r=>setTimeout(()=>r(null),ms));
-    const _qf=q=>Promise.race([q.get().catch(()=>null),_lsdt(8000)]).then(r=>r||q.get({source:'cache'}).catch(()=>null));
+    // v84 BUGFIX: เดิม .catch(()=>null) ทั้งสองชั้น = กลืนสาเหตุจริงทิ้งหมด
+    //   permission-denied / index หาย / LINE webview ค้าง → ออกมาหน้าตาเดียวกัน แล้วโชว์ว่า "เน็ตช้า"
+    //   และไม่มีอะไรเข้า errorLogs เลย โค้ชจึงไม่เคยรู้ว่ามีนักเรียนติดอยู่
+    _lsdFail=null;
+    const _lsdt=ms=>new Promise(r=>setTimeout(()=>r('__t'),ms));
+    const _qf=(q,tag)=>Promise.race([
+        q.get().catch(e=>{_lsdNote(tag,'server',e);return null;}),
+        _lsdt(8000)
+      ]).then(r=>{
+        if(r==='__t'){_lsdNote(tag,'timeout',null);r=null;}
+        return r||q.get({source:'cache'}).catch(e=>{_lsdNote(tag,'cache',e);return null;});
+      });
     const [snap,td,savedSnap]=await Promise.all([
       // BUGFIX v53.1: 30 รายการ = แค่ ~10 วันสำหรับคนบันทึกวันละ 3 มื้อ → 🔥 วันติด ตันที่ 10 วัน และประวัติย้อนหลังได้แค่ 10 วัน
-      _qf(db.collection('submissions').where('userId','==',user.userId).orderBy('createdAt','desc').limit(_STU_LIMIT)),
-      _qf(db.collection('students').doc(user.userId)),
-      _qf(db.collection('users').doc(user.userId).collection('savedMenus').limit(40)), // v78: ดึงเผื่อ แล้วเรียง/ตัดในเครื่อง
+      _qf(db.collection('submissions').where('userId','==',user.userId).orderBy('createdAt','desc').limit(_STU_LIMIT),'subs'),
+      _qf(db.collection('students').doc(user.userId),'student'),
+      _qf(db.collection('users').doc(user.userId).collection('savedMenus').limit(40),'menus'), // v78: ดึงเผื่อ แล้วเรียง/ตัดในเครื่อง
     ]);
     // NB7: ล้มเหลว (null) ≠ ไม่มีข้อมูล — อย่า cache เป็น [] ปล่อย null ให้ retry รอบถัดไป
     if(snap){
@@ -1787,9 +1797,14 @@ async function loadStudentData(){
         });
         studentSubsCache.sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
       }catch(_){}
+      _lsdRetry=0; // v84: สำเร็จแล้ว → รีเซ็ตตัวนับ backoff
     }else{
       studentSubsCache=null;
-      showToast('📡 โหลดข้อมูลไม่สำเร็จ — จะลองใหม่อัตโนมัติค่ะ',3000);
+      // v84: เดิม toast บอกว่า "จะลองใหม่อัตโนมัติ" แต่ทั้งไฟล์ไม่มี retry สักตัว — นักเรียนค้างจนกว่าจะปิดแอปเปิดใหม่
+      const _f=_lsdFail||{};
+      _reportError('student-load-fail',(_f.code||'unknown')+' @'+(_f.tag||'?')+'/'+(_f.where||'?'),_f.msg||'','loadStudentData');
+      _scheduleStudentRetry();
+      showToast(_lsdRetry>=_LSD_MAX?'📡 โหลดข้อมูลไม่สำเร็จ — แตะปุ่มลองใหม่ในแท็บประวัติได้ค่ะ':'📡 โหลดข้อมูลไม่สำเร็จ — กำลังลองใหม่ให้ค่ะ',3500);
     }
     applyTargets(td);
     if(td&&td.exists){const d=td.data();studentProgramData={programStart:d.programStart||'',programWeeks:d.programWeeks||12,pausedDays:d.pausedDays||0,isPaused:d.isPaused||false,discountCode:d.discountCode||'',discountPercent:d.discountPercent||0};
@@ -1809,11 +1824,85 @@ async function loadStudentData(){
     renderProgramBar();
     checkNearEnd();
     checkCoachComments();
-  }catch(e){console.log('loadStudentData err',e);}
-  finally{_loadingStudentData=false;}
+  }catch(e){console.log('loadStudentData err',e);_lsdNote('all','throw',e);}
+  finally{
+    _loadingStudentData=false;
+    // v84 BUGFIX: เดิมไม่มีอะไรวาดประวัติใหม่หลังโหลดเสร็จ
+    //   loadHistory รอ _loadingStudentData แค่ 10 วิ (แต่ _qf 3 ตัว × timeout 8 วิ เกินได้ง่าย)
+    //   พอครบ 10 วิมันโชว์กล่องแดงทันที แล้วต่อให้ข้อมูลมาถึงจริง ก็ไม่มีใครวาดใหม่ — นักเรียนนั่งดูกล่องแดงทั้งที่ข้อมูลอยู่ในเครื่องแล้ว
+    try{
+      if(typeof studentTab!=='undefined'&&studentTab==='history'){
+        if(studentSubsCache!==null){histCache=null;loadHistory();}
+        else _renderHistFail(); // ห้ามเรียก loadHistory ตรงนี้ — มันจะยิง loadStudentData ซ้ำเป็นลูป
+      }
+    }catch(_){}
+  }
 }
 
+// ═════ v84: กู้สถานการณ์ "โหลดข้อมูลนักเรียนไม่สำเร็จ" ═════
+// เดิมพังรอบเดียวแล้วจบ: ประวัติว่าง · เป้าหมายกลับไปเป็นค่า default เงียบๆ · ตัวกันส่งซ้ำตาบอด
+let _lsdFail=null;                 // สาเหตุจริงของรอบล่าสุด (ตัวแรกที่เจอ)
+let _lsdRetry=0,_lsdTimer=null;
+const _LSD_MAX=5;
+const _LSD_WAIT=[2000,5000,12000,30000,60000];
+function _lsdNote(tag,where,e){
+  if(_lsdFail)return; // เก็บสาเหตุแรกพอ — ที่เหลือมักเป็นผลต่อเนื่อง
+  _lsdFail={tag,where,code:(e&&(e.code||e.name))||(where==='timeout'?'timeout':'unknown'),msg:((e&&e.message)||'').slice(0,160)};
+}
+function _scheduleStudentRetry(){
+  if(_lsdTimer||_lsdRetry>=_LSD_MAX)return;
+  const wait=_LSD_WAIT[_lsdRetry]||60000;
+  _lsdRetry++;
+  _lsdTimer=setTimeout(()=>{_lsdTimer=null;loadStudentData();},wait);
+}
+function _lsdWhy(){
+  const f=_lsdFail||{};
+  if(f.where==='timeout')return 'เซิร์ฟเวอร์ไม่ตอบใน 8 วินาที';
+  if(f.code==='permission-denied')return 'ไม่มีสิทธิ์อ่านข้อมูล — แจ้งโค้ชได้เลยค่ะ';
+  if(f.code==='failed-precondition')return 'ฐานข้อมูลยังไม่พร้อม — แจ้งโค้ชได้เลยค่ะ';
+  if(f.code==='unauthenticated')return 'ยังเชื่อมต่อบัญชีไม่สำเร็จ';
+  if(f.code==='unavailable')return 'ต่อเซิร์ฟเวอร์ไม่ได้ตอนนี้';
+  return 'โหลดข้อมูลไม่สำเร็จ';
+}
+function _renderHistFail(){
+  const list=document.getElementById('history-list');
+  if(!list)return;
+  const f=_lsdFail||{};
+  const more=_lsdRetry>=_LSD_MAX?'<br><span style="font-size:11px">ลองอัตโนมัติครบแล้ว กดปุ่มด้านล่างได้เลยค่ะ</span>'
+                                :'<br><span style="font-size:11px">ระบบกำลังลองใหม่ให้เองอยู่ค่ะ</span>';
+  list.innerHTML='<div class="hist-empty"><div class="he-icon">📡</div><p>'+escHtml(_lsdWhy())+more+'</p>'
+    +'<button onclick="retryStudentLoad()" style="margin-top:14px;padding:10px 22px;background:var(--primary);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;font-family:\'Prompt\',sans-serif;cursor:pointer">🔄 ลองใหม่ตอนนี้</button>'
+    +(f.code?'<div style="font-size:10px;color:#9CA3AF;margin-top:12px">รหัส: '+escHtml(f.code)+' @'+escHtml(f.tag||'?')+'</div>':'')
+    +'</div>';
+}
+function retryStudentLoad(){
+  if(_loadingStudentData)return;
+  _lsdRetry=0;
+  if(_lsdTimer){clearTimeout(_lsdTimer);_lsdTimer=null;}
+  const list=document.getElementById('history-list');
+  if(list)list.innerHTML='<div style="padding:28px 16px;font-family:\'Prompt\',sans-serif"><div class="df-spin"></div><div style="text-align:center;color:var(--gray);font-size:13px">กำลังลองใหม่...</div></div>';
+  loadStudentData();
+}
+// เน็ตกลับมา / สลับแอปกลับเข้ามา → ลองทันที ไม่ต้องรอ backoff
+function _kickStudentLoad(){
+  try{
+    if(!user||!user.userId)return;
+    if(typeof isCoach!=='undefined'&&isCoach)return;
+    if(studentSubsCache!==null||_loadingStudentData)return;
+    if(_lsdTimer){clearTimeout(_lsdTimer);_lsdTimer=null;}
+    if(_lsdRetry>=_LSD_MAX)_lsdRetry=_LSD_MAX-1; // ให้โอกาสอีกครั้งเมื่อสภาพแวดล้อมเปลี่ยน
+    loadStudentData();
+  }catch(_){}
+}
+window.addEventListener('online',()=>setTimeout(_kickStudentLoad,1200));
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)setTimeout(_kickStudentLoad,600);});
+
+// v84: doc เป็น null (โหลดล้ม) → ฟังก์ชันนี้ไม่ทำอะไรเลย แปลว่า TARGETS ยังเป็นค่า default
+// นักเรียนที่โค้ชตั้งเป้าให้เฉพาะตัว จะเห็นแถบความคืบหน้าเทียบกับเป้าของคนอื่นเงียบๆ
+// จำไว้ว่า "ยังไม่ได้เป้าจริง" เพื่อให้ที่อื่นเตือนได้ (และ retry จะเติมให้เองเมื่อสำเร็จ)
+let _targetsLoaded=false;
 function applyTargets(doc){
+  if(doc&&doc.exists)_targetsLoaded=true;
   if(doc&&doc.exists&&doc.data().targets){
     const t=doc.data().targets;
     if(t.kcal!=null)TARGETS.kcal=t.kcal; // M3: !=null ป้องกัน target=0 ถูก skip
@@ -1836,6 +1925,12 @@ function renderDailyProgress(){
   const bar=document.getElementById('daily-progress');
   if(!bar)return;
   if(!studentTodaySubs.length){bar.style.display='none';return;}
+  // v84: ถ้ายังโหลดเป้าหมายไม่สำเร็จ ห้ามโชว์ % เทียบกับค่า default เหมือนเป็นเป้าจริง
+  if(!_targetsLoaded){
+    bar.style.display='block';
+    bar.innerHTML='<div style="padding:10px 12px;background:#FEF3C7;border:1px solid #FDE68A;border-radius:10px;font-size:12px;color:#92400E;text-align:center;font-family:\'Prompt\',sans-serif">📡 ยังโหลดเป้าหมายไม่สำเร็จ — ตัวเลขเทียบเป้ายังไม่พร้อมค่ะ</div>';
+    return;
+  }
   let tot=0;
   studentTodaySubs.forEach(s=>{tot+=getSubMacros(s).kcal;});
   const target=TARGETS.kcal;
@@ -3462,7 +3557,23 @@ async function submitMeal(){
     if(_mode==='hand'&&handData)_curKcal=handData.totalKcal||0;
     else if(_mode==='label'&&labelData)_curKcal=labelData.kcal>0?Math.round(labelData.kcal):macroKcal(labelData.carb,labelData.protein,labelData.fat,0); // v80
     else if(_mode==='weigh'&&weighData)_curKcal=weighData.kcal||macroKcal(weighData.carb,weighData.protein,weighData.fat,weighData.alc); // v83: สูตรเดียวกับบรรทัดบน
-    const _dupRecent=(studentSubsCache||[]).find(s=>{
+    // v84 BUGFIX: `studentSubsCache||[]` = ลิสต์ว่างเมื่อโหลดล้ม → D-GUARD ไม่มีทางเจออะไรเลย
+    //   ซึ่งคือ "ตาบอดพอดีตอนที่นักเรียนจะส่งซ้ำมากที่สุด" (ประวัติไม่ขึ้น → ไม่รู้ว่าส่งไปแล้วหรือยัง → ส่งอีก)
+    //   ยังพอมีของให้เช็คได้: มื้อที่ค้างคิว backup ในเครื่อง (_dfq) ซึ่งใช้ได้แม้ออฟไลน์
+    let _dupPool=studentSubsCache;
+    if(_dupPool===null){
+      _dupPool=[];
+      try{
+        JSON.parse(localStorage.getItem('_dfq')||'[]').forEach(it=>{
+          if(!it.p||it.p.indexOf('submissions/')!==0||!it.d||!it.d.mode)return;
+          if(it.d.userId!==user.userId)return;
+          const ms=(it.d.createdAt&&it.d.createdAt.__ts)||it.at||Date.now();
+          const dd={...it.d};delete dd.__photos;delete dd.__ph;
+          _dupPool.push({...dd,createdAt:{seconds:Math.floor(ms/1000),nanoseconds:0}});
+        });
+      }catch(_){}
+    }
+    const _dupRecent=_dupPool.find(s=>{
       if(s.mealDate!==_date||s.meal!=_meal||s.mode!==_mode)return false;
       const age=(Date.now()/1000)-(s.createdAt?.seconds||0);
       if(age<0||age>=180)return false;
@@ -3470,6 +3581,8 @@ async function submitMeal(){
       return _curKcal>0&&Math.abs(k-_curKcal)<=Math.max(15,_curKcal*0.05); // แคลต่างไม่เกิน 5% = เนื้อหาเดิม
     });
     if(_dupRecent&&!await askConfirm('ดูเหมือนรายการนี้เพิ่งส่งสำเร็จไปเมื่อสักครู่แล้วนะคะ ✅\n(มื้อเดียวกัน เนื้อหาเหมือนกัน)\n\nถ้า Card ไม่เด้ง ไม่ต้องส่งซ้ำ — เช็คได้ที่แท็บ "ประวัติ" เลยค่ะ',{icon:'🤔',okText:'ส่งเพิ่มอีก',cancelText:'ไม่ส่ง'})){resetBtn();return;} // v65
+    // v84: ยังโหลดประวัติไม่ได้ = ระบบยืนยันให้ไม่ได้จริงๆ ต้องบอกตรงๆ ไม่ใช่ปล่อยผ่านเงียบ
+    if(studentSubsCache===null&&!_dupRecent&&!await askConfirm('ตอนนี้ยังโหลดประวัติไม่สำเร็จ ระบบเลยเช็คให้ไม่ได้ว่ามื้อนี้เคยส่งไปแล้วหรือยัง\n\nถ้าเพิ่งกดส่งไปเมื่อสักครู่ อาจกลายเป็นรายการซ้ำนะคะ',{icon:'📡',okText:'ส่งเลย',cancelText:'ไม่ส่ง'})){resetBtn();return;}
     // อัปโหลดรูปไป Firebase Storage (สูงสุด 3 รูป, timeout 20s ต่อรูป)
     let photoUrl=null, photoUrls=[], _photoFailed=false;
     // W5: ออฟไลน์ชัดเจน → ข้ามอัปโหลดเลย (ไม่ต้องรอ 20s) รูปจะเข้า backup แล้วอัปโหลดตอนเน็ตกลับมา
@@ -3642,15 +3755,18 @@ async function loadHistory(){
     list.innerHTML='<div style="padding:28px 16px;font-family:\'Prompt\',sans-serif"><div class="df-spin"></div><div style="text-align:center;color:var(--gray);font-size:13px;margin-bottom:14px">กำลังโหลดประวัติ...</div><div class="df-skel" style="height:84px;margin-bottom:10px"></div><div class="df-skel" style="height:84px"></div></div>';
     if(_loadingStudentData){
       // รอ loadStudentData ที่กำลังรันอยู่ให้เสร็จก่อน (poll ทุก 200ms)
-      await new Promise(res=>{const t=setInterval(()=>{if(!_loadingStudentData){clearInterval(t);res();}},200);setTimeout(()=>{clearInterval(t);res();},10000);});
+      // v84: เดิมรอ 10 วิ แต่ _qf 3 ตัวมี timeout 8 วิ + ยังต้องไปอ่าน cache ต่อ = เกิน 10 วิได้ง่าย
+      // ครบ 10 วิแล้วเลิกรอ = โชว์กล่องแดงทั้งที่ยังโหลดอยู่ (ตอนนี้ finally ของ loadStudentData วาดใหม่ให้เองด้วย)
+      await new Promise(res=>{const t=setInterval(()=>{if(!_loadingStudentData){clearInterval(t);res();}},200);setTimeout(()=>{clearInterval(t);res();},20000);});
     }else{
       await loadStudentData();
     }
   }
   // NB7: โหลดล้ม (null) ≠ ไม่มีข้อมูล — โชว์ปุ่มแตะลองใหม่ แทนบอก "ยังไม่มีประวัติ" ผิดๆ
+  // v84: เดิมเขียนตายตัวว่า "เน็ตช้า" ทั้งที่อาจเป็น permission/index — และหน้าตาไม่เหมือนปุ่ม คนไม่รู้ว่ากดได้
   if(studentSubsCache===null){
     histCache=null;
-    list.innerHTML='<div class="hist-empty" onclick="loadHistory()" style="cursor:pointer"><div class="he-icon">📡</div><p>โหลดไม่ได้ (เน็ตช้า)<br>แตะที่นี่เพื่อลองใหม่ค่ะ</p></div>';
+    _renderHistFail();
     return;
   }
   const subs=studentSubsCache
