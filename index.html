@@ -952,7 +952,7 @@ db.enablePersistence({synchronizeTabs:true}).catch(e=>{console.warn('Persistence
 // ===== AUTO ERROR REPORTING → Firestore errorLogs =====
 // JS error ที่เกิดบนเครื่องลูกค้าจะถูกส่งเข้า collection 'errorLogs' อัตโนมัติ
 // ดูได้ใน Firebase Console → Firestore → errorLogs (เรียงตาม at ล่าสุด)
-const APP_VERSION='v84-2026-08-31'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
+const APP_VERSION='v86-2026-08-31'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
 const _errLogged=new Set();let _errCount=0;
 function _reportError(type,msg,stack,src){
   try{
@@ -1249,6 +1249,7 @@ let studentProgramData=null; // program info (start/end/pause)
 let nearEndSentThisSession=false;  // v72: กันส่งซ้ำใน session เดียว (ตัวจริงเก็บที่ localStorage)
 let histCache=null;
 let mealPlan=[]; // [{name,c,p,f}] current plan items
+let _planDirty=false; // v86: true = มีรายการที่ยังไม่กดบันทึก ห้ามล้างทิ้งตอนสลับแท็บ
 let mealPlanDate=""; // date being planned
 let planAddMode='hand'; // 'hand'|'fill'|'ai'
 let planCookMethod='none'; // 'none'|'stirfry'|'deep'
@@ -1763,14 +1764,25 @@ async function loadStudentData(){
     //   permission-denied / index หาย / LINE webview ค้าง → ออกมาหน้าตาเดียวกัน แล้วโชว์ว่า "เน็ตช้า"
     //   และไม่มีอะไรเข้า errorLogs เลย โค้ชจึงไม่เคยรู้ว่ามีนักเรียนติดอยู่
     _lsdFail=null;
+    // v85: Firestore จะกั้น read ไว้จนกว่าจะได้ auth token — ถ้า signInAnonymously ช้า
+    //   query จะ "ค้าง" แล้วชน timeout 8 วิ โดยที่สาเหตุจริงคือ auth ไม่ใช่ Firestore
+    //   (หน้าจอนักเรียนจึงขึ้นว่า "เซิร์ฟเวอร์ไม่ตอบ" ทั้งที่เซิร์ฟเวอร์ไม่เคยถูกเรียกเลย)
+    try{await Promise.race([_authReady,new Promise(r=>setTimeout(r,6000))]);}catch(_){}
+    if(!_authOk)_lsdNote('auth','auth',{code:'auth-not-ready'});
     const _lsdt=ms=>new Promise(r=>setTimeout(()=>r('__t'),ms));
-    const _qf=(q,tag)=>Promise.race([
-        q.get().catch(e=>{_lsdNote(tag,'server',e);return null;}),
-        _lsdt(8000)
-      ]).then(r=>{
-        if(r==='__t'){_lsdNote(tag,'timeout',null);r=null;}
+    // v85 BUGFIX: เดิมพอครบ 8 วิก็ทิ้งคำตอบของเซิร์ฟเวอร์ไปเลย
+    //   ถ้าเซิร์ฟเวอร์ตอบมาที่วินาทีที่ 12 (LINE webview ช้าแบบนี้ประจำ) ผลนั้นถูกโยนทิ้งทั้งที่ถูกต้องครบถ้วน
+    //   นักเรียนเลยเห็นกล่องแดงค้าง แล้วต้องรอ retry รอบถัดไปอีก 2 วิ — ทั้งที่ข้อมูลมาถึงแล้ว
+    //   ตอนนี้ยังฟังต่อ: มาช้าก็เอามาใช้เลย
+    const _qf=(q,tag)=>{
+      let _late=false; // ต้องเช็คว่า "หมดเวลาไปแล้วจริง" ไม่งั้นเคสปกติจะเข้าทาง late ด้วย
+      const _srv=q.get().catch(e=>{_lsdNote(tag,'server',e);return null;});
+      _srv.then(r=>{if(r&&_late&&tag==='subs')_lsdLateSubs(r);}).catch(()=>{});
+      return Promise.race([_srv,_lsdt(8000)]).then(r=>{
+        if(r==='__t'){_late=true;_lsdNote(tag,'timeout',null);r=null;}
         return r||q.get({source:'cache'}).catch(e=>{_lsdNote(tag,'cache',e);return null;});
       });
+    };
     const [snap,td,savedSnap]=await Promise.all([
       // BUGFIX v53.1: 30 รายการ = แค่ ~10 วันสำหรับคนบันทึกวันละ 3 มื้อ → 🔥 วันติด ตันที่ 10 วัน และประวัติย้อนหลังได้แค่ 10 วัน
       _qf(db.collection('submissions').where('userId','==',user.userId).orderBy('createdAt','desc').limit(_STU_LIMIT),'subs'),
@@ -1778,31 +1790,27 @@ async function loadStudentData(){
       _qf(db.collection('users').doc(user.userId).collection('savedMenus').limit(40),'menus'), // v78: ดึงเผื่อ แล้วเรียง/ตัดในเครื่อง
     ]);
     // NB7: ล้มเหลว (null) ≠ ไม่มีข้อมูล — อย่า cache เป็น [] ปล่อย null ให้ retry รอบถัดไป
-    if(snap){
-      _stuSubsTruncated=snap.docs.length>=_STU_LIMIT; // v53.1: ชนเพดาน = มีข้อมูลเก่ากว่านี้อีก เลข 🔥 อาจต่ำกว่าจริง
-      // sort client-side + ลบ photoBase64 ออกจาก RAM (ยังใช้ photoUrl แทนได้)
-      studentSubsCache=snap.docs.map(d=>{const dat=d.data();delete dat.photoBase64;return{id:d.id,...dat};}).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
-      // W7: มื้อที่ค้างคิว backup (ยังไม่ถึง server) ต้องโชว์ในประวัติ/วันนี้ด้วย
-      // เคสจริง: นักเรียนออฟไลน์ → รีเฟรช → มื้อหายจากประวัติ → คิดว่าไม่สำเร็จ → ส่งซ้ำ
-      try{
-        const _pq=JSON.parse(localStorage.getItem('_dfq')||'[]');
-        _pq.forEach(it=>{
-          if(!it.p||it.p.indexOf('submissions/')!==0||!it.d||!it.d.mode)return;
-          if(it.d.userId!==user.userId)return;
-          const _pid=it.p.split('/')[1];
-          if(studentSubsCache.some(x=>x.id===_pid))return; // ถึง server แล้ว
-          const dd={...it.d};delete dd.__photos;delete dd.__ph;delete dd.createdAt;
-          const ms=(it.d.createdAt&&it.d.createdAt.__ts)||it.at||Date.now();
-          studentSubsCache.push({id:_pid,...dd,__pending:true,createdAt:{seconds:Math.floor(ms/1000),nanoseconds:0,toDate:()=>new Date(ms)}});
-        });
-        studentSubsCache.sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
-      }catch(_){}
+    // v86 BUGFIX: query.get({source:'cache'}) ที่ไม่มีข้อมูล จะคืน "snapshot ว่าง" ไม่ throw
+    //   (ต่างจาก doc.get ที่ throw จริง) → เดิมถือว่าสำเร็จ แล้วตั้ง studentSubsCache=[]
+    //   ซึ่ง !==null ทำให้กลไกกู้ทั้งชุดของ v84/v85 ปิดตัวเองหมด:
+    //   ไม่ retry · ไม่มีปุ่มลองใหม่ · ทิ้งคำตอบที่มาช้า · D-GUARD (เช็ค ===null) ตาบอด
+    //   นักเรียนที่มี 40 มื้อจึงเห็น "ยังไม่มีประวัติการส่งค่ะ" แล้วส่งใหม่ทั้งวัน
+    //   นักเรียนใหม่ที่ไม่มีมื้อจริงๆ ไม่โดน เพราะคำตอบมาจาก server → fromCache=false
+    const _snapUsable=!!snap&&!(snap.metadata&&snap.metadata.fromCache&&snap.empty);
+    if(snap&&!_snapUsable)_lsdNote('subs','cache-empty',{code:'cache-empty'});
+    if(_snapUsable){
+      _applySubsSnap(snap); // v85: ย้ายออกมาเป็นฟังก์ชัน เพื่อให้ "ผลที่มาช้ากว่า timeout" ใช้ซ้ำได้
       _lsdRetry=0; // v84: สำเร็จแล้ว → รีเซ็ตตัวนับ backoff
+    }else if(studentSubsCache!==null){
+      // v85 BUGFIX: รอบนี้ล้ม แต่ "มีข้อมูลอยู่แล้ว" (ผลที่มาช้าของรอบก่อนเพิ่งเติมให้)
+      //   เดิมบรรทัด studentSubsCache=null ด้านล่างจะล้างทิ้ง → ประวัติที่เพิ่งขึ้นหายไปต่อหน้า
+      _lsdRetry=0;
     }else{
       studentSubsCache=null;
       // v84: เดิม toast บอกว่า "จะลองใหม่อัตโนมัติ" แต่ทั้งไฟล์ไม่มี retry สักตัว — นักเรียนค้างจนกว่าจะปิดแอปเปิดใหม่
       const _f=_lsdFail||{};
-      _reportError('student-load-fail',(_f.code||'unknown')+' @'+(_f.tag||'?')+'/'+(_f.where||'?'),_f.msg||'','loadStudentData');
+      // v85: ใส่สถานะ auth ไปด้วย — แยก "อ่านช้า" ออกจาก "ยังไม่ได้ token เลย" ได้ทันทีจาก errorLogs
+      _reportError('student-load-fail',(_f.code||'unknown')+' @'+(_f.tag||'?')+'/'+(_f.where||'?')+' auth='+(_authOk?'1':'0')+' net='+(navigator.onLine?'1':'0'),_f.msg||'','loadStudentData');
       _scheduleStudentRetry();
       showToast(_lsdRetry>=_LSD_MAX?'📡 โหลดข้อมูลไม่สำเร็จ — แตะปุ่มลองใหม่ในแท็บประวัติได้ค่ะ':'📡 โหลดข้อมูลไม่สำเร็จ — กำลังลองใหม่ให้ค่ะ',3500);
     }
@@ -1841,6 +1849,42 @@ async function loadStudentData(){
 
 // ═════ v84: กู้สถานการณ์ "โหลดข้อมูลนักเรียนไม่สำเร็จ" ═════
 // เดิมพังรอบเดียวแล้วจบ: ประวัติว่าง · เป้าหมายกลับไปเป็นค่า default เงียบๆ · ตัวกันส่งซ้ำตาบอด
+// v85: รับ snapshot ของ submissions มาลง cache (เดิมโค้ดชุดนี้ฝังอยู่ใน loadStudentData)
+function _applySubsSnap(snap){
+  if(!snap)return false;
+  _stuSubsTruncated=snap.docs.length>=_STU_LIMIT; // v53.1: ชนเพดาน = มีข้อมูลเก่ากว่านี้อีก เลข 🔥 อาจต่ำกว่าจริง
+  // sort client-side + ลบ photoBase64 ออกจาก RAM (ยังใช้ photoUrl แทนได้)
+  studentSubsCache=snap.docs.map(d=>{const dat=d.data();delete dat.photoBase64;return{id:d.id,...dat};}).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
+  // W7: มื้อที่ค้างคิว backup (ยังไม่ถึง server) ต้องโชว์ในประวัติ/วันนี้ด้วย
+  // เคสจริง: นักเรียนออฟไลน์ → รีเฟรช → มื้อหายจากประวัติ → คิดว่าไม่สำเร็จ → ส่งซ้ำ
+  try{
+    const _pq=JSON.parse(localStorage.getItem('_dfq')||'[]');
+    _pq.forEach(it=>{
+      if(!it.p||it.p.indexOf('submissions/')!==0||!it.d||!it.d.mode)return;
+      if(it.d.userId!==user.userId)return;
+      const _pid=it.p.split('/')[1];
+      if(studentSubsCache.some(x=>x.id===_pid))return; // ถึง server แล้ว
+      const dd={...it.d};delete dd.__photos;delete dd.__ph;delete dd.createdAt;
+      const ms=(it.d.createdAt&&it.d.createdAt.__ts)||it.at||Date.now();
+      studentSubsCache.push({id:_pid,...dd,__pending:true,createdAt:{seconds:Math.floor(ms/1000),nanoseconds:0,toDate:()=>new Date(ms)}});
+    });
+    studentSubsCache.sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
+  }catch(_){}
+  return true;
+}
+// v85: เซิร์ฟเวอร์ตอบมาหลังหมดเวลา 8 วิ — ถ้ายังไม่มีข้อมูล ให้ใช้เลย แล้ววาดหน้าจอใหม่
+function _lsdLateSubs(snap){
+  try{
+    if(studentSubsCache!==null)return;      // มีข้อมูลแล้วจากทางอื่น ไม่ต้องทับ
+    if(!_applySubsSnap(snap))return;
+    _lsdRetry=0;
+    if(_lsdTimer){clearTimeout(_lsdTimer);_lsdTimer=null;}
+    renderTodayProgress();
+    renderStreak();
+    if(typeof studentTab!=='undefined'&&studentTab==='history'){histCache=null;loadHistory();}
+    showToast('✅ โหลดข้อมูลสำเร็จแล้วค่ะ (เซิร์ฟเวอร์ตอบช้ากว่าปกติ)',3000);
+  }catch(_){}
+}
 let _lsdFail=null;                 // สาเหตุจริงของรอบล่าสุด (ตัวแรกที่เจอ)
 let _lsdRetry=0,_lsdTimer=null;
 const _LSD_MAX=5;
@@ -1857,6 +1901,9 @@ function _scheduleStudentRetry(){
 }
 function _lsdWhy(){
   const f=_lsdFail||{};
+  // v85: auth ไม่ผ่าน = Firestore กั้น read ไว้ตั้งแต่ต้น ไม่ใช่ "เซิร์ฟเวอร์ช้า"
+  if(f.where==='auth'||!_authOk)return 'ยังเชื่อมต่อบัญชีไม่สำเร็จ — ปิดแล้วเปิดใหม่อีกครั้งนะคะ';
+  if(f.where==='cache-empty')return 'ยังไม่มีข้อมูลสำรองในเครื่อง และเซิร์ฟเวอร์ตอบไม่ทัน'; // v86
   if(f.where==='timeout')return 'เซิร์ฟเวอร์ไม่ตอบใน 8 วินาที';
   if(f.code==='permission-denied')return 'ไม่มีสิทธิ์อ่านข้อมูล — แจ้งโค้ชได้เลยค่ะ';
   if(f.code==='failed-precondition')return 'ฐานข้อมูลยังไม่พร้อม — แจ้งโค้ชได้เลยค่ะ';
@@ -1921,25 +1968,34 @@ function renderTodayProgress(){
   studentTodaySubs=realSubs(studentSubsCache).filter(s=>subDate(s)===today);
   renderDailyProgress();
 }
+// v86 BUGFIX (ของที่ผมทำพังเองใน v84): dp-text / dp-pct / dp-fill เป็น "ลูก" ของ #daily-progress
+//   v84 เขียน bar.innerHTML='<div>…</div>' ทับ = ลบลูกทั้ง 3 ทิ้ง
+//   พอ _targetsLoaded กลายเป็น true ทีหลัง (แค่เปิดแท็บ Dashboard ก็พอ) บรรทัดล่างเจอ null → TypeError
+//   และ renderTodayProgress() ถูกเรียกในบล็อก try ของ submitMeal "ก่อน" showSuccess()
+//   → นักเรียนกดส่ง มื้อลง Firestore สำเร็จแล้ว แต่หน้าจอขึ้น "⚠️ ส่งไม่สำเร็จ" ไม่มีหน้าสำเร็จ ไม่มี LINE card
+//   → เขากดส่งซ้ำ = สร้างสาเหตุใหม่ของปัญหา "มื้อซ้ำ" ที่กำลังแก้อยู่พอดี
+//   กฎใหม่: ห้ามแตะโครงสร้างของ bar เด็ดขาด เขียนลงลูกเท่านั้น และกัน null ทุกตัว
 function renderDailyProgress(){
   const bar=document.getElementById('daily-progress');
   if(!bar)return;
   if(!studentTodaySubs.length){bar.style.display='none';return;}
-  // v84: ถ้ายังโหลดเป้าหมายไม่สำเร็จ ห้ามโชว์ % เทียบกับค่า default เหมือนเป็นเป้าจริง
-  if(!_targetsLoaded){
-    bar.style.display='block';
-    bar.innerHTML='<div style="padding:10px 12px;background:#FEF3C7;border:1px solid #FDE68A;border-radius:10px;font-size:12px;color:#92400E;text-align:center;font-family:\'Prompt\',sans-serif">📡 ยังโหลดเป้าหมายไม่สำเร็จ — ตัวเลขเทียบเป้ายังไม่พร้อมค่ะ</div>';
-    return;
-  }
   let tot=0;
   studentTodaySubs.forEach(s=>{tot+=getSubMacros(s).kcal;});
+  const _t=document.getElementById('dp-text'),_p=document.getElementById('dp-pct'),_f=document.getElementById('dp-fill');
+  if(!_targetsLoaded){
+    // ยังไม่รู้เป้าจริง → โชว์ยอดที่กินไป แต่ห้ามโชว์ % เทียบกับค่า default เหมือนเป็นเป้าของเขา
+    bar.style.display='block';
+    if(_t)_t.textContent=`กินไปแล้ว ${Math.round(tot)} kcal · ⚠️ ยังโหลดเป้าหมายไม่สำเร็จ`;
+    if(_p)_p.textContent='—';
+    if(_f){_f.style.width='0%';_f.style.background='#F59E0B';}
+    return;
+  }
   const target=TARGETS.kcal;
   const pct=Math.min(100,Math.round(tot/target*100));
   const color=pct>=110?'#EF4444':pct>=90?'#F97316':'#22C55E';
-  document.getElementById('dp-text').textContent=`กินไปแล้ว ${Math.round(tot)} kcal / ${target} kcal`;
-  document.getElementById('dp-pct').textContent=pct+'%';
-  document.getElementById('dp-fill').style.width=pct+'%';
-  document.getElementById('dp-fill').style.background=color;
+  if(_t)_t.textContent=`กินไปแล้ว ${Math.round(tot)} kcal / ${target} kcal`;
+  if(_p)_p.textContent=pct+'%';
+  if(_f){_f.style.width=pct+'%';_f.style.background=color;}
   bar.style.display='block';
 }
 
@@ -1964,7 +2020,11 @@ function selStudentTab(tab, el){
   document.getElementById('panel-plan').style.display=tab==='plan'?'block':'none';
   if(tab==='plan'){
     if(!savedMenusCache)loadSavedMenus().then(()=>renderPlanPanel());
-    loadPlanFromFirestore(); // loadPlanFromFirestore ทำ mealPlan=[];renderPlanPanel() เองทันที ไม่ต้อง render ซ้ำ
+    // v86 BUGFIX: loadPlanFromFirestore ทำ mealPlan=[] ทันที
+    //   นักเรียนใส่แผนครบ 5 มื้อ แล้วแตะแท็บอื่นเพื่อเช็คแคล พอกลับมา = หายเกลี้ยง ต้องกรอกใหม่หมด
+    //   (applySavedMenu อุตส่าห์ถาม hasUnsavedData ก่อน แต่ตรงนี้ล้างทิ้งเงียบๆ)
+    if(_planDirty&&mealPlan&&mealPlan.length)renderPlanPanel();
+    else loadPlanFromFirestore(); // loadPlanFromFirestore ทำ mealPlan=[];renderPlanPanel() เองทันที
   }
   document.getElementById('submit-wrap').style.display=tab==='log'?'block':'none';
   if(tab==='history')loadHistory();
@@ -1986,11 +2046,18 @@ const MUSCLE_OPTIONS=[
 
 // v58: cache บันทึกสุขภาพของแท็บนี้เอง — ไม่พึ่ง dashCache อย่างเดียวอีกต่อไป
 let _hlCache={};
+// v86: แยก 3 สถานะออกจากกัน — เดิม "ดึงไม่สำเร็จ" กับ "ไม่มีข้อมูลจริง" ถูกเก็บเป็น null เหมือนกัน
+//   ผลคือฟอร์มกลับไปเป็นค่า default (นอน 7 ชม. / 8000 ก้าว / ไม่เวท) แล้วนักเรียนกดบันทึกทับของจริงหาย
+//   _hlCache[d]=obj → มีข้อมูล · =null → รู้แน่ว่าไม่มีเอกสาร · ไม่มี key → ยังไม่รู้
+let _hlFail={},_hlFetching={};
 // BUGFIX v58: ถ้ายังไม่เคยเปิด Dashboard จะไม่มีข้อมูลเดิมเลย ฟอร์มโชว์ค่าเริ่มต้น
 // นักเรียนกดบันทึก = ทับข้อมูลจริงของวันนั้นด้วยค่าเริ่มต้น (ข้อมูลหายจริง)
 // จึงต้องไปอ่านของวันนั้นมาเองแล้ววาดใหม่
-async function _fetchHealthDay(date){
+async function _fetchHealthDay(date,_force){
   if(!user||!user.userId)return;
+  if(_hlFetching[date])return;              // v86: กันยิงซ้อน
+  if(_hlFail[date]&&!_force)return;         // v86: เคยล้มแล้ว รอให้นักเรียนกดลองใหม่เอง (กันลูป)
+  _hlFetching[date]=1;
   try{
     const ref=db.collection('healthLogs').doc(user.userId).collection('days').doc(date);
     let d=await Promise.race([ref.get().catch(()=>null),new Promise(r=>setTimeout(()=>r(null),6000))]);
@@ -2002,15 +2069,35 @@ async function _fetchHealthDay(date){
       // เดิมถ้าดึงข้อมูลช้า 6 วิ แล้ววาดใหม่ ตัวเลขที่นักเรียนเพิ่งกรอกจะหายทั้งหมด
       const _ae=document.activeElement;
       const _typing=_ae&&_ae.closest&&_ae.closest('#health-log-content');
+      delete _hlFail[date];
       if(studentTab==='health'&&selectedDate===date&&!_typing)renderHealthLog(); // วาดใหม่ด้วยค่าจริง
-    }else _hlCache[date]=null;
-  }catch(_){}
+      // v86: ถ้ากำลังพิมพ์อยู่จึงวาดไม่ได้ ก็ต้องบอกให้รู้ ไม่ใช่เงียบแล้วปล่อยเขากดบันทึกทับ
+      else if(studentTab==='health'&&selectedDate===date&&_typing){
+        const _b=document.getElementById('hl-stale-bar');
+        if(_b){_b.style.display='block';_b.innerHTML='📥 โหลดข้อมูลเดิมของวันนี้มาแล้ว แต่ยังไม่ได้ใส่ให้เพราะคุณกำลังกรอกอยู่ <button onclick="renderHealthLog()" style="margin-left:6px;padding:3px 10px;border:none;border-radius:7px;background:#F59E0B;color:#fff;font-size:11px;font-family:\'Prompt\',sans-serif;cursor:pointer">ใส่ให้เลย</button>';}
+      }
+    }else if(d){
+      _hlCache[date]=null;delete _hlFail[date];   // v86: เอกสารไม่มีอยู่จริง — รู้แน่ชัด
+    }else{
+      // v86: ดึงไม่สำเร็จ (timeout / error) — ห้ามจำว่า "ไม่มีข้อมูล" เด็ดขาด
+      delete _hlCache[date];_hlFail[date]=1;
+      if(studentTab==='health'&&selectedDate===date)renderHealthLog();
+    }
+  }catch(_){delete _hlCache[date];_hlFail[date]=1;}
+  finally{delete _hlFetching[date];}
+}
+function retryHealthDay(){
+  delete _hlFail[selectedDate];
+  _fetchHealthDay(selectedDate,true);
+  const _b=document.getElementById('hl-stale-bar');
+  if(_b)_b.innerHTML='⏳ กำลังโหลดข้อมูลเดิม...';
 }
 function renderHealthLog(){
   {
     let entry=(dashCache&&dashCache[3])?dashCache[3][selectedDate]:undefined;
     if(entry===undefined)entry=_hlCache[selectedDate];
-    if(entry===undefined){_hlCache[selectedDate]=null;_fetchHealthDay(selectedDate);} // ยังไม่รู้ → ไปดึงมา แล้ววาดซ้ำ
+    // v86: เดิมตั้ง null ทันที = ประกาศว่า "ไม่มีข้อมูล" ทั้งที่ยังไม่ได้ดึงเลย
+    if(entry===undefined)_fetchHealthDay(selectedDate); // ยังไม่รู้ → ไปดึงมา แล้ววาดซ้ำ
     entry=entry||null;
     if(entry){
       hlSleep=typeof entry.sleep==='number'?entry.sleep:7.0;
@@ -2030,6 +2117,7 @@ function renderHealthLog(){
       <div style="font-size:13px;font-weight:600;color:var(--text)">📅 ${formatDateTH(selectedDate)}</div>
       <div id="hl-saved-msg" class="hl-saved-msg" style="display:none">✅ บันทึกแล้ว!</div>
     </div>
+    <div id="hl-stale-bar" style="display:${_hlFail[selectedDate]?'block':'none'};margin:8px 12px 0;padding:9px 12px;background:#FEF3C7;border:1px solid #FDE68A;border-radius:10px;font-size:11.5px;color:#92400E;line-height:1.6">${_hlFail[selectedDate]?'📡 ยังโหลดข้อมูลเดิมของวันนี้ไม่สำเร็จ — ตัวเลขด้านล่างเป็นค่าเริ่มต้น ถ้าวันนี้เคยบันทึกไว้แล้ว การกดบันทึกจะทับของเดิม <button onclick="retryHealthDay()" style="margin-left:6px;padding:3px 10px;border:none;border-radius:7px;background:#F59E0B;color:#fff;font-size:11px;font-family:\'Prompt\',sans-serif;cursor:pointer">🔄 ลองใหม่</button>':''}</div>
 
     <!-- SLEEP -->
     <div class="hl-card">
@@ -2217,6 +2305,8 @@ async function saveHealthLog(){
   try{
     // W1: race 6s — timeout = คิวไว้ในเครื่องแล้ว จะซิงค์เอง ถือเป็นสำเร็จ + W3 backup
     const _hlDate=selectedDate; // BUGFIX v63.1: จับวันไว้ตั้งแต่ต้น — ถ้านักเรียนเลื่อนเปลี่ยนวันระหว่างรอ 6 วิ
+    // v86: รู้ตัวว่ายังโหลดของเดิมไม่สำเร็จ → ต้องถามก่อน ไม่ใช่ทับเงียบๆ
+    if(_hlFail[_hlDate]&&!await askConfirm('ยังโหลดข้อมูลสุขภาพเดิมของวันนี้ไม่สำเร็จค่ะ\n\nถ้าวันนี้เคยบันทึกไว้แล้ว กดบันทึกตอนนี้จะทับของเดิมทั้งหมด',{icon:'📡',okText:'บันทึกทับ',cancelText:'ไม่บันทึก'}))return;
     // ของเดิมจะเอาข้อมูลวัน A ไปแปะ cache ของวัน B แล้วบันทึกครั้งถัดไปจะเขียนทับวัน B ด้วยค่าของวัน A
     const _hlPath=`healthLogs/${user.userId}/days/${_hlDate}`;
     const _hlBase={sleep:hlSleep, stress:hlStress, steps:hlSteps, cardio:hlCardio,
@@ -2232,6 +2322,7 @@ async function saveHealthLog(){
     const _hlSaved={sleep:hlSleep,stress:hlStress,steps:hlSteps,cardio:hlCardio,muscleGroup:hlMuscle,weightMin:hlMuscle==='none'?0:hlWeightMin};
     if(dashCache&&dashCache[3])dashCache[3][_hlDate]=_hlSaved;
     _hlCache[_hlDate]=_hlSaved; // v58: จำไว้ในแท็บนี้ด้วย สลับวันไปกลับจะได้ไม่ต้องดึงใหม่
+    delete _hlFail[_hlDate]; // v86: บันทึกแล้ว = รู้ค่าปัจจุบันแน่นอน ไม่ต้องเตือนอีก
     showToast(_r==='timeout'?'📡 เน็ตช้า — บันทึกไว้ในเครื่องแล้ว จะซิงค์อัตโนมัติค่ะ':'✅ บันทึกข้อมูลสุขภาพแล้วค่ะ',_r==='timeout'?4000:2500);
     if(_r!=='timeout')sendHealthLogCard(); // F3: ส่ง LINE card (ข้ามตอนเน็ตช้า — LINE ก็ส่งไม่ได้อยู่ดี)
   }catch(e){showToast('⚠️ บันทึกไม่ได้: '+e.message,4000);} // W2: toast แทน alert
@@ -3043,6 +3134,11 @@ async function _callGeminiAI(){
     const t=aiParsedData.total||{};
     if((t.kcal||0)>3000||(t.c||0)>400||(t.p||0)>300||(t.f||0)>300||(t.kcal||0)<0) // v76: เดิมมีแต่ขอบบน ค่าติดลบเล็ดลอด
       throw new Error('ค่าสารอาหารผิดปกติ (AI ให้ค่าเกินจริง) กรุณาลองพิมพ์ใหม่ให้ละเอียดขึ้น');
+    // v86: items ว่าง → total=0 ทุกช่อง ผ่าน sanity check ทุกข้อ แล้วถูกเก็บ cache 30 วัน
+    //   นักเรียนกด ✨ ใหม่กี่ครั้งก็ได้ "ลบครบทุกรายการแล้วค่ะ" ทันที (cache hit ไม่ยิง API ซ้ำ)
+    //   = เมนูนั้นบันทึกไม่ได้อีกเลย 30 วัน ปิดเปิดแอปก็ไม่หาย
+    if(!Array.isArray(aiParsedData.items)||!aiParsedData.items.length)
+      throw new Error('AI ยังแยกรายการอาหารไม่ได้ ลองพิมพ์ให้ละเอียดขึ้นนะคะ (เช่น "ข้าวสวย 2 ทัพพี ไก่ย่าง 1 ชิ้น")');
     aiCacheSet(_cacheKey,aiParsedData); // เก็บ cache หลังผ่าน sanity check แล้วเท่านั้น
     renderAIResult(aiParsedData); // ← นักเรียนเห็นผลตรงนี้แล้ว ที่ทำหลังจากนี้ไม่กระทบเวลารอ
     _logDbMiss((aiParsedData.items||[]).filter(it=>it._src!=='db').map(it=>it.name)); // v62: จดไว้ว่าอะไรยังไม่มีใน DB
@@ -3192,6 +3288,13 @@ function deleteAIItem(idx){
   recalcAITotal(); // FIX: เดิมลบรายการแล้วแคลรวมไม่ลด — ลืมคำนวณ total ใหม่
   renderAIResult(aiParsedData);
 }
+// v86: "150 กรัม" กับ "150g" คือหน่วยเดียวกัน — เดิมเทียบ string ตรงตัวจึงถือว่าคนละหน่วย
+function _uNorm(u){
+  const s=(u||'').toLowerCase().trim();
+  if(s==='g'||s==='ก.'||s==='กรัม')return 'g';
+  if(s==='ml')return 'ml';
+  return s;
+}
 function _aiExtractUnit(s){
   // คืนหน่วยจากข้อความ เช่น "150 กรัม"→"กรัม", "2 ทัพพี"→"ทัพพี", "1 ฝ่ามือ"→"ฝ่ามือ"
   const m=(s||'').match(/(กรัม|ก\.|g\b|ml|ทัพพี|ชาม|จาน|ลูก|ฟอง|ชิ้น|ฝ่ามือ|ถ้วย|ขวด|ตัว|แผ่น|ฝัก)/i);
@@ -3208,14 +3311,25 @@ function updateAIAmount(idx,val){
   // คำนวณ scale เฉพาะเมื่อหน่วยเหมือนกัน — ป้องกัน "1 ฝ่ามือ"→"150 กรัม" สเกล×150
   const newNum=parseFloat((val||'').match(/[\d.]+/)?.[0])||0;
   const newUnit=_aiExtractUnit(val||'');
-  const sameUnit=newUnit===it._orig.unit||newUnit===''||it._orig.unit==='';
+  // v86 BUGFIX: เดิม `||newUnit===''` เปิดรูไว้เอง
+  //   AI ตอบ "1 ฝ่ามือ" (P28) นักเรียนลบทิ้งแล้วพิมพ์ "150" เฉยๆ (ตั้งใจว่า 150 กรัม)
+  //   → newUnit='' → sameUnit=true → scale=150 → P 4,200 g ≈ 17,000 kcal เข้ามื้อ
+  //   และ sanity check อยู่ใน _callGeminiAI เท่านั้น ไม่ครอบการแก้มือ
+  const sameUnit=_uNorm(newUnit)===_uNorm(it._orig.unit);
+  let _scaled=false;
   if(it._orig.num>0&&newNum>0&&sameUnit){
     const scale=newNum/it._orig.num;
-    it.c=Math.round(it._orig.c*scale*10)/10;
-    it.p=Math.round(it._orig.p*scale*10)/10;
-    it.f=Math.round(it._orig.f*scale*10)/10;
-    it.a=Math.round((it._orig.a||0)*scale*10)/10; // v79: แก้ "1 แก้ว"→"2 แก้ว" แอลกอฮอล์ต้องสเกลตาม
+    const _nc=Math.round(it._orig.c*scale*10)/10;
+    const _np=Math.round(it._orig.p*scale*10)/10;
+    const _nf=Math.round(it._orig.f*scale*10)/10;
+    const _na=Math.round((it._orig.a||0)*scale*10)/10; // v79: แก้ "1 แก้ว"→"2 แก้ว" แอลกอฮอล์ต้องสเกลตาม
+    if(_nc>400||_np>300||_nf>300||_na>200){
+      showToast('⚠️ ปริมาณที่กรอกทำให้สารอาหารเกินจริงมาก — เช็คหน่วยอีกครั้งนะคะ (ยังไม่เปลี่ยนให้)',4500);
+      return;
+    }
+    it.c=_nc;it.p=_np;it.f=_nf;it.a=_na;
     it.kcal=macroKcal(it.c,it.p,it.f,it.a);
+    _scaled=true;
   }
   it.amount=val;
   // v71.1 ลบเฉพาะบรรทัดที่ตรงกับรายการที่เพิ่งแก้ — เดิมล้างทั้งกล่อง รายการอื่นที่ยังไม่บอกปริมาณเลยเงียบไปด้วย
@@ -3225,7 +3339,11 @@ function updateAIAmount(idx,val){
   }
   recalcAITotal();
   renderAIResult(aiParsedData);
-  showToast('✅ ปรับปริมาณแล้ว — คำนวณสารอาหารใหม่ให้อัตโนมัติค่ะ',2200); // UX: บอกชัดว่าเซฟแล้ว
+  // v86: เดิม toast นี้เด้งทุกกรณีแม้ตอนที่ไม่ได้คำนวณให้ — หน้าจอเขียน "200g" แต่มาโครยังเป็นของ 100 กรัม
+  showToast(_scaled
+    ?'✅ ปรับปริมาณแล้ว — คำนวณสารอาหารใหม่ให้อัตโนมัติค่ะ'
+    :'📝 บันทึกข้อความปริมาณแล้ว — แต่หน่วยไม่ตรงกับเดิม ระบบไม่ได้คำนวณใหม่ให้ ถ้าตัวเลขไม่ตรง แก้ C/P/F เองได้เลยค่ะ',
+    _scaled?2200:5000);
 }
 function recalcAITotal(){
   if(!aiParsedData)return;
@@ -3393,9 +3511,13 @@ async function deleteSavedMenu(id){
       refreshAllChips();
       showToast('📡 เน็ตช้า — ลบไว้ในเครื่องแล้ว จะซิงค์อัตโนมัติค่ะ',4000);
     }else{
-      savedMenusCache=null;
-      await loadSavedMenus();
+      // v86 BUGFIX: เดิมตั้ง null แล้ว await loadSavedMenus() ซึ่งมีทางออกที่ไม่ assign อะไรเลย
+      //   → ค้าง null = ชิปเมนูโปรดหายทั้งแถบทั้ง 3 โหมด และ _persistMenus ไม่ถูกเรียก
+      //   snapshot ใน localStorage จึงยังมีใบที่เพิ่งลบ → พรุ่งนี้เปิดแอปมันฟื้นคืนชีพ
+      //   ลบที่ server สำเร็จแล้ว → ลบในเครื่องเลย ถูกต้องกว่าและไม่มีทางค้าง null
+      if(savedMenusCache){savedMenusCache=savedMenusCache.filter(m=>m.id!==id);_persistMenus();}
       refreshAllChips();
+      loadSavedMenus().then(()=>refreshAllChips()).catch(()=>{}); // ซิงค์เบื้องหลัง ไม่บล็อกจอ
     }
   }catch(e){showToast('⚠️ ลบไม่สำเร็จ: '+e.message,4000);} // W2
 }
@@ -3450,9 +3572,12 @@ async function saveCurrentMenu(){
       refreshAllChips();
       showToast('📡 เน็ตช้า — บันทึกเมนูไว้ในเครื่องแล้ว จะซิงค์อัตโนมัติค่ะ',4000);
     }else{
-      savedMenusCache=null;
-      await loadSavedMenus();
+      // v86: เหตุผลเดียวกับ deleteSavedMenu — ห้ามตั้ง null ทิ้งไว้
+      if(savedMenusCache)savedMenusCache.unshift({id:_ref.id,...data,createdAt:{seconds:Math.floor(Date.now()/1000)}});
+      else savedMenusCache=[{id:_ref.id,...data,createdAt:{seconds:Math.floor(Date.now()/1000)}}];
+      _persistMenus();
       refreshAllChips();
+      loadSavedMenus().then(()=>refreshAllChips()).catch(()=>{});
       showToast('✅ บันทึกเมนูโปรดแล้วค่ะ');
     }
     const sb=document.getElementById('btn-save-success');if(sb)sb.style.display='none';
@@ -3480,11 +3605,18 @@ async function applySavedMenu(id){
     calcLabel();
   }else if(menu.mode==='hand'&&menu.handData){
     const hd=menu.handData;
-    carbSlots=hd.carbSlots.map((s,i)=>({id:i,density:s.density,qty:s.qty}));carbSlotNextId=carbSlots.length;
-    protQty=hd.protein;protType=hd.protType||'lean';
+    // v86 BUGFIX: เมนูโปรดที่บันทึกก่อนเปลี่ยนมาใช้ carbSlots ไม่มี field นี้ → .map throw กลาง async ที่ไม่มี catch
+    //   นักเรียนแตะชิปแล้ว "ไม่มีอะไรเกิดขึ้นเลย" กดกี่ทีก็เท่าเดิม ไม่มี error ให้เห็น
+    //   ทุกจุดอื่นในไฟล์กัน schema เก่าไว้หมดแล้ว (มี fallback ไป hd.carbDensity/hd.carb) มีแต่ตรงนี้ที่ลืม
+    const _cs=Array.isArray(hd.carbSlots)?hd.carbSlots
+      :(hd.carbDensity!==undefined?[{density:hd.carbDensity,qty:hd.carb||0}]:[]);
+    carbSlots=_cs.map((s,i)=>({id:i,density:(s&&s.density)||'normal',qty:(s&&s.qty)||0}));
+    if(!carbSlots.length)carbSlots=[{id:0,density:'normal',qty:0}];
+    carbSlotNextId=carbSlots.length;
+    protQty=typeof hd.protein==='number'?hd.protein:1;protType=hd.protType||'lean';
     eggWhole=hd.eggWhole||0;eggWhite=hd.eggWhite||0;
     cookMethod=hd.cookMethod||'none';visibleFat=hd.visibleFat||0;avoQty=hd.avo||0;
-    fruitCounts={...hd.fruits};
+    fruitCounts={...(hd.fruits||{})};
     FRUIT_ITEMS.forEach(f=>{
       fruitCounts[f.id]=fruitCounts[f.id]||0;
       const el=document.getElementById('fc-'+f.id);if(el)el.textContent=fruitCounts[f.id];
@@ -4312,7 +4444,11 @@ function renderCoach(){
     const groups={},order=[];
     list.forEach(s=>{if(!groups[s.userId]){groups[s.userId]=[];order.push(s.userId);}groups[s.userId].push(s);});
     // เรียงกลุ่ม: คนที่ส่งล่าสุดอยู่บนสุด
-    order.sort((a,b)=>Math.max(...groups[b].map(s=>s.createdAt?.seconds||0))-Math.max(...groups[a].map(s=>s.createdAt?.seconds||0)));
+    // v86: เดิม comparator คำนวณ Math.max(...map()) ใหม่ "ทุกครั้งที่เปรียบเทียบ" → O(g·log g·k)
+    //   ที่ 100 กลุ่ม × 8 มื้อ ≈ 10,600 array ชั่วคราวต่อการกดปุ่ม 1 ครั้ง — คำนวณครั้งเดียวเก็บไว้พอ
+    const _mx={};
+    order.forEach(uid=>{let m=0;groups[uid].forEach(s=>{const t=s.createdAt?.seconds||0;if(t>m)m=t;});_mx[uid]=m;});
+    order.sort((a,b)=>_mx[b]-_mx[a]);
     // v55: จำกัดจำนวนกลุ่มที่วาดต่อรอบ — โค้ชหายไปหลายวันอาจมีค้างเป็นร้อยรายการ วาดทีเดียวเครื่องค้าง
     const _ordShown=order.slice(0,_doneShown);
     container.innerHTML=_ordShown.map(uid=>{
@@ -4875,9 +5011,10 @@ function renderPlanPanel(){
   if(!mealPlanDate)mealPlanDate=tomorrowStr();
   const container=document.getElementById('panel-plan');
   if(!container)return;
-  const totC=mealPlan.reduce((a,x)=>a+x.c,0);
-  const totP=mealPlan.reduce((a,x)=>a+x.p,0);
-  const totF=mealPlan.reduce((a,x)=>a+x.f,0);
+  // v86: โหมด "✍️ กรอก" รับทศนิยม → เดิมได้ "C 30.299999999999997/150g"
+  const totC=Math.round(mealPlan.reduce((a,x)=>a+(+x.c||0),0)*10)/10;
+  const totP=Math.round(mealPlan.reduce((a,x)=>a+(+x.p||0),0)*10)/10;
+  const totF=Math.round(mealPlan.reduce((a,x)=>a+(+x.f||0),0)*10)/10;
   // v83: รายการที่มี kcal ติดมา (เมนูโปรดที่มีแอลกอฮอล์/แคลจากซอง) ใช้เลขนั้น ที่เหลือคิด 4·4·9 ตามเดิม
   const totK=Math.round(mealPlan.reduce((a,x)=>a+(x.kcal??macroKcal(x.c,x.p,x.f,0)),0));
   const pct=(v,max)=>Math.min(100,Math.round(v/max*100));
@@ -4908,7 +5045,7 @@ function renderPlanPanel(){
         <div style="display:flex;justify-content:space-between;align-items:flex-start">
           <div>
             <div style="font-size:13px;font-weight:600;color:var(--text)">${item.meal?`<span style="font-size:10px;background:#F3F4F6;color:var(--gray);border-radius:6px;padding:1px 6px;margin-right:5px">${item.meal}</span>`:''}${escHtml(item.name||'ไม่ระบุชื่อ')}</div>
-            <div style="font-size:11px;color:var(--gray);margin-top:2px">C ${item.c}g · P ${item.p}g · F ${item.f}g · ⚡${Math.round(item.c*4+item.p*4+item.f*9)} kcal</div>
+            <div style="font-size:11px;color:var(--gray);margin-top:2px">C ${item.c}g · P ${item.p}g · F ${item.f}g · ⚡${Math.round(item.kcal??macroKcal(item.c,item.p,item.f,0))} kcal</div>
           </div>
           <button onclick="removePlanItem(${i})" style="border:none;background:none;color:#9CA3AF;font-size:16px;cursor:pointer;padding:0 4px">✕</button>
         </div>
@@ -5230,7 +5367,7 @@ function addPlanItem(){
     c=planAIData.c;p=planAIData.p;f=planAIData.f;autoName=planAIData.name||'';
   }
   const name=document.getElementById('plan-name')?.value.trim()||autoName||'อาหาร';
-  mealPlan.push({name,meal,c,p,f,mode:planAddMode});
+  mealPlan.push({name,meal,c,p,f,mode:planAddMode});_planDirty=true; // v86
   // reset state
   planHandCarbQty=1.5;planHandProtQty=1.0;planCookMethod='none';planAIData=null;
   planHandCarbDensity='normal';planHandProtType='lean';planVisibleFat=0;
@@ -5238,7 +5375,7 @@ function addPlanItem(){
   FRUIT_ITEMS.forEach(f=>planFruitCounts[f.id]=0);
   renderPlanPanel();
 }
-function removePlanItem(i){mealPlan.splice(i,1);renderPlanPanel();}
+function removePlanItem(i){mealPlan.splice(i,1);_planDirty=true;renderPlanPanel();} // v86
 function addSavedMenuToPlan(id){
   const menu=(savedMenusCache||[]).find(m=>m.id===id);
   if(!menu)return;
@@ -5250,7 +5387,7 @@ function addSavedMenuToPlan(id){
   //   และเมนูที่เป็นเหล้าเพียวๆ (C0 P0 F0) โดน guard ตีตกว่า "ไม่มีข้อมูล macro" ทั้งที่มี 98 kcal
   const k=Math.round(menu.total?.kcal||0);
   if(!c&&!p&&!f&&!k){showToast('เมนูนี้ไม่มีข้อมูล macro ค่ะ');return;}
-  mealPlan.push({name:menu.name||'เมนู',c,p,f,mode:'saved',...(k>0?{kcal:k}:{})});
+  mealPlan.push({name:menu.name||'เมนู',c,p,f,mode:'saved',...(k>0?{kcal:k}:{})});_planDirty=true; // v86
   showToast('เพิ่ม '+escHtml(menu.name||'เมนู')+' แล้วค่ะ ✓');
   renderPlanPanel();
 }
@@ -5293,7 +5430,7 @@ async function loadPlanFromFirestore(){
   // v74 BUGFIX: ล็อกวันที่ที่กำลังโหลด — ผู้ใช้เปลี่ยนวันเร็วๆ คำตอบของวันเก่าจะมาถึงทีหลัง
   // เดิมไม่เช็ค → รายการของวันเก่าทับวันใหม่ ทั้งที่ช่องวันที่โชว์วันใหม่ → กดบันทึก = เขียนผิดวัน
   const _forDate=mealPlanDate;
-  mealPlan=[];renderPlanPanel(); // clear ทันทีก่อน query — ไม่ให้เห็นข้อมูลวันเก่า
+  mealPlan=[];_planDirty=false;renderPlanPanel(); // clear ทันทีก่อน query — ไม่ให้เห็นข้อมูลวันเก่า (v86: ล้างธง dirty ด้วย)
   const _ccHide=()=>{const cc=document.getElementById('plan-coach-comment');if(cc)cc.style.display='none';};
   _ccHide(); // v74: ซ่อนคอมเมนต์โค้ชของวันก่อนไว้ก่อน แล้วค่อยโชว์ถ้าวันใหม่มีจริง
   try{
@@ -5836,9 +5973,12 @@ function buildCard(s){
   const commentBadge=s.coachComment&&s.status!=='pending'?`<div class="hist-coach-comment" style="background:#F0FDF4;color:#065F46;margin-top:6px">💬 ${escHtml(s.coachComment)}</div>`:'';
   // BUGFIX v58: เดิมไม่มีปุ่มไหนเปิดแผง "อนุมัติ + ข้อความ" ได้เลย (approveCard ถูกเรียกจากปุ่มยกเลิก
   // ที่อยู่ข้างในแผงตัวเองเท่านั้น) → โค้ชส่งข้อความชมนักเรียนตอนอนุมัติไม่ได้ ทั้งที่มีระบบรออยู่ครบ
-  if(s.status==='pending')actions=`<div class="card-actions"><button class="btn-approve" onclick="doApproveQuiet('${s.id}')">✅ อนุมัติ</button><button class="btn-approve" style="background:#ECFDF5;color:#065F46;border:1px solid #A7F3D0" onclick="approveCard('${s.id}')">${showApprove?'✕ ปิด':'💬 อนุมัติ + ข้อความ'}</button><button class="btn-correct" onclick="toggleCorr('${s.id}')">${showCorr?'✕ ยกเลิก':'✏️ แก้ไข'}</button></div>`;
+  // v85: ปุ่มลบของโค้ช — เดิมมีแต่ฝั่งนักเรียนที่ลบเองได้ (แท็บประวัติ)
+  //   นักเรียนที่ประวัติโหลดไม่ขึ้นจะกดส่งซ้ำ แล้วก็ลบเองไม่ได้เพราะเข้าหน้าประวัติไม่ได้ → โค้ชต้องลบให้
+  const _delBtn=`<button class="btn-correct" style="flex:0 0 auto;background:#FEF2F2;color:#B91C1C;border:1px solid #FECACA;padding:8px 11px" onclick="coachDeleteSub('${s.id}')" title="ลบมื้อนี้">🗑️</button>`;
+  if(s.status==='pending')actions=`<div class="card-actions"><button class="btn-approve" onclick="doApproveQuiet('${s.id}')">✅ อนุมัติ</button><button class="btn-approve" style="background:#ECFDF5;color:#065F46;border:1px solid #A7F3D0" onclick="approveCard('${s.id}')">${showApprove?'✕ ปิด':'💬 อนุมัติ + ข้อความ'}</button><button class="btn-correct" onclick="toggleCorr('${s.id}')">${showCorr?'✕ ยกเลิก':'✏️ แก้ไข'}</button>${_delBtn}</div>`;
   // F1: การ์ดที่อนุมัติ/แก้ไปแล้ว → โค้ชกลับมาแก้ใหม่ได้ (บันทึกแล้วส่ง Card อัปเดตให้นักเรียน)
-  else if(s.status==='approved'||s.status==='corrected')actions=`<div class="card-actions"><button class="btn-correct" onclick="toggleCorr('${s.id}')" style="flex:1">${showCorr?'✕ ยกเลิก':'✏️ แก้ไขการอนุมัติ'}</button></div>`;
+  else if(s.status==='approved'||s.status==='corrected')actions=`<div class="card-actions"><button class="btn-correct" onclick="toggleCorr('${s.id}')" style="flex:1">${showCorr?'✕ ยกเลิก':'✏️ แก้ไขการอนุมัติ'}</button>${_delBtn}</div>`;
   const corrPanel=showCorr?buildCorrPanel(s,cs):'';
   const testBadge=s.isTest?'<span style="background:#EDE9FE;color:#7C3AED;border-radius:6px;padding:1px 7px;font-size:11px;margin-left:4px">🧪 ทดสอบ</span>':'';
   return`<div class="card" id="card-${s.id}"><div class="card-header">${avatarHtml}<div><div class="card-name">${escHtml(s.displayName||'นักเรียน')}<span class="mode-tag ${s.mode}">${modeLabel}</span>${testBadge}</div><div class="card-meta">${dateLabel}มื้อ${s.meal} &nbsp;${statusBadge}</div></div><div class="card-time">${timeStr}</div></div>${photoHtml}<div class="card-body"><div class="est-chips">${chips}</div>${macroBar}${corrNote}${actions}</div>${corrPanel}</div>`;
@@ -6223,6 +6363,46 @@ async function doApprove(id){
     showToast(_r==='timeout'?'📡 เน็ตช้า — อนุมัติไว้ในเครื่องแล้ว Card จะส่งเมื่อนักเรียนเปิดแอปค่ะ':'✅ อนุมัติแล้ว — Card จะส่งเมื่อนักเรียนเปิดแอปค่ะ',_r==='timeout'?4500:2800);
   }catch(e){showToast('⚠️ ไม่สำเร็จ: '+e.message,4000);} // v65: alert ถูก LINE บล็อกได้ = โค้ชไม่รู้ว่าพลาด
   finally{_approveInProgress.delete(id);} // M1
+}
+// ═════ v85: โค้ชลบมื้อซ้ำให้นักเรียนได้ ═════
+// ก่อนลบจะสำเนาเอกสารทั้งใบไปไว้ที่ deletedSubs ก่อนเสมอ — กดผิดแล้วยังกู้คืนได้จาก Firebase Console
+const _delInProgress=new Set();
+async function coachDeleteSub(id){
+  if(_delInProgress.has(id))return;
+  const s=allSubs.find(x=>x.id===id);
+  if(!s){showToast('ไม่พบรายการนี้แล้วค่ะ');return;}
+  const m=getSubMacros(s);
+  const _d=s.mealDate?formatDateTH(s.mealDate):'-';
+  const _dup=allSubs.filter(x=>x.userId===s.userId&&x.mealDate===s.mealDate&&x.meal==s.meal).length;
+  const _dupLine=_dup>1?`\n\n⚠️ มื้อนี้มี ${_dup} รายการในวันเดียวกัน — ตรวจให้แน่ใจว่ากำลังลบใบที่ซ้ำ`:'';
+  const _ok=await askConfirm(
+    `ลบมื้อนี้ถาวร?\n\n${s.displayName||'นักเรียน'} · ${_d} มื้อ${s.meal}\nC ${m.c} · P ${m.p} · F ${m.f} → ⚡ ${m.kcal} kcal${_dupLine}\n\nยอดรวมของวันนั้นจะเปลี่ยนทันที`,
+    {icon:'🗑️',okText:'ลบถาวร',cancelText:'ไม่ลบ',danger:true});
+  if(!_ok)return;
+  // v86: อ่านใหม่หลังกล่องยืนยัน — ระหว่างที่กล่องเปิดค้าง onSnapshot เขียนทับ allSubs ทั้งชุดได้
+  //   เดิมสำเนาที่เก็บกับตัวเลขที่โชว์เป็นค่า "ก่อนโค้ชอ่าน" แต่ตัวที่ลบคือค่าใหม่ → กู้คืนมาได้ค่าผิด
+  const _s2=allSubs.find(x=>x.id===id);
+  if(!_s2){showToast('รายการนี้ถูกลบ/เปลี่ยนไปแล้วค่ะ');return;}
+  _delInProgress.add(id);
+  _markCoachSelfWrite(id); // กัน snapshot วาดใบที่เพิ่งลบกลับมา
+  try{
+    // สำรองก่อนลบ — ห้ามลบทิ้งโดยไม่มีทางกู้
+    const _bk={..._s2};delete _bk.id;delete _bk.photoBase64;
+    const _bkRes=await _fsWrite(db.collection('deletedSubs').doc(id).set({
+      ..._bk,origId:id,deletedBy:(user&&user.userId)||null,deletedByName:(user&&user.displayName)||'',
+      deletedAt:firebase.firestore.FieldValue.serverTimestamp()
+    }),4000);
+    // v86: เดิมไม่เช็คผลเลย แล้วลบต่อทันที + toast บอกว่า "กู้คืนได้"
+    //   ถ้าสำรองยังไม่ถึง server (เน็ตช้า) แล้วนักเรียนปิดแอปไป = ลบทิ้งโดยไม่มีสำเนา
+    if(_bkRes!=='ok'){showToast('⚠️ สำรองข้อมูลยังไม่สำเร็จ (เน็ตช้า) — ยังไม่ลบเพื่อความปลอดภัยค่ะ ลองใหม่อีกครั้งนะคะ',5000);return;}
+    const _r=await _fsWrite(db.collection('submissions').doc(id).delete()); // W1
+    const _i=allSubs.findIndex(x=>x.id===id);if(_i>=0)allSubs.splice(_i,1);
+    if(cState[id])delete cState[id];
+    _justActedIds.delete(id);
+    renderCoach();
+    showToast(_r==='timeout'?'📡 เน็ตช้า — ลบไว้ในเครื่องแล้ว จะซิงค์อัตโนมัติค่ะ':'🗑️ ลบแล้วค่ะ (สำรองไว้ที่ deletedSubs กู้คืนได้)',_r==='timeout'?4000:3200);
+  }catch(e){showToast('⚠️ ลบไม่ได้: '+e.message,4000);}
+  finally{_delInProgress.delete(id);}
 }
 const _corrInProgress=new Set(); // M2: ป้องกัน double-tap correction
 async function sendCorrection(id,action='save'){
