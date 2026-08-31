@@ -305,6 +305,10 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
 .btn-submit{width:100%;padding:14px;background:var(--primary);color:white;border:none;border-radius:12px;font-size:16px;font-weight:700;font-family:'Prompt',sans-serif;cursor:pointer;transition:.15s}
 .btn-submit:active{background:var(--primary-dark)}
 .btn-submit:disabled{background:#D1D5DB;cursor:not-allowed}
+/* v88: ปุ่ม ⭐ เมนูโปรด อยู่แถวเดียวกับปุ่มส่ง — ความสูงแถบเท่าเดิม ไม่ต้องแก้ padding-bottom */
+.submit-row{display:flex;gap:8px;align-items:stretch}
+.submit-row .btn-submit{flex:1;width:auto;min-width:0}
+.submit-row .btn-save-menu{flex:0 0 auto;width:auto;margin-top:0;padding:11px 12px;font-size:12px;white-space:nowrap}
 
 /* SUCCESS */
 #success-screen{display:none;min-height:100vh;align-items:center;justify-content:center;flex-direction:column;padding:32px;text-align:center;background:white}
@@ -787,7 +791,6 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
           <textarea class="ai-food-textarea" id="ai-food-input" rows="5" maxlength="800" placeholder="ข้าวกล้อง 2 ทัพพี&#10;ไข่ดาว 1 ฟอง&#10;ผัดผักบุ้งครึ่งจาน&#10;นมจืด 1 กล่อง"></textarea>
           <button class="ai-calc-btn" id="ai-calc-btn" onclick="callGeminiAI()">✨ ให้ AI คำนวณ</button>
           <div id="ai-result-area" style="display:none"></div>
-          <button class="btn-save-menu" id="btn-save-weigh" style="display:none" onclick="saveCurrentMenu()">⭐ บันทึกเป็นเมนูโปรด</button>
         </div>
       </div>
     </div>
@@ -823,7 +826,12 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
 
   <!-- SUBMIT (log mode only) -->
   <div class="submit-area" id="submit-wrap">
-    <button class="btn-submit" id="btn-submit" onclick="submitMeal()">ส่งให้โค้ชตรวจ ✓</button>
+    <div class="submit-row">
+      <!-- v88: บันทึกเมนูโปรดได้เลยโดยไม่ต้องส่ง log — เตรียมเมนูไว้ล่วงหน้าได้ทั้ง 3 โหมด
+           เดิมทางเข้าเดียวคือ #btn-save-success ซึ่งโผล่หลัง submitMeal สำเร็จเท่านั้น -->
+      <button class="btn-save-menu" id="btn-save-prep" onclick="saveCurrentMenu()" title="บันทึกเป็นเมนูโปรดโดยไม่ต้องส่งให้โค้ช">⭐ เมนูโปรด</button>
+      <button class="btn-submit" id="btn-submit" onclick="submitMeal()">ส่งให้โค้ชตรวจ ✓</button>
+    </div>
   </div>
 
   <!-- STUDENT BOTTOM NAV -->
@@ -952,7 +960,11 @@ db.enablePersistence({synchronizeTabs:true}).catch(e=>{console.warn('Persistence
 // ===== AUTO ERROR REPORTING → Firestore errorLogs =====
 // JS error ที่เกิดบนเครื่องลูกค้าจะถูกส่งเข้า collection 'errorLogs' อัตโนมัติ
 // ดูได้ใน Firebase Console → Firestore → errorLogs (เรียงตาม at ล่าสุด)
-const APP_VERSION='v87-2026-08-31'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
+// v88: เพดานเมนูโปรด — ขยายจาก 12 เพราะตอนนี้เตรียมเมนูล่วงหน้าได้โดยไม่ต้องส่ง log จึงเต็มเร็วกว่าเดิมมาก
+//   (loadSavedMenus ดึงมา .limit(40) อยู่แล้ว 20 จึงยังอยู่ใต้เพดานการอ่าน)
+//   ประกาศไว้บนสุด เพราะถูกใช้ทั้งใน loadStudentData / loadSavedMenus / saveCurrentMenu
+const MENU_CAP=20;
+const APP_VERSION='v90-2026-08-31'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
 const _errLogged=new Set();let _errCount=0;
 function _reportError(type,msg,stack,src){
   try{
@@ -1284,7 +1296,13 @@ function _queueBackup(path,data){
     let q=JSON.parse(localStorage.getItem('_dfq')||'[]');
     q=q.filter(it=>it.p!==path); // W3-1: path เดิม → แทนที่ด้วยค่าล่าสุด (ไม่ใช่ข้าม — กัน backup ค้างค่าเก่า)
     q.push({p:path,d,at:Date.now()});
-    while(q.length>20)q.shift();
+    // v88: คิวนี้ใช้ร่วมกันทั้งมื้ออาหาร (submissions/ + รูป) และของเบ็ดเตล็ด (เมนูโปรด/สุขภาพ/แผน)
+    //   เดิมตัดตัวเก่าสุดเสมอ — v88 เปิดให้เตรียมเมนูได้ไม่จำกัด ตอนเน็ตแย่จึงดันมื้ออาหารหลุดคิวได้
+    //   มื้ออาหารที่หลุดคิว = หายจริง นักเรียนคิดว่าส่งไปแล้ว จึงต้องเป็นตัวสุดท้ายที่ยอมทิ้ง
+    while(q.length>20){
+      const _i=q.findIndex(it=>String(it.p||'').indexOf('submissions/')!==0);
+      q.splice(_i>=0?_i:0,1);
+    }
     localStorage.setItem('_dfq',JSON.stringify(q));
   };
   try{_put(data);}
@@ -1823,7 +1841,7 @@ async function loadStudentData(){
     if(savedSnap&&!(savedSnap.metadata&&savedSnap.metadata.fromCache&&savedSnap.empty)){
       // v78: เดิมไม่เรียงเลย → ลำดับชิปตอนเปิดแอปกับตอนโหลดซ้ำไม่ตรงกัน
       savedMenusCache=savedSnap.docs.map(d=>({id:d.id,...d.data()}))
-        .sort((a,b)=>{const at=a.createdAt?.seconds||0,bt=b.createdAt?.seconds||0;return bt-at;}).slice(0,12);
+        .sort((a,b)=>{const at=a.createdAt?.seconds||0,bt=b.createdAt?.seconds||0;return bt-at;}).slice(0,MENU_CAP); // v88: ผูกกับเพดานเดียวกัน เดิม hardcode 12
       _persistMenus();
     }
     renderStreak();
@@ -2007,7 +2025,6 @@ function selStudentTab(tab, el){
   if(studentTab==='log'&&tab!=='log'){
     aiParsedData=null;
     const _ar=document.getElementById('ai-result-area');if(_ar){_ar.innerHTML='';_ar.style.display='none';}
-    const _bw=document.getElementById('btn-save-weigh');if(_bw)_bw.style.display='none';
   }
   studentTab=tab;
   document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
@@ -2414,8 +2431,13 @@ async function saveWeeklyCheck(){
     if(v<=0||v>250){_bad.push(id);return null;} // ค่าที่เป็นไปไม่ได้ → ไม่เก็บ ดีกว่าเก็บของเสีย
     return v;
   };
+  // v90 BUGFIX: จับวันไว้ตั้งแต่ต้น — เดิมอ่าน selectedDate อีกครั้ง "หลัง" await 6 วินาที
+  //   ปุ่มบันทึกถูกปิดระหว่างรอ แต่ชิปวันที่ไม่ได้ปิด แตะเปลี่ยนวันได้
+  //   → Firestore ได้วันถูก แต่ cache ในเครื่องเอาไปแปะผิดวัน กราฟองค์ประกอบร่างกายวาดผิด
+  //   saveHealthLog ทำแบบนี้ตั้งแต่ v63.1 แล้ว ฟังก์ชันนี้ตกหล่น
+  const _wcDate=selectedDate;
   const entry={
-    date:selectedDate, weight_kg:weight,
+    date:_wcDate, weight_kg:weight,
     bodyFat_pct:getV('wc-bf'), muscle_mass_kg:getV('wc-mm'),
     waist_cm:getV('wc-waist'), hip_cm:getV('wc-hip'), chest_cm:getV('wc-chest'),
     arm_left_cm:getV('wc-arm-l'), arm_right_cm:getV('wc-arm-r'),
@@ -2429,7 +2451,7 @@ async function saveWeeklyCheck(){
   if(_wcBtn){_wcBtn.disabled=true;_wcBtn.textContent='⏳ กำลังบันทึก...';} // UX: feedback ทันทีที่กด
   try{
     // W1: race 6s — timeout = คิวไว้ในเครื่องแล้ว จะซิงค์เอง ถือเป็นสำเร็จ + W3 backup
-    const _wcPath=`weeklyChecks/${user.userId}/entries/${selectedDate}`;
+    const _wcPath=`weeklyChecks/${user.userId}/entries/${_wcDate}`;
     const _p=db.doc(_wcPath).set(entry,{merge:true});
     _p.catch(()=>{});
     const _r=await Promise.race([_p.then(()=>'ok'),new Promise(r=>setTimeout(()=>r('timeout'),6000))]);
@@ -2441,8 +2463,8 @@ async function saveWeeklyCheck(){
     // BUGFIX v50.1: ตั้งแต่ v50 ที่ dashCache อยู่ยาวทั้ง session ต้องอัปเดตผลการวัดเข้า cache ด้วย
     // ไม่งั้นกราฟ "องค์ประกอบร่างกาย" บน Dashboard จะค้างค่าเก่าจนกว่าจะปิดเปิดแอปใหม่
     if(dashCache&&Array.isArray(dashCache[4])){
-      const _e={id:selectedDate,...entry,submittedAt:{seconds:Math.floor(Date.now()/1000),toDate:()=>new Date()}};
-      const _i=dashCache[4].findIndex(x=>(x.id||x.date)===selectedDate);
+      const _e={id:_wcDate,...entry,submittedAt:{seconds:Math.floor(Date.now()/1000),toDate:()=>new Date()}};
+      const _i=dashCache[4].findIndex(x=>(x.id||x.date)===_wcDate);
       if(_i>=0)dashCache[4][_i]={...dashCache[4][_i],..._e};else dashCache[4].push(_e); // v50.1: merge ไม่ใช่ทับ — ช่องที่เว้นว่างไว้ค่าเดิมต้องอยู่ (Firestore ใช้ merge:true)
       dashCache[4].sort((a,b)=>String(a.date||a.id).localeCompare(String(b.date||b.id)));
     }
@@ -3162,7 +3184,6 @@ async function _callGeminiAI(){
     const _emsg=_abort?'ใช้เวลานานเกินไป — ลองแบ่งส่งทีละมื้อ หรือพิมพ์ให้สั้นลงนะคะ':escHtml(e.message||'ไม่ทราบสาเหตุ');
     area.innerHTML=`<div class="ai-error">⚠️ ${_emsg}<br><span style="font-size:11px">กด ✨ ลองใหม่อีกครั้งนะคะ</span></div>`;
     area.style.display='block';
-    const _bsw=document.getElementById('btn-save-weigh');if(_bsw)_bsw.style.display='none'; // BUGFIX v46.1: เดิมโชว์ปุ่มส่งทั้งที่ไม่มีข้อมูล → กดแล้วงง
   }finally{
     clearInterval(_elTick); // v45: หยุดตัวนับเวลาเสมอ ทั้งกรณีสำเร็จและ error
     btn.disabled=false;btn.textContent='✨ ให้ AI คำนวณ';
@@ -3216,7 +3237,6 @@ function renderAIResult(data){
     aiParsedData=null;
     area.innerHTML='<div class="ai-error">ลบครบทุกรายการแล้วค่ะ — พิมพ์อาหารแล้วกด ✨ คำนวณใหม่นะคะ</div>';
     area.style.display='block';
-    const _bs=document.getElementById('btn-save-weigh');if(_bs)_bs.style.display='none';
     return;
   }
   const _hint=`<div style="font-size:10.5px;color:var(--gray);margin-bottom:6px">✏️ แก้ปริมาณหรือตัวเลขได้เลย — ระบบ<b>บันทึกและคำนวณใหม่ให้อัตโนมัติ</b> ไม่ต้องกดปุ่มเพิ่มค่ะ</div>`;
@@ -3469,7 +3489,7 @@ async function loadSavedMenus(){
     if(!snap||(snap.metadata&&snap.metadata.fromCache&&snap.empty))return savedMenusCache||[];
     savedMenusCache=snap.docs.map(d=>({id:d.id,...d.data()}))
       .sort((a,b)=>{const at=a.createdAt?.seconds||0,bt=b.createdAt?.seconds||0;return bt-at;})
-      .slice(0,12); // v78: โชว์ 12 ใบล่าสุดจริงๆ
+      .slice(0,MENU_CAP); // v78: โชว์เฉพาะใบล่าสุดจริงๆ · v88: ผูกกับ MENU_CAP เดิม hardcode 12
     _persistMenus();
     return savedMenusCache;
   }catch(e){console.warn('loadSavedMenus',e);savedMenusCache=savedMenusCache||[];return savedMenusCache;}
@@ -3494,8 +3514,10 @@ function renderSavedChips(mode){
   const menus=savedMenusCache.filter(m=>m.mode===mode);
   if(!menus.length){el.style.display='none';return;}
   el.style.display='block';
-  el.innerHTML=`<div style="font-size:11px;color:#92400E;font-weight:600;margin-bottom:6px">⭐ เมนูโปรด — แตะเพื่อใช้</div>
-    <div style="display:flex;flex-wrap:wrap;gap:4px">
+  // v88: เพดานขยับเป็น 20 ใบ → ถ้าปล่อยยาวไปเรื่อยๆ ฟอร์มจะถูกดันตกจอทุกครั้งที่เปิดแท็บ
+  //   จำกัดความสูงกล่องชิปแล้วให้เลื่อนในตัวเอง (ไม่ตัดใบไหนทิ้ง — ยังลบได้ครบ)
+  el.innerHTML=`<div style="font-size:11px;color:#92400E;font-weight:600;margin-bottom:6px">⭐ เมนูโปรด ${menus.length} — แตะเพื่อใช้</div>
+    <div style="display:flex;flex-wrap:wrap;gap:4px;max-height:118px;overflow-y:auto">
       ${menus.map(m=>`<span class="saved-menu-chip" onclick="applySavedMenu('${m.id}')">
         ${escHtml(m.name)}
         <button class="chip-del" onclick="event.stopPropagation();deleteSavedMenu('${m.id}')">✕</button>
@@ -3526,41 +3548,93 @@ async function deleteSavedMenu(id){
     }
   }catch(e){showToast('⚠️ ลบไม่สำเร็จ: '+e.message,4000);} // W2
 }
+// v88: แยกสูตรมาโครโหมดมือออกมา เพื่อให้ "ตัวเช็คฟอร์มว่าง" ใช้สูตรเดียวกับตอนบันทึกจริง
+//   (ลอกสูตรไปไว้สองที่ = วันหนึ่งแก้ที่เดียวแล้วเช็คกับบันทึกไม่ตรงกัน)
+function _handMenuMacros(){
+  const pm=PROT_T[protType];
+  let C=0,P=0,F=0;
+  carbSlots.forEach(s=>{const cm=CARB_D[s.density];C+=cm.c*s.qty;P+=cm.p*s.qty;F+=cm.f*s.qty;});
+  C+=pm.c*protQty;P+=pm.p*protQty;F+=pm.f*protQty;
+  F+=cookFat(cookMethod,[protQty,eggWhole,eggWhite,avoQty,getFruitLadles()].concat(carbSlots.map(sl=>sl.qty)))+visibleFat*VIS_FAT_G; // v75
+  C+=EGG_W.c*eggWhole+EGG_WH.c*eggWhite;P+=EGG_W.p*eggWhole+EGG_WH.p*eggWhite;F+=EGG_W.f*eggWhole;
+  C+=AVO.c*avoQty;P+=AVO.p*avoQty;F+=AVO.f*avoQty;
+  C+=getFruitLadles()*15;
+  return{C:Math.round(C),P:Math.round(P),F:Math.round(F)};
+}
+// v88: เช็คว่ามีข้อมูลจริงไหม "ก่อน" ถามชื่อเมนู
+//   เดิมเช็คหลัง askText — นักเรียนพิมพ์ชื่อเสร็จแล้วถึงโดนปฏิเสธ
+//   และโหมดมือไม่เคยมีตัวกันเลย เพราะเดิมเข้าถึงได้เฉพาะหลังส่งสำเร็จ
+//   ⚠️ ขอบเขตของตัวกันนี้: จับได้แค่ "จานว่างจริงๆ" (กดลดทุกช่องเป็น 0)
+//      ฟอร์มที่ยังไม่แตะอะไรเลย = ข้าว 1.5 ทัพพี + โปรตีน 1 ฝ่ามือ = C23 P31 F3 (243 kcal) ไม่ใช่ 0
+//      ตั้งใจปล่อยผ่าน เพราะเป็นปริมาณที่ใช้ได้จริง และ askText บังคับพิมพ์ชื่ออยู่แล้ว
+//      → กดพลาดครั้งเดียวไม่มีทางเกิดเมนูขึ้นมาเอง
+function _menuReady(mode){
+  if(mode==='weigh')return !!(aiParsedData&&Array.isArray(aiParsedData.items)&&aiParsedData.items.length);
+  if(mode==='label'){
+    const g=id=>Math.max(0,parseFloat(document.getElementById(id)?.value)||0);
+    return (g('lb-carb')+g('lb-prot')+g('lb-fat')+g('lb-kcal'))>0;
+  }
+  if(mode==='hand'){const m=_handMenuMacros();return (m.C+m.P+m.F)>0;}
+  return false;
+}
+const _MENU_EMPTY_MSG={
+  weigh:'พิมพ์อาหารแล้วกด ✨ ให้ AI คำนวณก่อนนะคะ',
+  label:'กรุณากรอกข้อมูลจากฉลากก่อนค่ะ',
+  hand:'ยังไม่ได้เลือกปริมาณอาหารเลยค่ะ — เลือกก่อนแล้วค่อยบันทึกเป็นเมนูโปรดนะคะ'
+};
+// v88: กันกดซ้ำ — ปุ่มอยู่ในหน้าบันทึกแล้ว กดรัวระหว่างรอเขียน Firestore ได้ง่ายกว่าเดิมมาก
+//   (เดิมปุ่มอยู่ในหน้าสำเร็จซึ่งซ่อนตัวเองทันทีที่บันทึกเสร็จ)
+let _savingMenu=false;
 async function saveCurrentMenu(){
-  // v78: เพดาน 12 ใบต้องบอกตรงๆ — เดิมบันทึกผ่านเงียบๆ แล้วชิปไม่โผล่ นักเรียนงงว่าหายไปไหน
-  if((savedMenusCache||[]).length>=12){
-    showToast('⭐ เมนูโปรดเต็ม 12 รายการแล้วค่ะ — ลบอันที่ไม่ใช้ก่อนแล้วค่อยบันทึกใหม่นะคะ',5000);
+  if(_savingMenu)return;
+  _savingMenu=true;
+  try{await _saveCurrentMenu();}
+  finally{_savingMenu=false;}
+}
+async function _saveCurrentMenu(){
+  if(!_menuReady(curMode)){showToast(_MENU_EMPTY_MSG[curMode]||'ยังไม่มีข้อมูลให้บันทึกค่ะ',4000);return;}
+  // v78: เพดานต้องบอกตรงๆ — เดิมบันทึกผ่านเงียบๆ แล้วชิปไม่โผล่ นักเรียนงงว่าหายไปไหน
+  if((savedMenusCache||[]).length>=MENU_CAP){
+    showToast('⭐ เมนูโปรดเต็ม '+MENU_CAP+' รายการแล้วค่ะ — ลบอันที่ไม่ใช้ก่อนแล้วค่อยบันทึกใหม่นะคะ',5000);
     return;
   }
-  const name=await askText('ตั้งชื่อเมนูนี้ว่า:','',{icon:'⭐',placeholder:'เช่น ข้าวไก่ย่างมื้อเช้า',okText:'บันทึก'}); // v65
+  // v88: โหมดมือพิมพ์ชื่อเมนูไว้แล้ว → เติมให้เป็นค่าตั้งต้น ไม่ต้องพิมพ์ซ้ำ
+  const _pre=curMode==='hand'?(document.getElementById('menu-name-input')?.value||'').trim():'';
+  const name=await askText('ตั้งชื่อเมนูนี้ว่า:',_pre,{icon:'⭐',placeholder:'เช่น ข้าวไก่ย่างมื้อเช้า',okText:'บันทึก'}); // v65
   if(!name||!name.trim())return;
   let data={name:name.trim(),mode:curMode,createdAt:firebase.firestore.FieldValue.serverTimestamp()};
   if(curMode==='weigh'){
     if(!aiParsedData){showToast('กรุณาให้ AI คำนวณก่อนค่ะ');return;}
     data.inputText=document.getElementById('ai-food-input').value.trim();
-    data.items=JSON.parse(JSON.stringify(aiParsedData.items));
+    // v89: ตัด _orig ทิ้งก่อนบันทึก — เหมือนที่ getWeighData ทำอยู่แล้วตั้งแต่ v46.1
+    //   _orig = ค่าก่อนแก้ปริมาณครั้งแรก เป็นตัวเลขที่นักเรียน "ไม่เคยเห็นเป็นผลลัพธ์สุดท้าย"
+    //   ถ้าติดไปกับเมนูโปรด: เรียกมาใช้แล้วแก้ปริมาณ → สเกลจากค่าตั้งต้นนั้น
+    //   → ตัวเลข C/P/F ที่นักเรียนพิมพ์ทับเองหลังแก้ปริมาณ จะหายเงียบๆ
+    //   ตัดออกแล้ว updateAIAmount สร้าง _orig ใหม่เองจากค่าที่บันทึกไว้ (บรรทัด if(!it._orig))
+    //   เชิงเลขได้ผลเท่ากัน เพราะการสเกลเป็นเชิงเส้น ต่างแค่ปัดเศษระดับ 0.1g
+    data.items=(aiParsedData.items||[]).map(_it=>{const{_orig,..._rest}=_it;return JSON.parse(JSON.stringify(_rest));});
     data.total=JSON.parse(JSON.stringify(aiParsedData.total));
   }else if(curMode==='label'){
-    const c=parseFloat(document.getElementById('lb-carb').value)||0;
-    const p=parseFloat(document.getElementById('lb-prot').value)||0;
-    const f=parseFloat(document.getElementById('lb-fat').value)||0;
-    const s=parseFloat(document.getElementById('lb-serv').value)||1;
-    if(!c&&!p&&!f){showToast('กรุณากรอกข้อมูลจากฉลากก่อนค่ะ');return;}
+    // v88 BUGFIX: ตัดค่าติดลบเหมือน getLabelData (v83) — ตรงนี้เป็นจุดเดียวที่ตกหล่น
+    //   ค่าติดลบไหลไป menu.total แล้ว addSavedMenuToPlan อ่านตรงๆ = แผนอาหารติดลบ
+    const c=Math.max(0,parseFloat(document.getElementById('lb-carb').value)||0);
+    const p=Math.max(0,parseFloat(document.getElementById('lb-prot').value)||0);
+    const f=Math.max(0,parseFloat(document.getElementById('lb-fat').value)||0);
+    const s=Math.max(0,parseFloat(document.getElementById('lb-serv').value)||1);
     const k=Math.max(0,parseFloat(document.getElementById('lb-kcal')?.value)||0); // v80
+    // v88: เดิมเป็น if(!c&&!p&&!f) — ซองที่บอกแต่ "kcal ต่อหน่วยบริโภค" บันทึกเป็นเมนูโปรดไม่ได้
+    //   ทั้งที่ submitMeal ยอมรับมื้อแบบนั้นมาตลอด (เช็ค !carb&&!protein&&!fat&&!kcal)
+    if(!c&&!p&&!f&&!k){showToast('กรุณากรอกข้อมูลจากฉลากก่อนค่ะ');return;}
     data.labelData={carbPerServ:c,protPerServ:p,fatPerServ:f,servings:s,kcalPerServ:k||null};
     data.total={c:Math.round(c*s*10)/10,p:Math.round(p*s*10)/10,f:Math.round(f*s*10)/10,kcal:k>0?Math.round(k*s):macroKcal(c*s,p*s,f*s,0)};
   }else if(curMode==='hand'){
-    const pm=PROT_T[protType],ck=COOK_M[cookMethod];
-    let C=0,P=0,F=0;
-    carbSlots.forEach(s=>{const cm=CARB_D[s.density];C+=cm.c*s.qty;P+=cm.p*s.qty;F+=cm.f*s.qty;});
-    C+=pm.c*protQty;P+=pm.p*protQty;F+=pm.f*protQty;
-    F+=cookFat(cookMethod,[protQty,eggWhole,eggWhite,avoQty,getFruitLadles()].concat(carbSlots.map(sl=>sl.qty)))+visibleFat*VIS_FAT_G; // v75
-    C+=EGG_W.c*eggWhole+EGG_WH.c*eggWhite;P+=EGG_W.p*eggWhole+EGG_WH.p*eggWhite;F+=EGG_W.f*eggWhole;
-    C+=AVO.c*avoQty;P+=AVO.p*avoQty;F+=AVO.f*avoQty;
-    C+=getFruitLadles()*15;
-    C=Math.round(C);P=Math.round(P);F=Math.round(F);
-    data.handData={carbSlots:carbSlots.map(s=>({density:s.density,qty:s.qty})),protein:protQty,protType,eggWhole,eggWhite,cookMethod,visibleFat,avo:avoQty,fruits:{...fruitCounts},fruitLadles:getFruitLadles()};
-    data.total={c:C,p:P,f:F,kcal:Math.round(C*4+P*4+F*9)};
+    const _hm=_handMenuMacros(),C=_hm.C,P=_hm.P,F=_hm.F;
+    // v88 BUGFIX: เดิมไม่เก็บ menuName/menuDesc ทั้งที่ submitMeal เก็บ (handData.menuName/menuDesc)
+    //   เตรียมเมนูล่วงหน้าแล้วเรียกใช้ = ชื่อเมนูที่พิมพ์ไว้หายทุกครั้ง โค้ชได้การ์ดเปล่า
+    const _mn=(document.getElementById('menu-name-input')?.value||'').trim();
+    const _md=(document.getElementById('menu-desc-input')?.value||'').trim();
+    data.handData={carbSlots:carbSlots.map(s=>({density:s.density,qty:s.qty})),protein:protQty,protType,eggWhole,eggWhite,cookMethod,visibleFat,avo:avoQty,fruits:{...fruitCounts},fruitLadles:getFruitLadles(),menuName:_mn||null,menuDesc:_md||null};
+    data.total={c:C,p:P,f:F,kcal:macroKcal(C,P,F,0)};
   }
   try{
     // W1: race 6s — timeout = คิวไว้ในเครื่องแล้ว จะซิงค์เอง + W3 backup
@@ -3595,12 +3669,15 @@ async function applySavedMenu(id){
   if(typeof hasUnsavedData==='function'&&hasUnsavedData(curMode)){
     if(!await askConfirm('มีข้อมูลที่กรอกค้างไว้อยู่นะคะ\nใช้เมนูโปรดนี้แทนไหม?',{icon:'⭐',okText:'ใช้เมนูนี้',cancelText:'เก็บของเดิม'}))return;
   }
-  if(menu.mode==='weigh'&&menu.inputText){
-    document.getElementById('ai-food-input').value=menu.inputText;
-    aiParsedData={items:JSON.parse(JSON.stringify(menu.items)),total:JSON.parse(JSON.stringify(menu.total))};
-    _enrichAIData(aiParsedData,menu.inputText); // v46.1: เมนูโปรดที่เซฟไว้ก่อน v46 ไม่มีข้อมูลที่มา — เติมให้ ไม่งั้นขึ้น 🤖 ผิดทุกรายการ
+  if(menu.mode==='weigh'&&Array.isArray(menu.items)&&menu.items.length){
+    // v88 BUGFIX: เดิมเงื่อนไขคือ menu.inputText — เมนูที่บันทึกตอนกล่องข้อความว่าง (ลบเพื่อพิมพ์ใหม่)
+    //   จะกลายเป็นชิปตาย แตะแล้วไม่มีอะไรเกิดขึ้นเลย ตัวข้อมูลจริงคือ items ไม่ใช่ข้อความ
+    document.getElementById('ai-food-input').value=menu.inputText||'';
+    // v89: เมนูที่บันทึกไว้ก่อน v89 มี _orig ค้างอยู่ — ตัดตอนเรียกมาใช้ด้วย
+    //   ไม่งั้นเมนูเก่าติดพฤติกรรมเดิมไปตลอด ทั้งที่เจ้าของแก้อะไรไม่ได้เลย
+    aiParsedData={items:(menu.items||[]).map(_it=>{const{_orig,..._rest}=_it;return JSON.parse(JSON.stringify(_rest));}),total:JSON.parse(JSON.stringify(menu.total||{}))};
+    _enrichAIData(aiParsedData,menu.inputText||''); // v46.1: เมนูโปรดที่เซฟไว้ก่อน v46 ไม่มีข้อมูลที่มา — เติมให้ ไม่งั้นขึ้น 🤖 ผิดทุกรายการ
     renderAIResult(aiParsedData);
-    document.getElementById('btn-save-weigh').style.display='none';
   }else if(menu.mode==='label'&&menu.labelData){
     document.getElementById('lb-carb').value=menu.labelData.carbPerServ;
     document.getElementById('lb-prot').value=menu.labelData.protPerServ;
@@ -3621,6 +3698,11 @@ async function applySavedMenu(id){
     protQty=typeof hd.protein==='number'?hd.protein:1;protType=hd.protType||'lean';
     eggWhole=hd.eggWhole||0;eggWhite=hd.eggWhite||0;
     cookMethod=hd.cookMethod||'none';visibleFat=hd.visibleFat||0;avoQty=hd.avo||0;
+    // v88 BUGFIX: คืนค่าชื่อเมนู/รายละเอียดด้วย
+    //   ถ้าเมนูเก่าไม่มี menuName (บันทึกก่อน v88) ใช้ชื่อเมนูโปรดแทน — ดีกว่าปล่อยว่าง
+    //   และต้องเขียนทับเสมอ ห้ามปล่อยค่าเดิมค้าง ไม่งั้นได้ชื่อของมื้อก่อนหน้าติดมากับตัวเลขชุดใหม่
+    const _mni=document.getElementById('menu-name-input');if(_mni)_mni.value=hd.menuName||menu.name||'';
+    const _mdi=document.getElementById('menu-desc-input');if(_mdi)_mdi.value=hd.menuDesc||'';
     fruitCounts={...(hd.fruits||{})};
     FRUIT_ITEMS.forEach(f=>{
       fruitCounts[f.id]=fruitCounts[f.id]||0;
@@ -3647,7 +3729,9 @@ async function applySavedMenu(id){
 // SUBMIT
 async function submitMeal(){
   const btn=document.getElementById('btn-submit');btn.disabled=true;btn.textContent='กำลังส่ง...';
-  const resetBtn=()=>{btn.disabled=false;btn.textContent=coachLogMode?'บันทึกของฉัน ✓':'ส่งให้โค้ชตรวจ ✓';};
+  // v88: ปิดปุ่ม ⭐ ด้วย — ระหว่างอัปรูป (ถึง 20 วิ/รูป) ไม่มีอะไรบังจอ กดได้จริง
+  const _bp=document.getElementById('btn-save-prep');if(_bp)_bp.disabled=true;
+  const resetBtn=()=>{btn.disabled=false;btn.textContent=coachLogMode?'บันทึกของฉัน ✓':'ส่งให้โค้ชตรวจ ✓';const _b2=document.getElementById('btn-save-prep');if(_b2)_b2.disabled=false;};
   try{
     // v74 BUGFIX: ล็อกค่าไว้ตั้งแต่วินาทีที่กดส่ง
     // btn.disabled ล็อกแค่ปุ่มส่ง — ชิปวันที่ (selDate) กับปุ่มมื้อ (selMeal) ยังกดได้ระหว่างรออัปรูป (ถึง 20 วิ/รูป)
@@ -4017,14 +4101,16 @@ function _rawMacros(s){
   const _hd=()=>({c:s.handData.totalCarb??s.total?.c??0,p:s.handData.totalProtein??s.total?.p??0,f:s.handData.totalFat??s.total?.f??0,a:0});
   const _ld=()=>({c:s.labelData.carb||0,p:s.labelData.protein||0,f:s.labelData.fat||0,a:0});
   const _wd=()=>({c:s.weighData.carb||0,p:s.weighData.protein||0,f:s.weighData.fat||0,a:Math.max(0,+s.weighData.alc||0)});
-  if(s.mode==='hand'&&s.handData)return _hd();
-  if(s.mode==='label'&&s.labelData)return _ld();
-  if(s.mode==='weigh'&&s.weighData)return _wd();
-  if(s.handData)return _hd();          // สำรอง: mode ถูกเขียนทับ แต่ data เดิมยังอยู่
-  if(s.labelData)return _ld();
-  if(s.weighData)return _wd();
-  if(s.total)return{c:s.total.c||0,p:s.total.p||0,f:s.total.f||0,a:0};
-  return{c:0,p:0,f:0,a:0};
+  // v90: คืน src มาด้วยว่า "ใช้ก้อนไหน" — เพื่อให้ getSubMacros/getSubOrigKcal
+  //   หยิบ kcal จากก้อนเดียวกันเป๊ะ ไม่ใช่เดาจากการมีอยู่ของ blob
+  if(s.mode==='hand'&&s.handData)return{..._hd(),src:'hand'};
+  if(s.mode==='label'&&s.labelData)return{..._ld(),src:'label'};
+  if(s.mode==='weigh'&&s.weighData)return{..._wd(),src:'weigh'};
+  if(s.handData)return{..._hd(),src:'hand'};          // สำรอง: mode ถูกเขียนทับ แต่ data เดิมยังอยู่
+  if(s.labelData)return{..._ld(),src:'label'};
+  if(s.weighData)return{..._wd(),src:'weigh'};
+  if(s.total)return{c:s.total.c||0,p:s.total.p||0,f:s.total.f||0,a:0,src:'total'};
+  return{c:0,p:0,f:0,a:0,src:'none'};
 }
 function getSubMacros(s){
   const _r=_rawMacros(s);
@@ -4041,9 +4127,14 @@ function getSubMacros(s){
   //   (ใยอาหาร 2 kcal/g · น้ำตาลแอลกอฮอล์ 2.4 — ไม่ใช่ 4 ทั้งหมดแบบที่เราคูณเอง)
   //   โค้ชแก้มาโครเมื่อไหร่ ค่อยกลับไปคำนวณ 4·4·9 เพราะเลขบนซองไม่ตรงกับค่าที่โค้ชแก้แล้ว
   let kcal;
-  // v81: เช็คจาก "data ที่มีจริง" ไม่ใช่ field mode ด้วยเหตุผลเดียวกับ _rawMacros
-  if(s.weighData&&s.weighData.kcal&&!s.correction&&!a)kcal=s.weighData.kcal;
-  else if(s.labelData&&s.labelData.kcal>0&&!s.correction)kcal=Math.round(s.labelData.kcal);
+  // v90 BUGFIX: เดิมเช็คแค่ "มี blob นั้นอยู่ไหม" ขณะที่ C/P/F เลือกตามโหมด
+  //   เอกสารที่ถูกสลับโหมดในหน้าแก้ประวัติจะมี 2 blob พร้อมกัน (saveHistEdit ไม่ล้างของเดิม)
+  //   → มาโครมาจาก handData แต่ kcal มาจาก weighData ของเก่า
+  //   เคสจริง: มื้อ AI 464 kcal สลับเป็นโหมดมือ C10 P5 F2 → การ์ดประวัติโชว์ 78
+  //   แต่แถบความคืบหน้า/Dashboard/กราฟ/การ์ดโค้ช โชว์ 464 — ยอดวันเกินจริง 386 kcal
+  //   กฎใหม่: kcal ต้องมาจากก้อนเดียวกับที่ _rawMacros เลือก (src) เท่านั้น
+  if(_r.src==='weigh'&&s.weighData.kcal&&!s.correction&&!a)kcal=s.weighData.kcal;
+  else if(_r.src==='label'&&s.labelData.kcal>0&&!s.correction)kcal=Math.round(s.labelData.kcal);
   else kcal=macroKcal(c,p,f,a);
   return{kcal,c,p,f,a};
 }
@@ -4056,8 +4147,11 @@ function getSubOrigMacros(s){
 function getSubOrigKcal(s){
   if(!s)return 0;
   const _r=_rawMacros(s);
-  if(s.labelData&&s.labelData.kcal>0)return Math.round(s.labelData.kcal);
-  if(s.weighData&&s.weighData.kcal&&!_r.a)return Math.round(s.weighData.kcal);
+  // v90 BUGFIX: เดิมเช็ค labelData ก่อนโดยไม่ดูโหมดเลย — เอกสารไหนเคยมี labelData.kcal
+  //   จะโดนทุกใบ ทั้งที่ตอนนี้เป็นโหมดอื่นแล้ว (แผงโค้ชโชว์ "นักเรียนกรอก ⚡X" ผิด
+  //   และป้ายส่วนต่าง ±kcal กับข้อความ 📋 คัดลอก ก็ผิดตาม)
+  if(_r.src==='label'&&s.labelData.kcal>0)return Math.round(s.labelData.kcal);
+  if(_r.src==='weigh'&&s.weighData.kcal&&!_r.a)return Math.round(s.weighData.kcal);
   return macroKcal(_r.c,_r.p,_r.f,_r.a);
 }
 
@@ -4247,13 +4341,13 @@ function resetStudent(){
   renderPhotoThumbs();
   document.getElementById('btn-submit').disabled=false;
   document.getElementById('btn-submit').textContent='ส่งให้โค้ชตรวจ ✓';
+  const _bp2=document.getElementById('btn-save-prep');if(_bp2)_bp2.disabled=false; // v88: เผื่อส่งเสร็จแล้วรีเซ็ตหน้า
   ['lb-carb','lb-prot','lb-fat','lb-kcal'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';}); // v80
   document.getElementById('lb-serv').value='1';
   document.getElementById('label-total').style.display='none';
   aiParsedData=null;
   const aif=document.getElementById('ai-food-input');if(aif)aif.value='';
   const air=document.getElementById('ai-result-area');if(air)air.style.display='none';
-  const bsw=document.getElementById('btn-save-weigh');if(bsw)bsw.style.display='none';
   const bss2=document.getElementById('btn-save-success');if(bss2)bss2.style.display='none';
   document.getElementById('success-screen').style.display='none';
   document.getElementById('student-view').style.display='block';
@@ -4872,7 +4966,7 @@ async function loadCoachStudentPlan(uid){
         <div style="font-size:11px;font-weight:700;color:var(--primary-dark);margin-bottom:5px">📅 ${label} (${dateStr})</div>
         ${items.map(it=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 8px;background:white;border-radius:8px;border:1px solid var(--border);margin-bottom:3px">
           <span style="font-size:12px;font-weight:600;flex:1;margin-right:8px">${escHtml(it.name||'')}</span>
-          <span style="font-size:11px;color:var(--gray);white-space:nowrap">C${it.c||0} P${it.p||0} F${it.f||0} ⚡${Math.round((it.c||0)*4+(it.p||0)*4+(it.f||0)*9)}</span>
+          <span style="font-size:11px;color:var(--gray);white-space:nowrap">C${it.c||0} P${it.p||0} F${it.f||0} ⚡${Math.round(it.kcal??macroKcal(it.c,it.p,it.f,0))}</span>
         </div>`).join('')}
         <div style="text-align:right;font-size:11px;font-weight:700;color:#059669;padding:2px 4px">รวม ⚡${tKcal} kcal · C${tC} P${tP} F${tF}</div>
       </div>`;
@@ -6018,7 +6112,16 @@ function _handCorrBase(s,cs){
   const avoQty=pick('avoQty',hd.avo||0);
   const fruitCounts=Object.assign({},pick('fruitCounts',hd.fruits||{}));
   const fruitFromTypes=FRUIT_ITEMS.reduce((sum,f)=>sum+(fruitCounts[f.id]||0)/f.perLadle,0);
-  const fruitLadles=fruitFromTypes||cs.fruitLadles||(hc&&hc.fruitLadles)||hd.fruitLadles||0;
+  // v90 BUGFIX: เดิม `fruitFromTypes||cs.fruitLadles||...||hd.fruitLadles||0`
+  //   || มอง 0 เป็น "ยังไม่ได้ตั้งค่า" → โค้ชกด − จนผลไม้เป็น 0 แล้วค่าเดิมของนักเรียนกลับมาเงียบๆ
+  //   หน้าจอบอกว่าไม่มีผลไม้แล้ว (แถบรวมถูกซ่อน) แต่แคลไม่ลดสักหน่วย
+  //   พอบันทึก คาร์บผีเข้าประวัตินักเรียน + correction.hand.fruitLadles ค้าง = แก้ยังไงก็ไม่หาย
+  //   ผลไม้เป็นช่องเดียวในแผงที่ลดเป็นศูนย์ไม่ได้ — ช่องอื่นใช้ pick() ที่เช็ค !==undefined ถูกหมด
+  //   กฎ: ถ้าจำนวนผลไม้มาจากโค้ช (รอบนี้ หรือที่บันทึกไว้) ให้เชื่อผลรวมนั้นเสมอ แม้เป็น 0
+  //       ตกไปใช้ fruitLadles ของนักเรียนเฉพาะเมนูรุ่นเก่าที่มีแต่ตัวเลขรวม ไม่มีรายชนิด
+  const _fcFromCoach=(cs.fruitCounts!==undefined)||!!(hc&&hc.fruitCounts!==undefined&&hc.fruitCounts!==null);
+  const fruitLadles=_fcFromCoach?fruitFromTypes
+    :(fruitFromTypes||hd.fruitLadles||0);
   return{density,carbQty,protType,protQty,cookMethod,visFat,eggWhole,eggWhite,avoQty,fruitCounts,fruitLadles,hasSaved:!!hc};
 }
 // v82: สูตรคิดมาโครของแผงแก้ค่า — เดิมเขียนซ้ำ 2 ที่ (buildCorrPanel + calcHandCorrMacros)
@@ -6060,6 +6163,14 @@ function buildCorrPanel(s,cs){
     // v82: เดิมอ่าน s.total ตรงๆ → มื้อใหม่ไม่มี s.total เลยโชว์ 0 · และไม่ตรงกับตัวเลขที่เหลือทั้งแอป
     const _oM=getSubOrigMacros(s);
     const origTotal={c:_oM.c,p:_oM.p,f:_oM.f,kcal:getSubOrigKcal(s)};
+    // v90: แผงนี้มีคาร์บช่องเดียว แต่ฝั่งนักเรียนใส่ได้หลายช่อง (คนละความหนาแน่น)
+    //   _handCorrBase จึงบวก qty รวมกันแล้วใช้ density ของช่องแรก
+    //   เคสจริง: 🟢ผัก 2 + 🔴ตัวตึง 2 (C72) → กลายเป็น 🟢ผัก 4 (C8) = คาร์บหาย 64g
+    //   โค้ชที่ตั้งใจแค่เพิ่มโปรตีนจะลบคาร์บทิ้งโดยไม่รู้ตัว และ correction.hand ทับข้อมูลเดิมถาวร
+    //   ยังไม่แก้ให้แผงรองรับหลายช่อง (งานใหญ่) — แต่ต้องเตือนให้เห็นก่อนกดบันทึกเสมอ
+    const _slots=Array.isArray(hd.carbSlots)?hd.carbSlots:[];
+    const _dLbl=d=>{const _c=CARB_D[d]||CARB_D.normal;return _c.emoji+_c.label;};
+    const _multiWarn=(_slots.length>1)?`<div style="background:#FEF2F2;border:1.5px solid #FECACA;border-radius:8px;padding:7px 10px;margin-bottom:8px;font-size:11px;color:#991B1B;line-height:1.7">⚠️ <b>นักเรียนใส่คาร์บ ${_slots.length} ช่อง:</b> ${escHtml(_slots.map(sl=>_dLbl(sl&&sl.density)+' '+((sl&&sl.qty)||0)).join('  +  '))}<br>แผงนี้มีช่องเดียว จึงยุบเหลือ <b>${_dLbl(density)} ${carbQty}</b> → คาร์บ <b>${origTotal.c}g</b> กลายเป็น <b>${preC}g</b><br>ปรับความหนาแน่น/จำนวนให้คาร์บใกล้ของเดิมก่อนบันทึกนะคะ (บันทึกแล้วข้อมูลหลายช่องจะหายถาวร)</div>`:'';
     // v82: มื้อที่โค้ชแก้ไว้ "ก่อน" อัปเดตนี้ ไม่มี correction.hand → ปุ่มยังเป็นของนักเรียนอยู่
     // ต้องบอกให้โค้ชเห็นชัดๆ ว่ากดบันทึกตอนนี้แล้วมาโครจะเปลี่ยนไปเป็นเท่าไหร่
     const _corrBanner=!s.correction?'':(_b.hasSaved
@@ -6070,7 +6181,7 @@ function buildCorrPanel(s,cs){
     const ckBtn=(m,lbl,sub)=>`<button class="cook-btn${m===cookMethod?' active':''}" data-ck="${m}" onclick="setHCorrCookM('${s.id}','${m}')">${lbl}<span class="dens-kcal">${sub}</span></button>`;
     return`<div class="correction-panel">
 ${_modeSwitchRow}<h4>✏️ แก้ค่า — Hand Portion</h4>
-${_corrBanner}
+${_multiWarn}${_corrBanner}
 <div style="margin-bottom:10px">
   <div class="hmb-subtitle" style="margin-bottom:5px">🌾 คาร์บ — ความหนาแน่น</div>
   <div class="dens-grid" style="margin-bottom:8px">${['veggie','light','normal','dense','heavy'].map(dBtn).join('')}</div>
@@ -7634,6 +7745,13 @@ async function saveHistEdit(){
       // BUGFIX v47: ล้างรายการย่อยเดิมทิ้ง — ไม่งั้นการ์ดโค้ช/ประวัติยังโชว์รายการเก่าที่บวกแล้วไม่เท่ายอดใหม่
       upd['weighData.aiItems']=null;
     }
+    // v90: สลับโหมดแล้วต้องล้าง kcal ของโหมดเดิมทิ้งด้วย
+    //   ไม่ล้าง "ทั้ง blob" เพราะจะลบข้อมูลดั้งเดิมของนักเรียนทิ้ง — ล้างเฉพาะเลขที่ทำให้เลือกผิด
+    //   (getSubMacros ยึด src แล้วก็จริง แต่เอกสารที่เสียไปก่อน v90 ต้องได้รับการล้างด้วย)
+    if(s&&s.mode&&s.mode!==_editSubMode){
+      if(_editSubMode!=='weigh'&&s.weighData)upd['weighData.kcal']=null;
+      if(_editSubMode!=='label'&&s.labelData)upd['labelData.kcal']=null;
+    }
 
     // อัปเดต top-level total ให้ตรงกับค่าที่แก้ (ใช้เป็น fallback + reference)
     // v83: เดิมคิด 4·4·9 → เอกสารเดียวกันเก็บแคลไว้ 2 เลขที่ขัดกัน (weighData.kcal มีแอลกอฮอล์ total.kcal ไม่มี)
@@ -7710,7 +7828,11 @@ async function saveHistEdit(){
   finally{btn.disabled=false;btn.textContent='💾 บันทึก';}
 }
 
-window.addEventListener('load',init);
+// v90: 'load' รอทุก resource (รวมรูปทุกใบ) — เปลี่ยนเป็น DOMContentLoaded
+//   Firebase/LIFF SDK โหลดแบบ sync อยู่ใน head จึงพร้อมแน่นอนตั้งแต่ DOMContentLoaded
+//   (ห้ามเขียนแท็กสคริปต์เต็มรูปแบบในคอมเมนต์ — วันหนึ่งมีคนพิมพ์ตัวปิดมาด้วยคือบล็อกขาดกลางไฟล์)
+//   init() ถูกเรียกจากบรรทัดนี้ที่เดียวในไฟล์
+window.addEventListener('DOMContentLoaded',init);
 </script>
 
 <!-- ===== EDIT SUBMISSION MODAL ===== -->
@@ -7809,13 +7931,45 @@ window.addEventListener('load',init);
     </div>
   </div>
 </div>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<!-- v90: ย้าย html2canvas + jsPDF (163 KB gzip) ออกจากเส้นทางเปิดแอป
+     init() ผูกกับ event 'load' ซึ่งรอ "ทุก resource" เสร็จก่อน
+     → LIFF init / auth / query แรก ต้องรอ 2 ไฟล์นี้โหลดจบ ทั้งที่ใช้แค่ปุ่มโหลด PDF
+     = 31% ของทุกอย่างที่ต้องโหลดก่อนเห็นจอ สำหรับฟีเจอร์ที่นักเรียนแทบไม่แตะ
+     ตอนนี้โหลดตอนกดปุ่มครั้งแรกเท่านั้น (ดู _ensurePdfLibs) -->
 <script>
 // ===== DOWNLOAD DASHBOARD =====
+// v90: โหลดไลบรารีสร้างไฟล์ตอนกดปุ่มครั้งแรกเท่านั้น ไม่ใช่ตอนเปิดแอป
+let _pdfLibsP=null;
+function _loadScript(src){
+  return new Promise((res,rej)=>{
+    const sc=document.createElement('script');
+    sc.src=src;sc.async=true;
+    sc.onload=()=>res();
+    sc.onerror=()=>rej(new Error('script load failed'));
+    document.head.appendChild(sc);
+  });
+}
+function _ensurePdfLibs(){
+  if(window.html2canvas&&window.jspdf)return Promise.resolve();
+  // เก็บ promise ไว้ = กดรัวๆ ก็โหลดรอบเดียว · ถ้าล้มให้ล้างทิ้งเพื่อให้ลองใหม่ได้
+  if(!_pdfLibsP)_pdfLibsP=Promise.all([
+    _loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'),
+    _loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js')
+  ]).then(()=>{
+    if(!window.html2canvas||!window.jspdf)throw new Error('libs missing after load');
+  }).catch(e=>{_pdfLibsP=null;throw e;});
+  return _pdfLibsP;
+}
 async function downloadDashboard(elId, name, type){
   const el=document.getElementById(elId);
   if(!el){showToast('ไม่พบข้อมูล');return;}
+  // v90: ต้องโหลดไลบรารีให้เสร็จ "ก่อน" แตะ style ของ element ใดๆ
+  //   ถ้าล้มกลางทางแล้วค่อย return จะเหลือ overflow/height ที่ถูกแก้ค้างไว้
+  if(!window.html2canvas||!window.jspdf){
+    showToast('⏳ กำลังเตรียมเครื่องมือ...',2000);
+    try{await _ensurePdfLibs();}
+    catch(_){showToast('⚠️ โหลดเครื่องมือสร้างไฟล์ไม่สำเร็จ — เช็คเน็ตแล้วลองใหม่นะคะ',4500);return;}
+  }
 
   // Overlay ปิดหน้าไว้ระหว่าง capture (ซ่อน style manipulation ชั่วคราว)
   const overlay=document.createElement('div');
