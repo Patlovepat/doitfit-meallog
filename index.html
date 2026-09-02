@@ -114,6 +114,8 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
 .dens-btn.active,.dens-btn2.active{border-color:var(--primary);background:var(--light)}
 .dens-kcal{font-size:10px;color:var(--gray);display:block}
 .ptype-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+.ptype-grid.three{grid-template-columns:repeat(3,1fr);gap:5px} /* v92: 3 ชั้นโปรตีน */
+.ptype-grid.three .ptype-btn{padding:9px 3px;font-size:11.5px;line-height:1.45}
 .ptype-btn{background:#F9FAFB;border:2px solid #E5E7EB;border-radius:10px;padding:10px 8px;font-size:12px;text-align:center;cursor:pointer;line-height:1.5;font-family:'Prompt',sans-serif;transition:.15s}
 .ptype-btn.active{border-color:var(--primary);background:var(--light)}
 .ptype-sub{font-size:10px;color:var(--gray);display:block}
@@ -630,18 +632,20 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
             <span class="hmb-chev" id="chev-protein">▸</span>
           </div>
           <div class="hmb-body collapsed" id="body-protein">
-            <div class="ptype-grid">
+            <div class="ptype-grid three">
               <button class="ptype-btn active" data-pt="lean" onclick="setProtT('lean',this)">
-                ✅ Lean<br>
-                <span class="ptype-sub">อกไก่ · สันในไก่ · หมูสันใน · ปลาขาว · กุ้ง · ปู · ทูน่า</span>
-                <span class="ptype-sub" style="color:var(--primary-dark);font-weight:600">~145 kcal/ฝ่ามือ</span>
+                ✅ Lean<span class="ptype-sub" style="color:var(--primary-dark);font-weight:600">~140 kcal</span>
               </button>
               <button class="ptype-btn" data-pt="semilean" onclick="setProtT('semilean',this)">
-                🔶 Semi-lean<br>
-                <span class="ptype-sub">ไก่มีหนัง · แซลมอน · เต้าหู้ · เนื้อวัว</span>
-                <span class="ptype-sub" style="color:var(--primary-dark);font-weight:600">~185 kcal/ฝ่ามือ</span>
+                🔶 Semi-lean<span class="ptype-sub" style="color:var(--primary-dark);font-weight:600">~215 kcal</span>
+              </button>
+              <button class="ptype-btn" data-pt="fatty" onclick="setProtT('fatty',this)">
+                🔴 ติดมันมาก<span class="ptype-sub" style="color:var(--primary-dark);font-weight:600">~315 kcal</span>
               </button>
             </div>
+            <!-- v92: ตัวอย่างอาหารของชั้นที่เลือก — แพตเทิร์นเดียวกับ .dens-hint ของคาร์บ
+                 เดิมยัดรายชื่ออาหารไว้ในปุ่ม พอเป็น 3 ปุ่มจะแน่นจนอ่านไม่ออกบนมือถือ -->
+            <div class="dens-hint" id="prot-hint"></div>
             <div class="hmb-stepper">
               <button onclick="adj('protein',-0.5)">−</button>
               <span id="v-protein" class="hval">1.0</span>
@@ -877,6 +881,9 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
     <div class="logo"><span>DO</span></div>
     <h1>Coach Dashboard</h1>
     <span class="coach-badge" onclick="enterTestMode()" title="ทดสอบโหมดนักเรียน" style="cursor:pointer">👑 Coach</span>
+    <!-- v93: เห็นเวอร์ชันด้วยตาได้ — เดิมเขียนลง errorLogs อย่างเดียว
+         เวลาเครื่องสองเครื่องแสดงเลขไม่ตรงกัน จะได้รู้ทันทีว่าเป็นเรื่องไฟล์เก่าค้างหรือเปล่า -->
+    <span id="coach-ver" style="font-size:9.5px;color:var(--gray);margin-left:6px;white-space:nowrap"></span>
   </div>
   <div class="coach-tabs">
     <div class="coach-tab active" data-tab="pending" onclick="selCoachTab(this)">
@@ -964,7 +971,7 @@ db.enablePersistence({synchronizeTabs:true}).catch(e=>{console.warn('Persistence
 //   (loadSavedMenus ดึงมา .limit(40) อยู่แล้ว 20 จึงยังอยู่ใต้เพดานการอ่าน)
 //   ประกาศไว้บนสุด เพราะถูกใช้ทั้งใน loadStudentData / loadSavedMenus / saveCurrentMenu
 const MENU_CAP=20;
-const APP_VERSION='v90-2026-08-31'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
+const APP_VERSION='v93-2026-09-02'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
 const _errLogged=new Set();let _errCount=0;
 function _reportError(type,msg,stack,src){
   try{
@@ -1516,6 +1523,21 @@ let selectedDate=todayStr();
 
 // HEALTH LOG STATE
 let hlSleep=7.0, hlStress=2, hlSteps=8000, hlCardio=0, hlMuscle='none', hlWeightMin=30;
+// v93: เลือกกล้ามเนื้อได้หลายส่วน — hlMuscles คือตัวจริง ส่วน hlMuscle เก็บไว้เป็น "ตัวแทน"
+//   (ตัวแรกในลิสต์) เพื่อให้กราฟ/การ์ด/โค้ชที่ยังอ่านฟิลด์เก่าทำงานต่อได้โดยไม่ต้องแก้
+let hlMuscles=[];
+const MUSCLE_SOLO=['full','none'];             // เลือกแล้วล้างตัวอื่นทิ้ง
+function _mgSync(){hlMuscle=hlMuscles.length?hlMuscles[0]:'none';}
+function _mgFromEntry(e){
+  if(!e)return [];
+  if(Array.isArray(e.muscleGroups))return e.muscleGroups.filter(k=>k&&k!=='none');
+  // เอกสารเก่าเก็บเป็นสตริงตัวเดียว
+  return (e.muscleGroup&&e.muscleGroup!=='none')?[e.muscleGroup]:[];
+}
+function mgLabels(list){
+  const L={full:'เต็มตัว',legs:'ขา',chest:'อก',back:'หลัง',shoulder:'บ่า',arms:'แขน',core:'Core'};
+  return (list||[]).map(k=>L[k]||k).join(' + ');
+}
 
 // HAND STATE
 let carbSlots=[{id:0,density:'normal',qty:1.5}];let carbSlotNextId=1;
@@ -1532,7 +1554,27 @@ const CARB_D={
   heavy: {c:34,p:3,f:1,  emoji:'🔴',label:'ตัวตึง',hint:'ข้าวเหนียว · เส้นใหญ่ · บะหมี่กึ่งฯ · บะหมี่เหลือง ⚠️ (นับ 2–4 ทัพพี!)'}
 };
 // lean=อกไก่/ปลาขาว/กุ้ง/ทูน่า ~90g cooked; semilean=ไก่มีหนัง/แซลมอน/เนื้อวัว ~90g cooked
-const PROT_T={lean:{c:0,p:28,f:3},semilean:{c:0,p:22,f:14}};
+// v92: เพิ่มชั้น fatty — เดิมมี 2 ชั้น ทำให้หมูสามชั้น/ไส้กรอก/หมูสับ ถูกบันทึกไขมันต่ำกว่าจริงเกือบครึ่ง
+//   มาตรฐานไทย (รายการอาหารแลกเปลี่ยน) เนื้อสัตว์ 1 ส่วน = P7g แบ่ง 4 ชั้นตามไขมัน:
+//     ต่ำมาก F0-1 · ต่ำ F3 · ปานกลาง F5 · สูง F8
+//   1 ฝ่ามือ = เนื้อสุก 90g ≈ 3.1 ส่วน → ชั้นสูง = F 3.1×8 ≈ 25g
+//   ยืนยันด้วยแถวใน DB ของเราเอง: ["หมูสามชั้น","1 ฝ่ามือ 90g",0,15,28,314] = F28
+//   ⚠️ ห้ามลบ/เปลี่ยนชื่อ key เดิม — เอกสารเก่าเก็บ protType เป็นสตริงตรงๆ
+const PROT_T={lean:{c:0,p:28,f:3},semilean:{c:0,p:22,f:14},fatty:{c:0,p:22,f:25}};
+// v92: ตัวอย่างอาหารของแต่ละชั้น — ที่เดียว ใช้ทั้งหน้านักเรียน แผงโค้ช และแผนอาหาร
+//   แพตเทิร์นเดียวกับ CARB_D[].hint ที่นักเรียนคุ้นอยู่แล้ว
+const PROT_INFO={
+  // kcal ต้องตรงกับ macroKcal ของชั้นนั้นจริงๆ
+  //   v92 พบว่าป้ายเดิมผิดมาตั้งแต่ก่อนหน้านี้: semilean เขียน ~185 แต่ค่าจริง 214 (P22 F14)
+  //   ป้ายที่โกหกแปลว่านักเรียนเลือกผิดโดยคิดว่าต่างกันแค่ 40 kcal ทั้งที่ต่างจริง 75
+  lean:    {emoji:'✅',label:'Lean',      short:'ไม่ติดมัน', kcal:140,
+            hint:'อกไก่ · สันในไก่ · หมูสันใน · ปลาเนื้อขาว · กุ้ง · ปู · ทูน่าในน้ำ · ไข่ขาว'},
+  semilean:{emoji:'🔶',label:'Semi-lean', short:'ติดมัน',    kcal:215,
+            hint:'ไก่มีหนัง · แซลมอน · เนื้อวัว · เต้าหู้ · ลูกชิ้น · ปลาทู'},
+  fatty:   {emoji:'🔴',label:'ติดมันมาก', short:'ติดมันมาก', kcal:315,
+            hint:'หมูสามชั้น · คอหมู · ซี่โครง · หมูสับ · ไส้กรอก · กุนเชียง · เบคอน · หมูกรอบ'}
+};
+function protLabelOf(t){const i=PROT_INFO[t]||PROT_INFO.lean;return i.emoji+i.label;}
 const COOK_M={none:{f:0},stirfry:{f:10},deep:{f:20}};
 // v75: น้ำมันจากวิธีปรุงต้องมี "ของ" ให้ปรุงก่อน
 // เดิมบวก 20g (ทอด/กะทิ) หรือ 10g (ผัด) ทุกครั้งที่ปุ่มถูกเลือก แม้ทุกช่องเป็น 0
@@ -1761,6 +1803,7 @@ function startStudent(){
   document.getElementById('user-id-txt').textContent=user.userId;
   renderCarbSlots();
   initFruitGrid();
+  renderProtHint(); // v92: ไม่งั้นกล่องตัวอย่างโปรตีนว่างเปล่าจนกว่าจะกดปุ่มสักครั้ง
   updateHandSummary();
   buildDateStrip();
   _bootMenusLocal(); // SPEED: เมนูโปรดขึ้นทันทีจาก snapshot ในเครื่อง
@@ -2030,7 +2073,10 @@ function selStudentTab(tab, el){
   document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
   if(el) el.classList.add('active');
   document.getElementById('log-panels').style.display=tab==='log'?'block':'none';
-  document.getElementById('date-strip').style.display=tab==='log'?'flex':'none';
+  // v91: เปิดแถบวันในแท็บสุขภาพด้วย — นักเรียนกรอกเวลาเวท/คาร์ดิโอผิดแล้วย้อนมาแก้ไม่ได้เลย
+  //   ทั้งที่ข้อมูลเก็บแยกรายวันอยู่แล้ว (healthLogs/{uid}/days/{date})
+  //   ประวัติ/Dashboard/แผน ไม่ผูกกับ selectedDate จึงยังซ่อนเหมือนเดิม
+  document.getElementById('date-strip').style.display=(tab==='log'||tab==='health')?'flex':'none';
   document.getElementById('panel-history').style.display=tab==='history'?'block':'none';
   document.getElementById('panel-health').style.display=tab==='health'?'block':'none';
   document.getElementById('panel-dashboard').style.display=tab==='dashboard'?'block':'none';
@@ -2121,11 +2167,11 @@ function renderHealthLog(){
       hlStress=typeof entry.stress==='number'?entry.stress:2;
       hlSteps=typeof entry.steps==='number'?entry.steps:8000;
       hlCardio=typeof entry.cardio==='number'?entry.cardio:0;
-      hlMuscle=entry.muscleGroup||'none';
+      hlMuscles=_mgFromEntry(entry); _mgSync(); // v93: รองรับทั้ง array ใหม่และสตริงเก่า
       hlWeightMin=typeof entry.weightMin==='number'?entry.weightMin:30;
     } else {
       // No saved log for this date — reset to defaults so previous date values don't bleed over
-      hlSleep=7.0;hlStress=2;hlSteps=8000;hlCardio=0;hlMuscle='none';hlWeightMin=30;
+      hlSleep=7.0;hlStress=2;hlSteps=8000;hlCardio=0;hlMuscles=[];hlMuscle='none';hlWeightMin=30;
     }
   }
   const el=document.getElementById('health-log-content');
@@ -2187,18 +2233,22 @@ function renderHealthLog(){
     <div class="hl-card">
       <div class="hl-title">🏋️ เวทเทรนนิ่ง</div>
       <div class="muscle-grid-hl">
-        ${MUSCLE_OPTIONS.map(m=>`<div class="muscle-btn${hlMuscle===m.key?' active':''}" onclick="setMuscle('${m.key}')">
+        ${MUSCLE_OPTIONS.map(m=>{
+          const _on=m.key==='none'?hlMuscles.length===0:hlMuscles.indexOf(m.key)>=0;
+          return `<div class="muscle-btn${_on?' active':''}" data-mg="${m.key}" onclick="setMuscle('${m.key}')">
           <span class="mi">${m.icon}</span>${m.label}
-        </div>`).join('')}
+        </div>`;}).join('')}
       </div>
-      <div id="hl-weight-stepper" style="${hlMuscle==='none'?'display:none':''}">
+      <div class="hl-hint" style="text-align:center;margin-top:2px">แตะเลือกได้หลายส่วน · แตะซ้ำเพื่อเอาออก</div>
+      <div id="hl-muscle-sum" style="display:${hlMuscles.length?'block':'none'};text-align:center;font-size:12px;font-weight:600;color:var(--primary-dark);margin-top:5px">${hlMuscles.length?'เลือกไว้: '+mgLabels(hlMuscles)+(hlMuscles.length>1?` (${hlMuscles.length} ส่วน)`:''):''}</div>
+      <div id="hl-weight-stepper" style="${hlMuscles.length?'':'display:none'}">
         <div class="hl-stepper">
           <button onclick="adjHL('weight',-5)">−</button>
           <input class="hl-input" id="hl-weight" type="number" value="${hlWeightMin}" step="5" min="0" oninput="if(this.value!=='')hlWeightMin=Math.max(0,parseInt(this.value)||0)">
           <span class="hl-unit">นาที</span>
           <button onclick="adjHL('weight',5)">+</button>
         </div>
-        <div class="hl-hint">ปรับทีละ 5 นาที หรือพิมพ์เองได้</div>
+        <div class="hl-hint">นับรวมทั้งเซสชัน ไม่ต้องแยกทีละส่วน · ปรับทีละ 5 นาที</div>
       </div>
     </div>
 
@@ -2304,11 +2354,34 @@ function setStress(level){
   document.querySelectorAll('.stress-btn').forEach((b,i)=>b.classList.toggle('active',i+1===level));
 }
 function setMuscle(key){
-  hlMuscle=key;
-  document.querySelectorAll('.muscle-btn').forEach(b=>b.classList.remove('active'));
-  event.currentTarget.classList.add('active');
+  // v93: สลับเปิด/ปิดได้ · "เต็มตัว" กับ "ไม่ได้เล่น" เป็นตัวเลือกเดี่ยว
+  //   กด "เต็มตัว + ขา" พร้อมกันไม่มีความหมาย และทำให้โค้ชอ่านผิด
+  if(key==='none'){ hlMuscles=[]; }
+  else if(MUSCLE_SOLO.indexOf(key)>=0){
+    // แตะซ้ำ = เอาออก (ให้ตรงกับคำอธิบายใต้ปุ่ม) ไม่งั้นกดพลาดแล้วปลดไม่ได้
+    hlMuscles=(hlMuscles.length===1&&hlMuscles[0]===key)?[]:[key];
+  }
+  else {
+    hlMuscles=hlMuscles.filter(k=>MUSCLE_SOLO.indexOf(k)<0); // เลิกเป็นเต็มตัวทันทีที่เลือกส่วนย่อย
+    const i=hlMuscles.indexOf(key);
+    if(i>=0)hlMuscles.splice(i,1); else hlMuscles.push(key);
+  }
+  _mgSync();
+  renderMuscleBtns();
+}
+function renderMuscleBtns(){
+  const on=k=>k==='none'?hlMuscles.length===0:hlMuscles.indexOf(k)>=0;
+  document.querySelectorAll('.muscle-btn').forEach(b=>{
+    const k=b.dataset.mg;
+    if(k)b.classList.toggle('active',on(k));
+  });
   const sw=document.getElementById('hl-weight-stepper');
-  if(sw) sw.style.display=key==='none'?'none':'block';
+  if(sw)sw.style.display=hlMuscles.length?'block':'none';
+  const sm=document.getElementById('hl-muscle-sum');
+  if(sm){
+    sm.textContent=hlMuscles.length?('เลือกไว้: '+mgLabels(hlMuscles)+(hlMuscles.length>1?` (${hlMuscles.length} ส่วน)`:'')):'';
+    sm.style.display=hlMuscles.length?'block':'none';
+  }
 }
 function adjHL(key,delta){
   if(key==='sleep'){hlSleep=Math.max(0,Math.round((hlSleep+delta)*10)/10);const el=document.getElementById('hl-sleep');if(el)el.value=hlSleep;}
@@ -2326,8 +2399,11 @@ async function saveHealthLog(){
     if(_hlFail[_hlDate]&&!await askConfirm('ยังโหลดข้อมูลสุขภาพเดิมของวันนี้ไม่สำเร็จค่ะ\n\nถ้าวันนี้เคยบันทึกไว้แล้ว กดบันทึกตอนนี้จะทับของเดิมทั้งหมด',{icon:'📡',okText:'บันทึกทับ',cancelText:'ไม่บันทึก'}))return;
     // ของเดิมจะเอาข้อมูลวัน A ไปแปะ cache ของวัน B แล้วบันทึกครั้งถัดไปจะเขียนทับวัน B ด้วยค่าของวัน A
     const _hlPath=`healthLogs/${user.userId}/days/${_hlDate}`;
+    // v93: เขียนคู่กันเสมอ — muscleGroups (ตัวจริง) + muscleGroup (ตัวแทน สำหรับของเดิมที่ยังอ่านอยู่)
+    //   ห้ามเลิกเขียนตัวเก่า ไม่งั้นกราฟ Dashboard กับการ์ดโค้ชจะว่างเปล่าย้อนหลังทันที
     const _hlBase={sleep:hlSleep, stress:hlStress, steps:hlSteps, cardio:hlCardio,
-      muscleGroup:hlMuscle, weightMin:hlMuscle==='none'?0:hlWeightMin};
+      muscleGroups:hlMuscles.slice(), muscleGroup:hlMuscles.length?hlMuscles[0]:'none',
+      weightMin:hlMuscles.length?hlWeightMin:0};
     // BUGFIX v58: ต้องใช้ merge:true — เดิม set() ทับทั้งเอกสาร ถ้าฟอร์มโชว์ค่าเริ่มต้น (เพราะยังไม่ได้โหลดของเดิม)
     // แล้วนักเรียนกดบันทึก ข้อมูลจริงของวันนั้นจะถูกแทนที่ด้วยค่าเริ่มต้นทั้งชุด
     const _p=db.doc(_hlPath).set({..._hlBase,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
@@ -2336,7 +2412,9 @@ async function saveHealthLog(){
     if(_r==='timeout')_queueBackup(_hlPath,{..._hlBase,updatedAt:{__ts:Date.now()}}); // W3
     else _dropBackup(_hlPath);
     // Update local cache so switching tabs & dates shows the latest saved values
-    const _hlSaved={sleep:hlSleep,stress:hlStress,steps:hlSteps,cardio:hlCardio,muscleGroup:hlMuscle,weightMin:hlMuscle==='none'?0:hlWeightMin};
+    const _hlSaved={sleep:hlSleep,stress:hlStress,steps:hlSteps,cardio:hlCardio,
+      muscleGroups:hlMuscles.slice(),muscleGroup:hlMuscles.length?hlMuscles[0]:'none',
+      weightMin:hlMuscles.length?hlWeightMin:0}; // v93
     if(dashCache&&dashCache[3])dashCache[3][_hlDate]=_hlSaved;
     _hlCache[_hlDate]=_hlSaved; // v58: จำไว้ในแท็บนี้ด้วย สลับวันไปกลับจะได้ไม่ต้องดึงใหม่
     delete _hlFail[_hlDate]; // v86: บันทึกแล้ว = รู้ค่าปัจจุบันแน่นอน ไม่ต้องเตือนอีก
@@ -2397,7 +2475,8 @@ async function sendHealthLogCard(){
     if(hlStress>0)row('🧠','ความเครียด',hlStress+'/5');
     if(hlSteps>0)row('👟','ก้าวเดิน',hlSteps.toLocaleString()+' ก้าว');
     if(hlCardio>0)row('🏃','คาร์ดิโอ',hlCardio+' นาที');
-    if(hlMuscle&&hlMuscle!=='none')row('🏋️','เวทเทรนนิ่ง',(MUSCLE_TH[hlMuscle]||hlMuscle)+(hlWeightMin>0?` ${hlWeightMin} นาที`:''));
+    // v93: โชว์ทุกส่วนที่เลือก ไม่ใช่แค่ตัวแรก
+    if(hlMuscles.length)row('🏋️','เวทเทรนนิ่ง',mgLabels(hlMuscles)+(hlWeightMin>0?` ${hlWeightMin} นาที`:''));
     if(!rows.length)return; // ไม่กรอกอะไรเลย → ไม่ส่ง card
     const dateLabel=formatDateTH(selectedDate);
     if(!await _ensureSendPermission(false))return; // v52.1: ยังไม่อนุญาต → ข้ามไปเลย ไม่ยิงให้ error (ข้อมูลบันทึกแล้ว)
@@ -2719,6 +2798,10 @@ function selDate(str,el){
   selectedDate=str;
   document.querySelectorAll('.date-chip').forEach(c=>c.classList.remove('active'));
   el.classList.add('active');
+  // v91: แท็บสุขภาพผูกกับวันที่ — ถ้าไม่วาดใหม่ หน้าจะโชว์เลขของวันเก่า
+  //   แต่ saveHealthLog เขียนลง selectedDate ตัวใหม่ = ข้อมูลวันเก่าถูกก๊อปไปทับวันใหม่เงียบๆ
+  //   (แท็บ log ไม่ต้องวาดใหม่ ฟอร์มไม่ได้อิงวันที่จนกว่าจะกดส่ง)
+  if(typeof studentTab!=='undefined'&&studentTab==='health'&&typeof renderHealthLog==='function')renderHealthLog();
 }
 
 // MEAL / MODE
@@ -2808,7 +2891,18 @@ function updateCarbSummary(){
 }
 
 // --- protein / fat ---
-function setProtT(t,btn){protType=t;document.querySelectorAll('.ptype-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');updateHandSummary();}
+function setProtT(t,btn){
+  protType=t;
+  document.querySelectorAll('#panel-hand .ptype-btn').forEach(b=>b.classList.remove('active'));
+  if(btn)btn.classList.add('active');
+  renderProtHint(); // v92
+  updateHandSummary();
+}
+// v92: กล่องตัวอย่างอาหารใต้ปุ่มโปรตีน (เหมือน .dens-hint ของคาร์บ)
+function renderProtHint(){
+  const el=document.getElementById('prot-hint');
+  if(el)el.textContent=(PROT_INFO[protType]||PROT_INFO.lean).hint;
+}
 function setCookM(m,btn){cookMethod=m;document.querySelectorAll('.cook-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');updateHandSummary();}
 
 function updateHandSummary(){
@@ -2829,7 +2923,8 @@ function updateHandSummary(){
   updateCarbSummary();
   const pm2=PROT_T[protType];
   const psum=document.getElementById('sum-protein');
-  if(psum)psum.textContent=(protType==='lean'?'Lean✅':'Semi🔶')+' '+protQty.toFixed(1)+' ฝ่ามือ'+(eggWhole>0?' +ไข่'+eggWhole:'')+(eggWhite>0?' +ขาว'+eggWhite:'');
+  // v92: เดิมเป็น ternary 2 ทาง — ชั้น fatty จะโชว์ว่า "Semi🔶" ซึ่งโกหก
+  if(psum)psum.textContent=protLabelOf(protType)+' '+protQty.toFixed(1)+' ฝ่ามือ'+(eggWhole>0?' +ไข่'+eggWhole:'')+(eggWhite>0?' +ขาว'+eggWhite:'');
   const fsum=document.getElementById('sum-fat');
   if(fsum){const ckLabel={'none':'ต้ม/ย่าง','stirfry':'ผัด','deep':'ทอด/กะทิ'};fsum.textContent=ckLabel[cookMethod]+(visibleFat>0?' น้ำมัน'+visibleFat+'ช้อน':'')+(avoQty>0?' อะโวคาโด'+avoQty:'');}
 }
@@ -2939,10 +3034,14 @@ function getLabelData(){
 }
 
 // === THAI FOOD NUTRITION DATABASE (USDA FoodData Central + Thai FCD Mahidol) — 126 items ===
+// v91: แถวเส้นถูกปรับตามรายการอาหารแลกเปลี่ยนไทย + USDA (เส้นสุก ~20-25 C/100g)
+//   ของเดิมคิดเส้นสุกเหมือนเส้นแห้ง สูงเกินจริงเกือบเท่าตัว
+//   ⚠️ เมนูจานเดียวที่มีเส้น (ผัดไทย · ก๋วยเตี๋ยวน้ำใส · ผัดซีอิ๊ว ฯลฯ) ยังไม่ได้ปรับตาม
+//      เพราะเป็นค่าที่โค้ชคาลิเบรตเอง — ต้องรีวิวก่อนว่าจะยึดอันไหน
 // v87: คอลัมน์ kcal ของทุกแถวต้องตรงกับ 4·4·9 ของมาโครในแถวเดียวกัน
 //   เพราะทั้งแอปคิดพลังงานด้วย macroKcal() — ถ้าแถวไหนไม่ตรง AI จะได้ค่าอ้างอิงที่ขัดกันเอง
 //   (ทุเรียน: ค่าห้องแล็บ USDA = 147 kcal ต่ำกว่า 4·4·9 เพราะใยอาหารสูง แต่ยึดโมเดลของแอปเป็นหลัก)
-const THAI_FOOD_DB=[["ข้าวสวย","1 ทัพพี 45g",15,2,0,68],["ข้าวกล้อง","1 ทัพพี 45g",14,2,0.5,68],["ข้าวเหนียว","1 ทัพพี 60g",25,2,0,108],["ข้าวต้ม","1 ชาม 250ml",18,2,0,80],["โจก","1 ชาม 250ml",16,3,1,85],["เส้นหมี่","1 ทัพพี 60g",25,2,0,108],["เส้นเล็ก","1 ทัพพี 60g",26,2,0,112],["เส้นใหญ่","1 ทัพพี 60g",30,2,0,128],["บะหมี่","1 ก้อน 60g",24,4,1,121],["วุ้นเส้น","1 ทัพพี 60g",22,0,0,88],["มักกะโรนี","1 ทัพพี 60g",25,4,1,125],["ขนมปังขาว","1 แผ่น 30g",15,2.5,1,79],["ขนมปังโฮลวีต","1 แผ่น 30g",13,3,1,73],["มันต้ม","1 หัวกลาง 150g",26,3,0,117],["มันเทศต้ม","1 ถ้วย 150g",29,2,0,124],["เผือกต้ม","1 ถ้วย 120g",23,2,0,100],["ข้าวโพดต้ม","1 ฝัก 160g",29,5,2,154],["ข้าวโอ๊ตดิบ","3 ช้อนโต๊ะ 30g",20,5,2,118],["ข้าวโอ๊ตหุงสุก","100g (= ดิบ ~35g)",23,5,2.5,135],["โจ๊กข้าวโอ๊ต","1 ถ้วย 200g",24,5,3,143],["ฟักทองนึ่ง","1 ถ้วย 120g",12,2,0,56],["อกไก่ต้ม","1 ฝ่ามือ 90g",0,28,3,139],["อกไก่ย่าง","1 ฝ่ามือ 90g",0,29,3,143],["ไก่ต้มไม่มีหนัง","1 ฝ่ามือ 90g",0,24,5,141],["ปลาแซลมอน","1 ชิ้น 100g",0,20,13,197],["ปลาทูน่า","1/2 กระป๋อง 80g",0,22,1,97],["ปลาทะเลนึ่ง","1 ชิ้น 100g",0,20,3,107],["ปลาทูทอด","1 ตัวกลาง 80g",0,19,14,202],["ปลาดุกย่าง","1 ชิ้น 100g",0,18,5,117],["กุ้งต้ม","10 ตัวกลาง 90g",0,22,1,97],["กุ้งทอด","10 ตัว 90g",8,18,8,176],["ปู","1/2 ตัว 90g",0,18,1,83],["หมูสันใน","1 ฝ่ามือ 90g",0,26,6,158],["หมูสับผัด","1 ฝ่ามือ 90g",0,22,16,234],["เนื้อวัวย่าง","1 ฝ่ามือ 90g",0,26,12,216],["เต้าหู้แข็ง","1/2 ก้อน 100g",2,8,4,76],["เต้าหู้ทอด","100g",4,12,12,172],["ไข่ต้ม","1 ฟอง 50g",1,6,5,68],["ไข่ดาว","1 ฟอง 50g",0.4,6,7,82],["ไข่เจียว","1 ฟอง 60g",1,7,10,120],["ลูกชิ้นหมู","5 ลูก 80g",8,14,6,142],["ไก่มีหนัง","1 ฝ่ามือ 90g",0,22,14,218],["หมูสามชั้น","1 ฝ่ามือ 90g",0,15,28,314],["เนื้อวัวสับ","1 ฝ่ามือ 90g",0,22,17,245],["ผักบุ้งลวก","1 ถ้วย 100g",4,3,0.5,32],["บร็อคโคลีนึ่ง","1 ถ้วย 100g",7,3,0.5,35],["แตงกวา","1/2 ผล 100g",4,1,0,16],["มะเขือเทศ","1 ลูกกลาง 120g",5,1,0,22],["กะหล่ำปลี","1 ถ้วย 90g",5,1,0,23],["แครอท","1 หัว 80g",9,1,0,40],["ผักกาดขาว","1 ถ้วย 70g",2,1,0,12],["เห็ดหอม","5 ดอก 70g",8,2,0.5,44],["ถั่วลันเตา","1 ถ้วย 100g",8,3,0.5,42],["หน่อไม้ฝรั่ง","5 ต้น 75g",3,2,0.5,20],["น้ำมันพืช","1 ช้อนชา 5g",0,0,5,44],["เนย","1 ช้อนชา 5g",0,0,4,36],["กะทิ","1/4 ถ้วย 60ml",3,1,13,130],["อะโวคาโด","1/4 ลูก 50g",4,1,8,88],["ถั่วลิสง","1 ช้อนโต๊ะ 15g",4,4,7,96],["น้ำมันปลา","1 ช้อนโต๊ะ 18g",1,0,0,5],["น้ำตาลทราย","1 ช้อนชา 5g",5,0,0,20],["น้ำพริกเผา","1 ช้อนโต๊ะ 16g",5,1,3,49],["ผักบุ้งไฟแดง","1 จาน 150g",8,3,10,130],["บร็อคโคลีหมูผัด","1 จาน 200g",8,18,10,190],["ผักรวมผัดน้ำมันหอย","1 จาน 200g",10,6,8,132],["หมูกระเพรา","1 จาน 150g",5,22,14,230],["ไก่กระเพรา","1 จาน 150g",5,24,10,206],["กระเพราไข่ดาว (ไม่มีข้าว)","200g",6,22,20,284],["แกงเขียวหวานไก่","1 ถ้วย 250ml",15,22,18,302],["แกงเผ็ดหมู","1 ถ้วย 250ml",12,20,18,284],["แกงมัสมั่น","1 ถ้วย 250ml",22,18,22,354],["แกงส้ม","1 ถ้วย 250ml",10,20,5,165],["แกงจืด","1 ชาม 300ml",6,15,4,120],["ต้มยำกุ้ง","1 ชาม 300ml",8,25,8,200],["ต้มยำไก่","1 ชาม 300ml",8,22,6,174],["ต้มข่าไก่","1 ชาม 300ml",10,18,16,252],["ส้มตำไทย","1 จาน 200g",25,4,3,143],["ส้มตำปูปลาร้า","1 จาน 200g",25,10,4,176],["ผัดไทยกุ้ง","1 จาน 300g",58,22,14,446],["ผัดไทยไก่","1 จาน 300g",58,20,14,434],["ผัดซีอิ้ว","1 จาน 300g",62,22,14,458],["ผัดขี้เมา","1 จาน 300g",60,20,15,451],["ก๋วยเตี๋ยวน้ำใสหมู","1 ชาม 400ml",44,20,6,308],["ก๋วยเตี๋ยวน้ำตกเนื้อ","1 ชาม 400ml",44,22,8,332],["บะหมี่น้ำ","1 ชาม 400ml",48,18,8,340],["ก๋วยเตี๋ยวคั่วไก่","1 จาน 300g",55,20,10,390],["ข้าวผัดหมู","1 จาน 350g",60,20,18,478],["ข้าวผัดไก่","1 จาน 350g",60,22,16,470],["ข้าวผัดกุ้ง","1 จาน 350g",60,20,16,464],["ข้าวมันไก่","1 จาน 380g",65,30,14,498],["ข้าวหน้าเป็ด","1 จาน 380g",65,28,22,562],["ข้าวกะเพราหมูไข่ดาว","1 จาน ข้าว+หมูกระเพรา+ไข่",80,32,28,692],["ไก่ย่าง","1 ชิ้น 120g",2,28,12,228],["หมูปิ้ง","3 ไม้ 90g",8,20,10,198],["คอหมูย่าง","1 ชิ้น 150g",4,30,22,334],["ยำวุ้นเส้น","1 จาน 200g",32,12,6,230],["ยำทะเล","1 จาน 200g",12,22,5,181],["ไก่ทอด","1 ชิ้น 100g",8,22,16,264],["ปลาทอด","1 ชิ้น 100g",8,20,14,234],["ข้าวเกรียบ","10 ชิ้น 15g",11,1,5,89],["ทอดมันกุ้ง","2 ชิ้น 60g",10,10,8,152],["สปริงโรล","2 ชิ้น 80g",20,6,8,176],["ไข่พะโล้","2 ไข่+หมู 200g",10,24,18,290],["ลาบหมู","1 จาน 180g",10,24,14,254],["น้ำพริกกะปิ","พร้อมผัก 200g",15,8,10,178],["มะม่วงสุก","1 ผลกลาง 200g",35,2,1,157],["มะม่วงเขียว","1/4 ผล 75g",9,1,0,40],["กล้วยน้ำว้า","1 ผล 90g",20,1,0.5,88],["กล้วยหอม","1 ผล 120g",27,1,0.5,116],["สับปะรด","8 ชิ้น 150g",20,1,0,84],["แตงโม","8 ชิ้น เล็ก 200g",15,1,0,60],["ส้ม","1 ผล 100g",12,1,0,47],["ลำไย","10 ผล 100g",15,1,0,60],["ลิ้นจี่","10 ผล 100g",16,1,0,66],["มะละกอสุก","8 ชิ้น 150g",17,1,0,68],["แอปเปิ้ล","1 ลูกกลาง 150g",21,0.5,0,86],["มังคุด","4 ผล 100g",18,1,0.5,73],["ทุเรียน","1 พู 100g",28,2,5,165],["นมวัวพร่องไขมัน","1 กล่อง 200ml",10,7,3,95],["โยเกิร์ตรสธรรมชาติ","1 ถ้วย 150g",9,8,4,104],["นมถั่วเหลือง","1 กล่อง 200ml",10,7,4,104],["นมอัลมอนด์","1 แก้ว 240ml",2,1,2,30],["ชาเขียวไม่หวาน","1 แก้ว 250ml",0,0,0,2],["มะม่วงข้าวเหนียว","1 จาน 300g",80,6,10,434],["ข้าวเหนียวมะม่วง+กะทิ","1 จาน 300g",82,6,12,454],["ขนมครก","6 ชิ้น 80g",20,4,8,164],["ทับทิมกรอบ","1 ถ้วย 200ml",40,2,8,236],["วุ้นมะพร้าว","100g",14,0,0,56],["ข้าวกะเพราไก่","1 จาน 350g",45,28,14,418],["ข้าวกะเพราหมู","1 จาน 350g",45,26,16,428],["ข้าวต้มหมู","1 ชาม 300ml",20,16,4,180],["ข้าวหมูกรอบ","1 จาน 350g",60,22,20,508],["ข้าวหมูแดง","1 จาน 350g",60,26,14,470],["ก๋วยเตี๋ยวหมูสับ","1 ชาม 400ml",42,20,8,320]];
+const THAI_FOOD_DB=[["ข้าวสวย","1 ทัพพี 45g",15,2,0,68],["ข้าวกล้อง","1 ทัพพี 45g",14,2,0.5,68],["ข้าวเหนียว","1 ทัพพี 60g",31,2,0,132],["ข้าวต้ม","1 ชาม 250ml",18,2,0,80],["โจก","1 ชาม 250ml",16,3,1,85],["เส้นหมี่","1 ทัพพี 60g",11,2,0,52],["เส้นเล็ก","1 ทัพพี 60g",12,2,0,56],["เส้นใหญ่","1 ทัพพี 60g",12,2,0,56],["บะหมี่","1 ก้อน 60g",15,4,1,85],["วุ้นเส้น","1 ทัพพี 60g",22,0,0,88],["มักกะโรนี","1 ทัพพี 60g",16,4,1,89],["ขนมปังขาว","1 แผ่น 30g",15,2.5,1,79],["ขนมปังโฮลวีต","1 แผ่น 30g",13,3,1,73],["มันต้ม","1 หัวกลาง 150g",26,3,0,117],["มันเทศต้ม","1 ถ้วย 150g",29,2,0,124],["เผือกต้ม","1 ถ้วย 120g",23,2,0,100],["ข้าวโพดต้ม","1 ฝัก 160g",29,5,2,154],["ข้าวโอ๊ตดิบ","3 ช้อนโต๊ะ 30g",20,5,2,118],["ข้าวโอ๊ตหุงสุก","100g (= ดิบ ~35g)",23,5,2.5,135],["โจ๊กข้าวโอ๊ต","1 ถ้วย 200g",24,5,3,143],["ฟักทองนึ่ง","1 ถ้วย 120g",12,2,0,56],["อกไก่ต้ม","1 ฝ่ามือ 90g",0,28,3,139],["อกไก่ย่าง","1 ฝ่ามือ 90g",0,29,3,143],["ไก่ต้มไม่มีหนัง","1 ฝ่ามือ 90g",0,24,5,141],["ปลาแซลมอน","1 ชิ้น 100g",0,20,13,197],["ปลาทูน่า","1/2 กระป๋อง 80g",0,22,1,97],["ปลาทะเลนึ่ง","1 ชิ้น 100g",0,20,3,107],["ปลาทูทอด","1 ตัวกลาง 80g",0,19,14,202],["ปลาดุกย่าง","1 ชิ้น 100g",0,18,5,117],["กุ้งต้ม","10 ตัวกลาง 90g",0,22,1,97],["กุ้งทอด","10 ตัว 90g",8,18,8,176],["ปู","1/2 ตัว 90g",0,18,1,83],["หมูสันใน","1 ฝ่ามือ 90g",0,26,6,158],["หมูสับผัด","1 ฝ่ามือ 90g",0,22,16,234],["เนื้อวัวย่าง","1 ฝ่ามือ 90g",0,26,12,216],["เต้าหู้แข็ง","1/2 ก้อน 100g",2,8,4,76],["เต้าหู้ทอด","100g",4,12,12,172],["ไข่ต้ม","1 ฟอง 50g",1,6,5,68],["ไข่ดาว","1 ฟอง 50g",0.4,6,7,82],["ไข่เจียว","1 ฟอง 60g",1,7,10,120],["ลูกชิ้นหมู","5 ลูก 80g",8,14,6,142],["ไก่มีหนัง","1 ฝ่ามือ 90g",0,22,14,218],["หมูสามชั้น","1 ฝ่ามือ 90g",0,15,28,314],["เนื้อวัวสับ","1 ฝ่ามือ 90g",0,22,17,245],["ผักบุ้งลวก","1 ถ้วย 100g",4,3,0.5,32],["บร็อคโคลีนึ่ง","1 ถ้วย 100g",7,3,0.5,35],["แตงกวา","1/2 ผล 100g",4,1,0,16],["มะเขือเทศ","1 ลูกกลาง 120g",5,1,0,22],["กะหล่ำปลี","1 ถ้วย 90g",5,1,0,23],["แครอท","1 หัว 80g",9,1,0,40],["ผักกาดขาว","1 ถ้วย 70g",2,1,0,12],["เห็ดหอม","5 ดอก 70g",8,2,0.5,44],["ถั่วลันเตา","1 ถ้วย 100g",8,3,0.5,42],["หน่อไม้ฝรั่ง","5 ต้น 75g",3,2,0.5,20],["น้ำมันพืช","1 ช้อนชา 5g",0,0,5,44],["เนย","1 ช้อนชา 5g",0,0,4,36],["กะทิ","1/4 ถ้วย 60ml",3,1,13,130],["อะโวคาโด","1/4 ลูก 50g",4,1,8,88],["ถั่วลิสง","1 ช้อนโต๊ะ 15g",4,4,7,96],["น้ำมันปลา","1 ช้อนโต๊ะ 18g",1,0,0,5],["น้ำตาลทราย","1 ช้อนชา 5g",5,0,0,20],["น้ำพริกเผา","1 ช้อนโต๊ะ 16g",5,1,3,49],["ผักบุ้งไฟแดง","1 จาน 150g",8,3,10,130],["บร็อคโคลีหมูผัด","1 จาน 200g",8,18,10,190],["ผักรวมผัดน้ำมันหอย","1 จาน 200g",10,6,8,132],["หมูกระเพรา","1 จาน 150g",5,22,14,230],["ไก่กระเพรา","1 จาน 150g",5,24,10,206],["กระเพราไข่ดาว (ไม่มีข้าว)","200g",6,22,20,284],["แกงเขียวหวานไก่","1 ถ้วย 250ml",15,22,18,302],["แกงเผ็ดหมู","1 ถ้วย 250ml",12,20,18,284],["แกงมัสมั่น","1 ถ้วย 250ml",22,18,22,354],["แกงส้ม","1 ถ้วย 250ml",10,20,5,165],["แกงจืด","1 ชาม 300ml",6,15,4,120],["ต้มยำกุ้ง","1 ชาม 300ml",8,25,8,200],["ต้มยำไก่","1 ชาม 300ml",8,22,6,174],["ต้มข่าไก่","1 ชาม 300ml",10,18,16,252],["ส้มตำไทย","1 จาน 200g",25,4,3,143],["ส้มตำปูปลาร้า","1 จาน 200g",25,10,4,176],["ผัดไทยกุ้ง","1 จาน 300g",58,22,14,446],["ผัดไทยไก่","1 จาน 300g",58,20,14,434],["ผัดซีอิ้ว","1 จาน 300g",62,22,14,458],["ผัดขี้เมา","1 จาน 300g",60,20,15,451],["ก๋วยเตี๋ยวน้ำใสหมู","1 ชาม 400ml",44,20,6,308],["ก๋วยเตี๋ยวน้ำตกเนื้อ","1 ชาม 400ml",44,22,8,332],["บะหมี่น้ำ","1 ชาม 400ml",48,18,8,340],["ก๋วยเตี๋ยวคั่วไก่","1 จาน 300g",55,20,10,390],["ข้าวผัดหมู","1 จาน 350g",60,20,18,478],["ข้าวผัดไก่","1 จาน 350g",60,22,16,470],["ข้าวผัดกุ้ง","1 จาน 350g",60,20,16,464],["ข้าวมันไก่","1 จาน 380g",65,30,14,498],["ข้าวหน้าเป็ด","1 จาน 380g",65,28,22,562],["ข้าวกะเพราหมูไข่ดาว","1 จาน ข้าว+หมูกระเพรา+ไข่",80,32,28,692],["ไก่ย่าง","1 ชิ้น 120g",2,28,12,228],["หมูปิ้ง","3 ไม้ 90g",8,20,10,198],["คอหมูย่าง","1 ชิ้น 150g",4,30,22,334],["ยำวุ้นเส้น","1 จาน 200g",32,12,6,230],["ยำทะเล","1 จาน 200g",12,22,5,181],["ไก่ทอด","1 ชิ้น 100g",8,22,16,264],["ปลาทอด","1 ชิ้น 100g",8,20,14,234],["ข้าวเกรียบ","10 ชิ้น 15g",11,1,5,89],["ทอดมันกุ้ง","2 ชิ้น 60g",10,10,8,152],["สปริงโรล","2 ชิ้น 80g",20,6,8,176],["ไข่พะโล้","2 ไข่+หมู 200g",10,24,18,290],["ลาบหมู","1 จาน 180g",10,24,14,254],["น้ำพริกกะปิ","พร้อมผัก 200g",15,8,10,178],["มะม่วงสุก","1 ผลกลาง 200g",35,2,1,157],["มะม่วงเขียว","1/4 ผล 75g",9,1,0,40],["กล้วยน้ำว้า","1 ผล 90g",20,1,0.5,88],["กล้วยหอม","1 ผล 120g",27,1,0.5,116],["สับปะรด","8 ชิ้น 150g",20,1,0,84],["แตงโม","8 ชิ้น เล็ก 200g",15,1,0,60],["ส้ม","1 ผล 100g",12,1,0,47],["ลำไย","10 ผล 100g",15,1,0,60],["ลิ้นจี่","10 ผล 100g",16,1,0,66],["มะละกอสุก","8 ชิ้น 150g",17,1,0,68],["แอปเปิ้ล","1 ลูกกลาง 150g",21,0.5,0,86],["มังคุด","4 ผล 100g",18,1,0.5,73],["ทุเรียน","1 พู 100g",28,2,5,165],["นมวัวพร่องไขมัน","1 กล่อง 200ml",10,7,3,95],["โยเกิร์ตรสธรรมชาติ","1 ถ้วย 150g",9,8,4,104],["นมถั่วเหลือง","1 กล่อง 200ml",10,7,4,104],["นมอัลมอนด์","1 แก้ว 240ml",2,1,2,30],["ชาเขียวไม่หวาน","1 แก้ว 250ml",0,0,0,2],["มะม่วงข้าวเหนียว","1 จาน 300g",80,6,10,434],["ข้าวเหนียวมะม่วง+กะทิ","1 จาน 300g",82,6,12,454],["ขนมครก","6 ชิ้น 80g",20,4,8,164],["ทับทิมกรอบ","1 ถ้วย 200ml",40,2,8,236],["วุ้นมะพร้าว","100g",14,0,0,56],["ข้าวกะเพราไก่","1 จาน 350g",45,28,14,418],["ข้าวกะเพราหมู","1 จาน 350g",45,26,16,428],["ข้าวต้มหมู","1 ชาม 300ml",20,16,4,180],["ข้าวหมูกรอบ","1 จาน 350g",60,22,20,508],["ข้าวหมูแดง","1 จาน 350g",60,26,14,470],["ก๋วยเตี๋ยวหมูสับ","1 ชาม 400ml",42,20,8,320]];
 // fuzzy lookup: return row [name,serving,c,p,f,kcal] or null
 function dbLookup(query){
   // v46 FIX: เดิมให้คะแนนความ "คล้าย" แล้วเอาตัวที่คล้ายที่สุด — ภาษาไทยสระ/วรรณยุกต์ซ้ำกันแทบทุกคำ
@@ -3721,7 +3820,8 @@ async function applySavedMenu(id){
     _sv('v-eggWhite',eggWhite);
     _sv('v-fat',visibleFat.toFixed(1));
     _sv('v-avo',avoQty);
-    document.querySelectorAll('.ptype-btn').forEach(b=>b.classList.toggle('active',b.dataset.pt===protType));
+    document.querySelectorAll('#panel-hand .ptype-btn').forEach(b=>b.classList.toggle('active',b.dataset.pt===protType));
+    renderProtHint(); // v92
     document.querySelectorAll('.cook-btn').forEach(b=>b.classList.toggle('active',b.dataset.ck===cookMethod));
     renderCarbSlots();updateHandSummary();
   }
@@ -3910,7 +4010,7 @@ function showSuccess(mode,handData,labelData,weighData,_sDate,_sMeal){ // v74: �
     (hd.carbSlots||[]).forEach((s,i)=>{
       chips+=`<span class="chip">${DL[s.density]||'🟡'} ${i===0?'คาร์บ':'คาร์บ+'} ${s.qty} มือ</span>`;
     });
-    chips+=`<span class="chip">${{lean:'Lean✅',semilean:'Semi-lean🔶'}[hd.protType]||''} ${hd.protein} ฝ่ามือ</span>`;
+    chips+=`<span class="chip">${protLabelOf(hd.protType)} ${hd.protein} ฝ่ามือ</span>`; // v92
     if(hd.eggWhole>0)chips+=`<span class="chip">🥚 ไข่ทั้งฟอง ${hd.eggWhole} ฟอง</span>`;
     if(hd.eggWhite>0)chips+=`<span class="chip">🥚 ไข่ขาว ${hd.eggWhite} ฟอง</span>`;
     chips+=`<span class="chip">${{none:'ต้ม/ย่าง',stirfry:'ผัด',deep:'ทอด/กะทิ'}[hd.cookMethod]||''}${hd.visibleFat>0?' +น้ำมัน '+hd.visibleFat+' ช้อน':''}</span>`;
@@ -4335,7 +4435,8 @@ function resetStudent(){
   document.getElementById('v-eggWhite').textContent='0';
   document.getElementById('v-fat').textContent='0.0';
   document.getElementById('v-avo').textContent='0';
-  document.querySelectorAll('.ptype-btn').forEach(b=>b.classList.toggle('active',b.dataset.pt==='lean'));
+  document.querySelectorAll('#panel-hand .ptype-btn').forEach(b=>b.classList.toggle('active',b.dataset.pt==='lean'));
+  renderProtHint(); // v92
   document.querySelectorAll('.cook-btn').forEach(b=>b.classList.toggle('active',b.dataset.ck==='none'));
   updateHandSummary();
   renderPhotoThumbs();
@@ -4452,6 +4553,8 @@ function _coachUserMap(){
 }
 function _coachUser(userId){return _coachUserMap()[userId]||null;}
 function startCoach(){
+  const _cv=document.getElementById('coach-ver'); // v93
+  if(_cv)_cv.textContent=APP_VERSION;
   if(_coachUnsub){_coachUnsub();_coachUnsub=null;} // H1: ยกเลิก listener เก่า
   document.getElementById('coach-view').style.display='block';
   loadStudentsRegistry(true); // v77: โหลดทะเบียนคู่ขนานไปกับ submissions
@@ -4500,6 +4603,12 @@ function startCoach(){
       if(_allLocal&&_coachRendered)return;
       _coachRendered=true;
       renderCoach();
+      // v91: รอบแรกที่ข้อมูลมาถึง ลองกู้ draft ที่ค้างจากรอบก่อน (หน้าถูกรีเอง)
+      if(!_cdRestored){
+        _cdRestored=true;
+        _corrDraftRestore();
+        if(_cdPending){renderCoach();_corrDraftNotify();}
+      }
     },err=>console.error(err));
 }
 function selCoachTab(tab){
@@ -5194,10 +5303,11 @@ function renderPlanPanel(){
           <button onclick="adjPlanHand('carb',0.5)">+</button>
         </div>
         <div class="hmb-subtitle" style="margin-bottom:6px">🍗 โปรตีน</div>
-        <div class="ptype-grid" style="margin-bottom:4px">
-          <button class="ptype-btn${planHandProtType==='lean'?' active':''}" data-pt="lean" onclick="setPlanProtT('lean')">💪 ไม่ติดมัน<span class="ptype-sub">อกไก่ · หมูสันใน · ปลา · กุ้ง · ทูน่า</span><span class="ptype-sub" style="color:var(--primary-dark);font-weight:600">~145 kcal/ฝ่ามือ</span></button>
-          <button class="ptype-btn${planHandProtType==='semilean'?' active':''}" data-pt="semilean" onclick="setPlanProtT('semilean')">🍗 ติดมัน<span class="ptype-sub">ไก่มีหนัง · แซลมอน · เต้าหู้ · เนื้อวัว</span><span class="ptype-sub" style="color:var(--primary-dark);font-weight:600">~185 kcal/ฝ่ามือ</span></button>
+        <div class="ptype-grid three" style="margin-bottom:4px">
+          ${['lean','semilean','fatty'].map(t=>{const i=PROT_INFO[t];
+            return `<button class="ptype-btn${planHandProtType===t?' active':''}" data-pt="${t}" onclick="setPlanProtT('${t}')">${i.emoji} ${i.short}<span class="ptype-sub" style="color:var(--primary-dark);font-weight:600">~${i.kcal} kcal</span></button>`;}).join('')}
         </div>
+        <div class="dens-hint" id="plan-prot-hint">${(PROT_INFO[planHandProtType]||PROT_INFO.lean).hint}</div>
         <div class="hmb-subtitle" style="margin-top:8px;margin-bottom:4px">จำนวน</div>
         <div class="hmb-stepper" style="margin-bottom:14px">
           <button onclick="adjPlanHand('prot',-0.5)">−</button>
@@ -5350,6 +5460,8 @@ function setPlanProtT(type){
   planHandProtType=type;
   const panel=document.getElementById('plan-mode-hand');
   if(panel)panel.querySelectorAll('.ptype-btn').forEach(b=>b.classList.toggle('active',b.dataset.pt===type));
+  const _h=document.getElementById('plan-prot-hint'); // v92
+  if(_h)_h.textContent=(PROT_INFO[type]||PROT_INFO.lean).hint;
   updatePlanHandPreview();
 }
 function updatePlanHandPreview(){
@@ -5887,8 +5999,14 @@ function buildLifestyleSection(MON, TH_SHORT, healthLogs){
   const stressArr=MON.map(d=>healthLogs[d]?.stress??null);
   const stepsArr=MON.map(d=>healthLogs[d]?.steps??null);
   const cardioArr=MON.map(d=>healthLogs[d]?.cardio??null);
-  const weightArr=MON.map(d=>healthLogs[d]?.muscleGroup==='none'?0:(healthLogs[d]?.weightMin??null));
-  const weightGrpArr=MON.map(d=>healthLogs[d]?.muscleGroup||null);
+  // v93: อ่าน muscleGroups ก่อน ถ้าไม่มีค่อยตกไปใช้ muscleGroup ตัวเก่า
+  const _mgOf=d=>{const e=healthLogs[d];if(!e)return [];
+    if(Array.isArray(e.muscleGroups))return e.muscleGroups.filter(k=>k&&k!=='none');
+    return (e.muscleGroup&&e.muscleGroup!=='none')?[e.muscleGroup]:[];};
+  // null = ยังไม่ได้กรอกวันนั้น · 0 = กรอกแล้วว่าไม่ได้เล่น — สองอย่างนี้ห้ามปนกัน
+  const weightArr=MON.map(d=>!healthLogs[d]?null:(_mgOf(d).length?(healthLogs[d].weightMin??null):0));
+  const weightGrpArr=MON.map(d=>{const g=_mgOf(d);return g.length?g[0]:null;});
+  const weightGrpAll=MON.map(d=>_mgOf(d));
 
   function numAvg(arr){const v=arr.filter(x=>x!==null&&x>0);return v.length?v.reduce((a,b)=>a+b,0)/v.length:0;}
   function calcBarH(val,min,max){if(val===null)return 0;const r=Math.max(0,Math.min(1,(val-min)/(max-min)));return Math.max(4,r*BAR_H);}
@@ -5922,7 +6040,8 @@ function buildLifestyleSection(MON, TH_SHORT, healthLogs){
   const stepsBars=makeBars(stepsArr,{min:0,max:15000,color:'linear-gradient(to top,#1D4ED8,#60A5FA)',iconFn:()=>'',fmtFn:v=>v>=1000?(v/1000).toFixed(1)+'k':v});
   const cardioBars=makeBars(cardioArr,{min:0,max:60,color:'linear-gradient(to top,#B45309,#FCD34D)',iconFn:()=>'',fmtFn:v=>v===0?'—':v+'m'});
   const weightBars=makeBars(weightArr,{min:0,max:60,color:'linear-gradient(to top,#D4891A,#F5A623)',
-    iconFn:i=>weightGrpArr[i]&&weightGrpArr[i]!=='none'?(MUSCLE_EMOJI[weightGrpArr[i]]||'🏋️'):'',
+    // v93: เล่นหลายส่วนในวันเดียว → ติดจุดไว้ให้รู้ว่ามีมากกว่า 1
+    iconFn:i=>weightGrpArr[i]&&weightGrpArr[i]!=='none'?((MUSCLE_EMOJI[weightGrpArr[i]]||'🏋️')+((weightGrpAll[i]||[]).length>1?'·':'')):'',
     fmtFn:v=>v===0?'—':v+'m'
   });
 
@@ -5987,7 +6106,7 @@ function buildCard(s){
   let chips='';
   if(s.mode==='hand'&&s.handData){
     const hd=s.handData;
-    const protL={lean:'Lean✅',semilean:'Semi-lean🔶'}[hd.protType]||'';
+    const protL=protLabelOf(hd.protType); // v92
     const cookL={none:'ต้ม/ย่าง',stirfry:'ผัด',deep:'ทอด/กะทิ'}[hd.cookMethod]||'';
     if(hd.menuName)chips+=`<span class="est-chip" style="background:#FEF3C7;color:#92400E;font-weight:600">🍽️ ${escHtml(hd.menuName)}</span>`;
     if(hd.menuDesc)chips+=`<span class="est-chip" style="background:#FFFBEB;color:#A16207;font-size:11px">📝 ${escHtml(hd.menuDesc)}</span>`;
@@ -6177,7 +6296,8 @@ function buildCorrPanel(s,cs){
       ?`<div style="background:#ECFDF5;border:1px solid #A7F3D0;border-radius:8px;padding:6px 10px;margin-bottom:8px;font-size:11px;color:#065F46;line-height:1.6">✅ <b>ฟอร์มด้านล่าง = ค่าที่โค้ชแก้ไว้ล่าสุด</b> (C ${s.correction.carb} · P ${s.correction.protein} · F ${s.correction.fat})<br>ปรับต่อได้เลย กดบันทึกแล้วทับของเดิมค่ะ</div>`
       :`<div style="background:#FEF3C7;border:1px solid #FDE68A;border-radius:8px;padding:6px 10px;margin-bottom:8px;font-size:11px;color:#92400E;line-height:1.6">⚠️ <b>มื้อนี้แก้ไว้ก่อนอัปเดต — ระบบไม่ได้เก็บว่ากดปุ่มอะไรไว้</b><br>ปุ่มด้านล่างจึงเป็นค่าดั้งเดิมของนักเรียน ถ้ากดบันทึกตอนนี้ มาโครจะเปลี่ยนจาก <b>C ${s.correction.carb} · P ${s.correction.protein} · F ${s.correction.fat}</b> → <b>C ${preC} · P ${preP} · F ${preF}</b><br>ตั้งปุ่มให้ตรงก่อนกดบันทึกนะคะ</div>`);
     const dBtn=(d)=>`<button class="dens-btn${d===density?' active':''}" data-d="${d}" onclick="setHCorrCarbD('${s.id}','${d}')">${CARB_D[d].emoji} ${CARB_D[d].label}</button>`;
-    const ptBtn=(t,lbl,sub)=>`<button class="ptype-btn${t===protType?' active':''}" data-pt="${t}" onclick="setHCorrProtT('${s.id}','${t}')">${lbl}<span class="ptype-sub">${sub}</span></button>`;
+    const ptBtn=(t)=>{const i=PROT_INFO[t];
+      return `<button class="ptype-btn${t===protType?' active':''}" data-pt="${t}" onclick="setHCorrProtT('${s.id}','${t}')">${i.emoji} ${i.short}<span class="ptype-sub" style="color:var(--primary-dark);font-weight:600">~${i.kcal} kcal</span></button>`;};
     const ckBtn=(m,lbl,sub)=>`<button class="cook-btn${m===cookMethod?' active':''}" data-ck="${m}" onclick="setHCorrCookM('${s.id}','${m}')">${lbl}<span class="dens-kcal">${sub}</span></button>`;
     return`<div class="correction-panel">
 ${_modeSwitchRow}<h4>✏️ แก้ค่า — Hand Portion</h4>
@@ -6190,7 +6310,8 @@ ${_multiWarn}${_corrBanner}
 </div>
 <div style="margin-bottom:10px">
   <div class="hmb-subtitle" style="margin-bottom:5px">🍗 โปรตีน</div>
-  <div class="ptype-grid" style="margin-bottom:8px">${ptBtn('lean','💪 ไม่ติดมัน','อกไก่ · หมูสันใน · ปลา · กุ้ง')}${ptBtn('semilean','🍗 ติดมัน','ไก่มีหนัง · แซลมอน · เต้าหู้ · เนื้อวัว')}</div>
+  <div class="ptype-grid three" style="margin-bottom:6px">${ptBtn('lean')}${ptBtn('semilean')}${ptBtn('fatty')}</div>
+  <div class="dens-hint" id="hc-prot-hint-${s.id}">${(PROT_INFO[protType]||PROT_INFO.lean).hint}</div>
   <div class="hmb-subtitle" style="margin-bottom:4px">จำนวน (ฝ่ามือ)</div>
   <div class="corr-s-row"><button onclick="adjHCorr('${s.id}','protQty',-0.5)">−</button><input type="number" class="corr-input" id="hc-protQty-${s.id}" value="${protQty}" min="0" step="0.5" onchange="syncHCorr('${s.id}','protQty')"><button onclick="adjHCorr('${s.id}','protQty',0.5)">+</button></div>
 </div>
@@ -6277,9 +6398,56 @@ function showCardPhotos(id){
     :`<div style="display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch">${ph.map(u=>`<img src="${safeImg(u)}" loading="lazy" style="height:110px;width:110px;object-fit:cover;border-radius:8px;flex-shrink:0">`).join('')}</div>`;
 }
 function _updateCard(id){const s=allSubs.find(x=>x.id===id);const el=document.getElementById('card-'+id);if(s&&el){el.outerHTML=buildCard(s);}else{renderCoach();}}
+// ===== v91: DRAFT ของแผงแก้ค่า =====
+// เก็บสิ่งที่โค้ชกำลังแก้ไว้ในเครื่องทุกครั้งที่แตะปุ่ม
+// หน้าโหลดใหม่เมื่อไหร่ก็กู้กลับมาให้ พร้อมเปิดการ์ดเดิมค้างไว้ที่เดิม
+const _CD_KEY='_dfcorrdraft';
+const _CD_TTL=6*3600*1000;   // เกิน 6 ชม. ถือว่าเลิกแก้ไปแล้ว
+let _cdPending=null,_cdRestored=false;
+function _corrDraftSave(id){
+  try{
+    const cs=cState[id];if(!cs)return;
+    const{_sub,..._keep}=cs;   // ห้ามเก็บ _sub — เป็นเอกสารทั้งใบ อาจมีรูป base64 ทำ quota แตก
+    localStorage.setItem(_CD_KEY,JSON.stringify({id,at:Date.now(),cs:_keep}));
+  }catch(_){}
+}
+function _corrDraftClear(id){
+  try{
+    const d=JSON.parse(localStorage.getItem(_CD_KEY)||'null');
+    if(!d)return;
+    if(id&&d.id!==id)return;   // เป็น draft ของการ์ดอื่น อย่าลบ
+    localStorage.removeItem(_CD_KEY);
+  }catch(_){}
+}
+function _corrDraftRestore(){
+  try{
+    const d=JSON.parse(localStorage.getItem(_CD_KEY)||'null');
+    if(!d||!d.id||!d.cs)return;
+    if(Date.now()-(d.at||0)>_CD_TTL){localStorage.removeItem(_CD_KEY);return;}
+    // มื้อถูกอนุมัติ/ลบไปแล้วระหว่างนั้น → ทิ้ง draft ไม่งั้นเปิดการ์ดผีค้างไว้
+    if(!allSubs.some(x=>x.id===d.id)){localStorage.removeItem(_CD_KEY);return;}
+    cState[d.id]=Object.assign(cState[d.id]||{},d.cs,{open:true});
+    _cdPending=d.id;
+  }catch(_){}
+}
+function _corrDraftNotify(){
+  if(!_cdPending)return;
+  const id=_cdPending;_cdPending=null;
+  setTimeout(()=>{
+    const el=document.getElementById('card-'+id);
+    if(el)el.scrollIntoView({behavior:'smooth',block:'center'});
+    showToast('↩️ กู้ค่าที่แก้ค้างไว้กลับมาให้แล้วค่ะ — เช็คแล้วกดบันทึกได้เลย',5000);
+  },350);
+}
 function setCoachCorrMode(id,mode){if(!cState[id])cState[id]={};cState[id].corrMode=mode;delete cState[id].carb;delete cState[id].protein;delete cState[id].fat;_updateCard(id);}
-function toggleCorr(id){if(!cState[id])cState[id]={};cState[id].open=!cState[id].open;_updateCard(id);}
+function toggleCorr(id){
+  if(!cState[id])cState[id]={};
+  cState[id].open=!cState[id].open;
+  if(!cState[id].open)_corrDraftClear(id); // v91: โค้ชกดยกเลิกเอง = ไม่ต้องกู้คืน
+  _updateCard(id);
+}
 function updateCorrPreview(id){
+  _corrDraftSave(id); // v91
   const c=parseFloat(document.getElementById(`cc-carb-${id}`)?.value)||0;
   const p=parseFloat(document.getElementById(`cc-protein-${id}`)?.value)||0;
   const f=parseFloat(document.getElementById(`cc-fat-${id}`)?.value)||0;
@@ -6327,6 +6495,9 @@ function setHCorrCarbD(id,density){
 function setHCorrProtT(id,type){
   if(!cState[id])cState[id]={};
   cState[id].protType=type;
+  // v92: อัปเดตกล่องตัวอย่างของชั้นที่เพิ่งเลือก
+  const _ph=document.getElementById('hc-prot-hint-'+id);
+  if(_ph)_ph.textContent=(PROT_INFO[type]||PROT_INFO.lean).hint;
   const card=document.getElementById('card-'+id);
   if(card)card.querySelectorAll('.ptype-btn').forEach(b=>b.classList.toggle('active',b.dataset.pt===type));
   updateHandCorrPreview(id);
@@ -6383,6 +6554,7 @@ function calcHandCorrMacros(id){
   return _handCorrMacros(_handCorrBase(s,cState[id]||{}));
 }
 function updateHandCorrPreview(id){
+  _corrDraftSave(id); // v91
   const{C,P,F,kcal}=calcHandCorrMacros(id);
   const el=document.getElementById(`hc-preview-${id}`);
   if(el)el.textContent=`C ${C}g · P ${P}g · F ${F}g → ⚡ ${kcal} kcal`;
@@ -6592,6 +6764,7 @@ async function sendCorrection(id,action='save'){
       ...(_modeChanged?{mode:cState[id].corrMode}:{})
     })); // W1
     // v83: ตัดการส่งทันทีทิ้งด้วยเหตุผลเดียวกับ doApprove — ส่งเข้าแชทโค้ชเองแล้วปิดธงถาวร
+    _corrDraftClear(id); // v91: บันทึกแล้ว ไม่ต้องกู้คืนอีก
     cState[id]={};
     renderCoach();
     showToast(_r==='timeout'?'📡 เน็ตช้า — บันทึกไว้ในเครื่องแล้ว จะซิงค์อัตโนมัติค่ะ':(_isReEdit?'✅ แก้ไขแล้ว — Card อัปเดตจะส่งเมื่อนักเรียนเปิดแอปค่ะ':'✅ บันทึกแล้วค่ะ'),_r==='timeout'?4000:3200);
@@ -7355,7 +7528,7 @@ function buildFeedbackFlex(mealCount, totC, totP, totF, totKcal, currentSub, day
     });
     // protein
     const pm=PROT_T[hd.protType]||PROT_T.lean;
-    const protLabel=hd.protType==='lean'?'โปรตีนไขมันต่ำ':'โปรตีนปกติ';
+    const protLabel={lean:'โปรตีนไขมันต่ำ',semilean:'โปรตีนปกติ',fatty:'โปรตีนติดมันมาก'}[hd.protType]||'โปรตีนปกติ'; // v92
     if((hd.protein||0)>0){
       const kc=Math.round(pm.p*(hd.protein)*4+pm.f*(hd.protein)*9);
       mealRows.push({type:'box',layout:'horizontal',margin:'sm',contents:[
