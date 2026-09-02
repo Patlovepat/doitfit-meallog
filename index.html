@@ -792,8 +792,10 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
           <div style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:9px;padding:7px 10px;margin-bottom:8px;font-size:10.5px;line-height:1.7;color:#92400E">
             ⚖️ <b>ชั่งเป็นกรัมใช่ไหมคะ — บอกด้วยว่า "ดิบ" หรือ "สุก"</b><br>ข้าวสารกับข้าวสวยน้ำหนักเท่ากัน แต่แคลต่างกันเกือบ 3 เท่าเลยค่ะ
           </div>
-          <textarea class="ai-food-textarea" id="ai-food-input" rows="5" maxlength="800" placeholder="ข้าวกล้อง 2 ทัพพี&#10;ไข่ดาว 1 ฟอง&#10;ผัดผักบุ้งครึ่งจาน&#10;นมจืด 1 กล่อง"></textarea>
+          <textarea class="ai-food-textarea" id="ai-food-input" rows="5" maxlength="800" oninput="_aiStaleSync()" placeholder="ข้าวกล้อง 2 ทัพพี&#10;ไข่ดาว 1 ฟอง&#10;ผัดผักบุ้งครึ่งจาน&#10;นมจืด 1 กล่อง"></textarea>
           <button class="ai-calc-btn" id="ai-calc-btn" onclick="callGeminiAI()">✨ ให้ AI คำนวณ</button>
+          <!-- v94: กันเคสแก้ข้อความแล้วส่งเลย = ชื่ออาหารใหม่ ตัวเลขเก่า -->
+          <div id="ai-stale-bar" style="display:none;margin-top:8px;padding:9px 12px;background:#FEF3C7;border:1px solid #FDE68A;border-radius:10px;font-size:11.5px;color:#92400E;line-height:1.6">✏️ ข้อความเปลี่ยนหลังคำนวณ — ตัวเลขด้านล่างยังเป็นของเดิม กด ✨ อีกครั้งก่อนส่งนะคะ</div>
           <div id="ai-result-area" style="display:none"></div>
         </div>
       </div>
@@ -897,6 +899,8 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
     <button class="cf-btn active" id="cfb-all" onclick="setCoachFilter('all')">ทั้งหมด</button>
     <button class="cf-btn" id="cfb-pending" onclick="setCoachFilter('pending')">รออนุมัติ</button>
   </div>
+  <!-- v95: แถบบอกสถานะการเชื่อมต่อของหน้าโค้ช — เดิม listener ตายแล้วเงียบสนิท -->
+  <div id="coach-conn-bar" style="display:none;margin:8px 12px 0;padding:9px 12px;background:#FEE2E2;border:1px solid #FECACA;border-radius:10px;font-size:11.5px;color:#991B1B;line-height:1.6"></div>
   <div class="cards-container" id="cards-container">
     <div class="empty-state"><div class="es-icon">📭</div><p>ยังไม่มีรายการ</p></div>
   </div>
@@ -962,7 +966,18 @@ const _authReady=(async()=>{
   return false;
 })();
 // Offline persistence — reload ครั้งที่ 2+ โหลดจาก cache ทันที
-db.enablePersistence({synchronizeTabs:true}).catch(e=>{console.warn('Persistence:',e.code);});
+// v95: null = ยังไม่รู้ · true = เก็บงานค้างได้ · false = เก็บไม่ได้ (งานที่ค้างจะหายเมื่อปิดแอป)
+//   ฝั่งนักเรียนมีคิวสำรอง _dfq กันไว้อีกชั้น แต่ฝั่งโค้ชไม่มี — จึงห้ามบอกว่า "บันทึกไว้ในเครื่องแล้ว" ลอยๆ
+let _persistOk=null;
+db.enablePersistence({synchronizeTabs:true})
+  .then(()=>{_persistOk=true;})
+  .catch(e=>{_persistOk=false;console.warn('Persistence:',e.code);});
+// ข้อความตอนเน็ตช้าสำหรับงานเขียนฝั่งโค้ช — ถ้าเก็บในเครื่องไม่ได้ ห้ามบอกว่าเก็บแล้ว
+function _slowMsg(okText){
+  return _persistOk===false
+    ? '⚠️ ยังส่งไม่สำเร็จ — เครื่องนี้เก็บงานค้างไว้ไม่ได้ กรุณาเช็คเน็ตแล้วลองใหม่อีกครั้งค่ะ'
+    : okText;
+}
 
 // ===== AUTO ERROR REPORTING → Firestore errorLogs =====
 // JS error ที่เกิดบนเครื่องลูกค้าจะถูกส่งเข้า collection 'errorLogs' อัตโนมัติ
@@ -971,7 +986,7 @@ db.enablePersistence({synchronizeTabs:true}).catch(e=>{console.warn('Persistence
 //   (loadSavedMenus ดึงมา .limit(40) อยู่แล้ว 20 จึงยังอยู่ใต้เพดานการอ่าน)
 //   ประกาศไว้บนสุด เพราะถูกใช้ทั้งใน loadStudentData / loadSavedMenus / saveCurrentMenu
 const MENU_CAP=20;
-const APP_VERSION='v93-2026-09-02'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
+const APP_VERSION='v95-2026-09-02'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
 const _errLogged=new Set();let _errCount=0;
 function _reportError(type,msg,stack,src){
   try{
@@ -1255,10 +1270,38 @@ let coachFilter='all';
 // BOTTLENECK v54.1: หลังขยายเพดานเป็น 800 รายการ แท็บ "อนุมัติแล้ว" จะวาดการ์ดทีเดียว 800 ใบ (มีรูปด้วย)
 // เครื่องค้างและกินแรมหนักมากบนมือถือ → วาดทีละ 40 ใบ แล้วมีปุ่มกดดูเพิ่ม
 let _doneShown=40;
+let _lastShownCards=0; // v95c: จำนวนการ์ดที่วาดจริงรอบล่าสุด — ใช้ให้ปุ่ม "ดูเพิ่ม" ขยับได้เสมอ
 const _DONE_PAGE=40;
 // v56.1: มื้อที่อนุมัติแล้ว เก็บสิทธิ์ "ดูรูปย้อนหลัง" ไว้แค่ 10 รายการล่าสุดพอ
 // เก่ากว่านั้นตรวจผ่านไปนานแล้ว ไม่มีเหตุต้องเปิดดู (และเผื่ออนาคตลบรูปเก่าทิ้งเพื่อลดค่าเก็บข้อมูล)
 const _PHOTO_KEEP=10;
+// ═════ v95: ตัวคุมรูปในหน้าโค้ช ═════
+// รูปถูกวาดเป็น <img data-src> ที่ยังไม่มี src — ใส่ src เมื่อเข้าใกล้จอ และถอด src ออกเมื่อไกลจอ
+// ถอด src = เบราว์เซอร์คืนบิตแมปให้ ซึ่ง loading="lazy" ทำให้ไม่ได้
+const _PH_MARGIN='800px 0px'; // เผื่อไว้กว้างพอไม่ให้กะพริบตอนเลื่อนเร็ว
+let _phObs=null;
+function _mountCardPhotos(){
+  const box=document.getElementById('cards-container');
+  if(!box)return;
+  const imgs=box.querySelectorAll('img[data-src]');
+  if(!imgs.length){if(_phObs)_phObs.disconnect();return;}
+  if(typeof IntersectionObserver==='undefined'){ // เครื่องเก่า → โหลดทั้งหมดเหมือนเดิม
+    imgs.forEach(i=>{if(i.dataset.src&&!i.getAttribute('src'))i.setAttribute('src',i.dataset.src);});
+    return;
+  }
+  if(!_phObs)_phObs=new IntersectionObserver(es=>{
+    es.forEach(e=>{
+      const i=e.target,u=i.dataset.src;
+      if(!u)return;
+      if(e.isIntersecting){if(i.getAttribute('src')!==u)i.setAttribute('src',u);}
+      else if(i.getAttribute('src'))i.removeAttribute('src'); // คืนแรม
+    });
+  },{root:null,rootMargin:_PH_MARGIN,threshold:0});
+  // ⚠️ ต้อง disconnect ก่อนเสมอ — IntersectionObserver ถือ reference แบบแข็ง
+  //    ถ้าไม่ปลด node เก่าที่ถูก innerHTML ทิ้งไปแล้วจะค้างในหน่วยความจำ (สร้าง leak ใหม่แทนที่จะแก้)
+  _phObs.disconnect();
+  imgs.forEach(i=>_phObs.observe(i));
+}
 let _photoOkIds=new Set();
 let _justActedIds=new Set(); // v59: id ที่โค้ชเพิ่งอนุมัติ/แก้ใน session นี้ — ให้ดูรูปได้เสมอ
 let studentTodaySubs=[];
@@ -1448,7 +1491,9 @@ async function _flushBackupQueue(){
     try{
       let endQ=[];try{endQ=JSON.parse(localStorage.getItem('_dfq')||'[]');}catch(_){}
       const newDuring=endQ.filter(x=>{const o=q.find(y=>y.p===x.p);return !o||x.at>o.at;});
-      const remainF=remain.filter(r=>!newDuring.some(x=>x.p===r.p)); // path ที่มีตัวใหม่กว่า → ใช้ตัวใหม่
+      // v94: ต้องเช็คคู่กับ guard ที่ต้น loop ด้วย — entry ที่ _dropBackup ลบไประหว่าง flush
+      //   (เพราะ write ใหม่สำเร็จ) ห้ามเขียนกลับเข้าคิว ไม่งั้นรอบหน้าจะเอาค่าเก่าไปทับค่าใหม่
+      const remainF=remain.filter(r=>!newDuring.some(x=>x.p===r.p)&&endQ.some(x=>x.p===r.p));
       localStorage.setItem('_dfq',JSON.stringify([...remainF,...newDuring]));
     }catch(_){}
     if(sent>0&&!remain.length){try{showToast('✅ ส่งข้อมูลที่ค้างไว้ '+sent+' รายการเรียบร้อยแล้วค่ะ',3500);}catch(_){}}
@@ -1474,6 +1519,14 @@ function _checkDayRollover(){
     const wasOnToday=(selectedDate===_stripDay);
     if(wasOnToday)selectedDate=now;
     buildDateStrip();
+    // v94: เดิมวาดแค่แถบวัน — ฟอร์มสุขภาพยังโชว์ค่าเมื่อวานแต่ selectedDate เป็นวันใหม่แล้ว
+    //   กดบันทึก = ข้อมูลเมื่อวานถูกเขียนลงวันใหม่ (guard เดียวกับที่ selDate มีตั้งแต่ v91)
+    //   และแถบยอดวันนี้/สตรีคก็ยังนับของเมื่อวานอยู่
+    if(wasOnToday){
+      if(typeof studentTab!=='undefined'&&studentTab==='health'&&typeof renderHealthLog==='function')renderHealthLog();
+      if(typeof studentSubsCache!=='undefined'&&studentSubsCache&&typeof renderTodayProgress==='function')renderTodayProgress();
+      if(typeof studentSubsCache!=='undefined'&&studentSubsCache&&typeof renderStreak==='function')renderStreak();
+    }
     if(wasOnToday)showToast('🌅 ขึ้นวันใหม่แล้วนะคะ — เปลี่ยนให้เป็นวันนี้ให้อัตโนมัติค่ะ',3500);
   }catch(_){}
 }
@@ -1495,6 +1548,19 @@ async function _ensureGeminiKey(){
   return!!GEMINI_KEY;
 }
 let aiParsedData=null;
+// v94: จำข้อความที่ใช้คำนวณรอบล่าสุด — ถ้านักเรียนพิมพ์ต่อแล้วไม่กด ✨ ซ้ำ
+//   ตัวเลขจะเป็นของรอบเก่า แต่ชื่ออาหารที่โค้ชเห็นเป็นของใหม่
+function _aiText(){return (document.getElementById('ai-food-input')?.value||'').trim();}
+function _aiSrcTouch(){if(aiParsedData)aiParsedData.__srcText=_aiText();}
+function _aiSrcOk(){
+  if(!aiParsedData)return true;
+  if(typeof aiParsedData.__srcText!=='string')return true; // เมนูโปรดเก่าที่ไม่มีข้อความ — ไม่บล็อก
+  return aiParsedData.__srcText===_aiText();
+}
+function _aiStaleSync(){
+  const b=document.getElementById('ai-stale-bar');
+  if(b)b.style.display=_aiSrcOk()?'none':'block';
+}
 // AI result cache (localStorage, expire 30 วัน, max 50 entries)
 function aiCacheGet(key){
   try{
@@ -1526,6 +1592,9 @@ let hlSleep=7.0, hlStress=2, hlSteps=8000, hlCardio=0, hlMuscle='none', hlWeight
 // v93: เลือกกล้ามเนื้อได้หลายส่วน — hlMuscles คือตัวจริง ส่วน hlMuscle เก็บไว้เป็น "ตัวแทน"
 //   (ตัวแรกในลิสต์) เพื่อให้กราฟ/การ์ด/โค้ชที่ยังอ่านฟิลด์เก่าทำงานต่อได้โดยไม่ต้องแก้
 let hlMuscles=[];
+// v94: true = นักเรียนแตะฟอร์มสุขภาพไปแล้วในรอบนี้ ห้ามวาดทับ
+//   (_typing ดูจาก activeElement ซึ่งจับการกดปุ่มไม่ได้เลย)
+let _hlTouched=false;
 const MUSCLE_SOLO=['full','none'];             // เลือกแล้วล้างตัวอื่นทิ้ง
 function _mgSync(){hlMuscle=hlMuscles.length?hlMuscles[0]:'none';}
 function _mgFromEntry(e){
@@ -2131,7 +2200,8 @@ async function _fetchHealthDay(date,_force){
       // BUGFIX v63.1: ห้ามวาดทับถ้านักเรียนกำลังพิมพ์อยู่ (ช่องวัดสัดส่วนอยู่หน้าเดียวกัน)
       // เดิมถ้าดึงข้อมูลช้า 6 วิ แล้ววาดใหม่ ตัวเลขที่นักเรียนเพิ่งกรอกจะหายทั้งหมด
       const _ae=document.activeElement;
-      const _typing=_ae&&_ae.closest&&_ae.closest('#health-log-content');
+      // v94: นับ "แตะปุ่มไปแล้ว" เป็นการกรอกด้วย ไม่ใช่แค่การพิมพ์
+      const _typing=(_ae&&_ae.closest&&_ae.closest('#health-log-content'))||_hlTouched;
       delete _hlFail[date];
       if(studentTab==='health'&&selectedDate===date&&!_typing)renderHealthLog(); // วาดใหม่ด้วยค่าจริง
       // v86: ถ้ากำลังพิมพ์อยู่จึงวาดไม่ได้ ก็ต้องบอกให้รู้ ไม่ใช่เงียบแล้วปล่อยเขากดบันทึกทับ
@@ -2144,7 +2214,16 @@ async function _fetchHealthDay(date,_force){
     }else{
       // v86: ดึงไม่สำเร็จ (timeout / error) — ห้ามจำว่า "ไม่มีข้อมูล" เด็ดขาด
       delete _hlCache[date];_hlFail[date]=1;
-      if(studentTab==='health'&&selectedDate===date)renderHealthLog();
+      if(studentTab==='health'&&selectedDate===date){
+        // v94: เดิมวาดใหม่ทันทีโดยไม่เช็คว่านักเรียนกรอกอะไรไปแล้วหรือยัง
+        //   เน็ตแย่ + กรอกไปครึ่งฟอร์ม = หายทั้งหมดต่อหน้า ต้องเตือนแทน ไม่ใช่ล้างทิ้ง
+        const _ae2=document.activeElement;
+        const _busy=(_ae2&&_ae2.closest&&_ae2.closest('#health-log-content'))||_hlTouched;
+        if(_busy){
+          const _b2=document.getElementById('hl-stale-bar');
+          if(_b2){_b2.style.display='block';_b2.innerHTML='📡 โหลดข้อมูลเดิมของวันนี้ไม่สำเร็จ — ที่กรอกไว้ยังอยู่ ถ้าวันนี้เคยบันทึกแล้ว การกดบันทึกจะทับของเดิม <button onclick="retryHealthDay()" style="margin-left:6px;padding:3px 10px;border:none;border-radius:7px;background:#F59E0B;color:#fff;font-size:11px;font-family:\'Prompt\',sans-serif;cursor:pointer">🔄 ลองใหม่</button>';}
+        }else renderHealthLog();
+      }
     }
   }catch(_){delete _hlCache[date];_hlFail[date]=1;}
   finally{delete _hlFetching[date];}
@@ -2168,12 +2247,14 @@ function renderHealthLog(){
       hlSteps=typeof entry.steps==='number'?entry.steps:8000;
       hlCardio=typeof entry.cardio==='number'?entry.cardio:0;
       hlMuscles=_mgFromEntry(entry); _mgSync(); // v93: รองรับทั้ง array ใหม่และสตริงเก่า
-      hlWeightMin=typeof entry.weightMin==='number'?entry.weightMin:30;
+      // v94: 0 = "วันนั้นไม่ได้เล่น" ไม่ใช่ "เล่น 0 นาที" — กลับมาเลือกกล้ามเนื้อใหม่ต้องได้ค่าเริ่มต้น
+      hlWeightMin=(typeof entry.weightMin==='number'&&entry.weightMin>0)?entry.weightMin:30;
     } else {
       // No saved log for this date — reset to defaults so previous date values don't bleed over
       hlSleep=7.0;hlStress=2;hlSteps=8000;hlCardio=0;hlMuscles=[];hlMuscle='none';hlWeightMin=30;
     }
   }
+  _hlTouched=false; // v94: วาดฟอร์มใหม่ = ค่าบนจอตรงกับข้อมูลจริงแล้ว เริ่มนับใหม่
   const el=document.getElementById('health-log-content');
   el.innerHTML=`
     <div style="padding:8px 12px 0;display:flex;align-items:center;justify-content:space-between">
@@ -2350,10 +2431,12 @@ function renderHealthLog(){
 }
 
 function setStress(level){
+  _hlTouched=true; // v94
   hlStress=level;
   document.querySelectorAll('.stress-btn').forEach((b,i)=>b.classList.toggle('active',i+1===level));
 }
 function setMuscle(key){
+  _hlTouched=true; // v94
   // v93: สลับเปิด/ปิดได้ · "เต็มตัว" กับ "ไม่ได้เล่น" เป็นตัวเลือกเดี่ยว
   //   กด "เต็มตัว + ขา" พร้อมกันไม่มีความหมาย และทำให้โค้ชอ่านผิด
   if(key==='none'){ hlMuscles=[]; }
@@ -2384,6 +2467,7 @@ function renderMuscleBtns(){
   }
 }
 function adjHL(key,delta){
+  _hlTouched=true; // v94
   if(key==='sleep'){hlSleep=Math.max(0,Math.round((hlSleep+delta)*10)/10);const el=document.getElementById('hl-sleep');if(el)el.value=hlSleep;}
   else if(key==='steps'){hlSteps=Math.max(0,hlSteps+delta);const el=document.getElementById('hl-steps');if(el)el.value=hlSteps;}
   else if(key==='cardio'){hlCardio=Math.max(0,hlCardio+delta);const el=document.getElementById('hl-cardio');if(el)el.value=hlCardio;}
@@ -2419,7 +2503,7 @@ async function saveHealthLog(){
     _hlCache[_hlDate]=_hlSaved; // v58: จำไว้ในแท็บนี้ด้วย สลับวันไปกลับจะได้ไม่ต้องดึงใหม่
     delete _hlFail[_hlDate]; // v86: บันทึกแล้ว = รู้ค่าปัจจุบันแน่นอน ไม่ต้องเตือนอีก
     showToast(_r==='timeout'?'📡 เน็ตช้า — บันทึกไว้ในเครื่องแล้ว จะซิงค์อัตโนมัติค่ะ':'✅ บันทึกข้อมูลสุขภาพแล้วค่ะ',_r==='timeout'?4000:2500);
-    if(_r!=='timeout')sendHealthLogCard(); // F3: ส่ง LINE card (ข้ามตอนเน็ตช้า — LINE ก็ส่งไม่ได้อยู่ดี)
+    if(_r!=='timeout')sendHealthLogCard(_hlSaved,_hlDate); // F3 + v94: ส่งค่าที่บันทึกจริง ไม่ใช่ค่าบนจอตอนนี้
   }catch(e){showToast('⚠️ บันทึกไม่ได้: '+e.message,4000);} // W2: toast แทน alert
   finally{if(_hlBtn){_hlBtn.disabled=false;_hlBtn.textContent='💾 บันทึกข้อมูลสุขภาพวันนี้';}}
 }
@@ -2462,23 +2546,28 @@ async function sendWeeklyCheckCard(entry){
 }
 
 // F3: Health Log card — แสดงเฉพาะช่องที่กรอก (นักเรียนกรอกบางช่องได้ ไม่บังคับครบ)
-async function sendHealthLogCard(){
+// v94: รับ snapshot ของสิ่งที่เพิ่งบันทึก + วันที่ที่เขียนจริง
+//   เดิมอ่าน global สดกับ selectedDate — นักเรียนแตะชิปวันอื่นระหว่างรอ 6 วิ
+//   การ์ดที่ส่งเข้า LINE จะพาดหัวผิดวันและเนื้อหาเป็นค่าเริ่มต้นของวันใหม่
+async function sendHealthLogCard(hl,dateStr){
   try{
     if(typeof liff==='undefined'||!liff.isInClient())return;
-    const MUSCLE_TH={full:'เต็มตัว',legs:'ขา',chest:'อก',back:'หลัง',shoulder:'บ่า',arms:'แขน',core:'Core'};
+    const _h=hl||{sleep:hlSleep,stress:hlStress,steps:hlSteps,cardio:hlCardio,
+      muscleGroups:hlMuscles.slice(),weightMin:hlWeightMin};
+    const _mg=(Array.isArray(_h.muscleGroups)?_h.muscleGroups:[]).filter(k=>k&&k!=='none');
     const rows=[];
     const row=(emoji,label,val)=>rows.push({"type":"box","layout":"horizontal","margin":"sm","contents":[
       {"type":"text","text":`${emoji} ${label}`,"size":"sm","color":"#555555","flex":1},
       {"type":"text","text":String(val),"size":"sm","color":"#111111","weight":"bold","align":"end","flex":1}
     ]});
-    if(hlSleep>0)row('😴','นอน',hlSleep+' ชม.');
-    if(hlStress>0)row('🧠','ความเครียด',hlStress+'/5');
-    if(hlSteps>0)row('👟','ก้าวเดิน',hlSteps.toLocaleString()+' ก้าว');
-    if(hlCardio>0)row('🏃','คาร์ดิโอ',hlCardio+' นาที');
+    if(_h.sleep>0)row('😴','นอน',_h.sleep+' ชม.');
+    if(_h.stress>0)row('🧠','ความเครียด',_h.stress+'/5');
+    if(_h.steps>0)row('👟','ก้าวเดิน',Number(_h.steps).toLocaleString()+' ก้าว');
+    if(_h.cardio>0)row('🏃','คาร์ดิโอ',_h.cardio+' นาที');
     // v93: โชว์ทุกส่วนที่เลือก ไม่ใช่แค่ตัวแรก
-    if(hlMuscles.length)row('🏋️','เวทเทรนนิ่ง',mgLabels(hlMuscles)+(hlWeightMin>0?` ${hlWeightMin} นาที`:''));
+    if(_mg.length)row('🏋️','เวทเทรนนิ่ง',mgLabels(_mg)+(_h.weightMin>0?` ${_h.weightMin} นาที`:''));
     if(!rows.length)return; // ไม่กรอกอะไรเลย → ไม่ส่ง card
-    const dateLabel=formatDateTH(selectedDate);
+    const dateLabel=formatDateTH(dateStr||selectedDate);
     if(!await _ensureSendPermission(false))return; // v52.1: ยังไม่อนุญาต → ข้ามไปเลย ไม่ยิงให้ error (ข้อมูลบันทึกแล้ว)
     await liff.sendMessages([{
       "type":"flex","altText":"🩺 บันทึก Health Log แล้วค่ะ",
@@ -2796,6 +2885,7 @@ function buildDateStrip(){
 }
 function selDate(str,el){
   selectedDate=str;
+  _hlTouched=false; // v94: เปลี่ยนวัน = ของที่กรอกไว้เป็นของวันเก่า ไม่ต้องกันแล้ว
   document.querySelectorAll('.date-chip').forEach(c=>c.classList.remove('active'));
   el.classList.add('active');
   // v91: แท็บสุขภาพผูกกับวันที่ — ถ้าไม่วาดใหม่ หน้าจะโชว์เลขของวันเก่า
@@ -2989,15 +3079,20 @@ function adjFruit(id,delta){
   if(unitEl)unitEl.style.display=v>0?'block':'none';
   const itemEl=document.getElementById('fi-'+id);
   if(itemEl)itemEl.classList.toggle('has-fruit',v>0);
+  _renderFruitBar();
+  updateHandSummary();
+}
+// v94: แยกออกมาเป็นตัวเดียว — เดิม applySavedMenu เปิด/ปิดแถบเองแต่ไม่เขียนตัวเลข
+function _renderFruitBar(){
   const total=getFruitLadles();
   const totalRd=Math.round(total*10)/10;
   const bar=document.getElementById('fruit-total-bar');
+  if(!bar)return;
   if(total>0){
     bar.style.display='block';
-    document.getElementById('fruit-total-val').textContent=Number.isInteger(totalRd)?totalRd:totalRd.toFixed(1);
-    document.getElementById('fruit-kcal-val').textContent=Math.round(total*60);
-  }else{bar.style.display='none';}
-  updateHandSummary();
+    const _v=document.getElementById('fruit-total-val');if(_v)_v.textContent=Number.isInteger(totalRd)?totalRd:totalRd.toFixed(1);
+    const _k=document.getElementById('fruit-kcal-val');if(_k)_k.textContent=Math.round(total*60);
+  }else bar.style.display='none';
 }
 
 // LABEL
@@ -3139,6 +3234,7 @@ async function _callGeminiAI(){
   if(_cached){
     aiParsedData=JSON.parse(JSON.stringify(_cached)); // deep copy ป้องกัน mutation
     _enrichAIData(aiParsedData,text); // v46.1: cache ที่บันทึกก่อน v46 ไม่มี _src/_dbRefs/total — เติมให้ก่อนแสดง
+    _aiSrcTouch();_aiStaleSync(); // v94
     renderAIResult(aiParsedData);
     _logAITiming({src:'ai',totalMs:Date.now()-_t0,cacheHit:true,items:(aiParsedData.items||[]).length});
     return;
@@ -3266,6 +3362,7 @@ async function _callGeminiAI(){
     if(!Array.isArray(aiParsedData.items)||!aiParsedData.items.length)
       throw new Error('AI ยังแยกรายการอาหารไม่ได้ ลองพิมพ์ให้ละเอียดขึ้นนะคะ (เช่น "ข้าวสวย 2 ทัพพี ไก่ย่าง 1 ชิ้น")');
     aiCacheSet(_cacheKey,aiParsedData); // เก็บ cache หลังผ่าน sanity check แล้วเท่านั้น
+    _aiSrcTouch();_aiStaleSync(); // v94: ผูกผลลัพธ์กับข้อความที่ใช้คำนวณ (หลังเก็บ cache แล้ว)
     renderAIResult(aiParsedData); // ← นักเรียนเห็นผลตรงนี้แล้ว ที่ทำหลังจากนี้ไม่กระทบเวลารอ
     _logDbMiss((aiParsedData.items||[]).filter(it=>it._src!=='db').map(it=>it.name)); // v62: จดไว้ว่าอะไรยังไม่มีใน DB
     _logAITiming({src:'ai',totalMs:Date.now()-_t0,keyLoadMs:_keyMs,netMs:_netMs,parseMs:Date.now()-_tp0,
@@ -3704,7 +3801,9 @@ async function _saveCurrentMenu(){
   let data={name:name.trim(),mode:curMode,createdAt:firebase.firestore.FieldValue.serverTimestamp()};
   if(curMode==='weigh'){
     if(!aiParsedData){showToast('กรุณาให้ AI คำนวณก่อนค่ะ');return;}
-    data.inputText=document.getElementById('ai-food-input').value.trim();
+    // v94: เมนูโปรดจะจำความผิดนี้ไว้ถาวร แตะทีไรก็ได้ชื่อกับตัวเลขที่ไม่ตรงกันทุกครั้ง
+    if(!_aiSrcOk()){_aiStaleSync();showToast('✏️ ข้อความเปลี่ยนหลังคำนวณ — กด ✨ อีกครั้งก่อนบันทึกเมนูนะคะ',4500);return;}
+    data.inputText=_aiText();
     // v89: ตัด _orig ทิ้งก่อนบันทึก — เหมือนที่ getWeighData ทำอยู่แล้วตั้งแต่ v46.1
     //   _orig = ค่าก่อนแก้ปริมาณครั้งแรก เป็นตัวเลขที่นักเรียน "ไม่เคยเห็นเป็นผลลัพธ์สุดท้าย"
     //   ถ้าติดไปกับเมนูโปรด: เรียกมาใช้แล้วแก้ปริมาณ → สเกลจากค่าตั้งต้นนั้น
@@ -3776,6 +3875,7 @@ async function applySavedMenu(id){
     //   ไม่งั้นเมนูเก่าติดพฤติกรรมเดิมไปตลอด ทั้งที่เจ้าของแก้อะไรไม่ได้เลย
     aiParsedData={items:(menu.items||[]).map(_it=>{const{_orig,..._rest}=_it;return JSON.parse(JSON.stringify(_rest));}),total:JSON.parse(JSON.stringify(menu.total||{}))};
     _enrichAIData(aiParsedData,menu.inputText||''); // v46.1: เมนูโปรดที่เซฟไว้ก่อน v46 ไม่มีข้อมูลที่มา — เติมให้ ไม่งั้นขึ้น 🤖 ผิดทุกรายการ
+    _aiSrcTouch();_aiStaleSync(); // v94
     renderAIResult(aiParsedData);
   }else if(menu.mode==='label'&&menu.labelData){
     document.getElementById('lb-carb').value=menu.labelData.carbPerServ;
@@ -3809,7 +3909,9 @@ async function applySavedMenu(id){
       const fi=document.getElementById('fi-'+f.id);if(fi)fi.classList.toggle('has-fruit',fruitCounts[f.id]>0);
       const uel=document.getElementById('fu-'+f.id);if(uel)uel.style.display=fruitCounts[f.id]>0?'block':'none';
     });
-    const fbar=document.getElementById('fruit-total-bar');if(fbar)fbar.style.display=getFruitLadles()>0?'flex':'none';
+    // v94: เดิมเปิดแถบให้แต่ไม่เขียนตัวเลข → แตะเมนูโปรดผลไม้แล้วขึ้น "รวมผลไม้ = 0 ทัพพี · ~0 kcal"
+    //   และเดิมใช้ 'flex' คนละค่ากับ adjFruit ที่ใช้ 'block' ทำให้ข้อความในแถบเรียงคนละแบบ
+    _renderFruitBar();
     // v83 BUGFIX: เดิมซิงค์ DOM ให้แค่คาร์บกับผลไม้ ส่วน stepper โปรตีน/ไข่/น้ำมัน/อะโวคาโด
     //   และไฮไลต์ปุ่ม lean-semilean / วิธีปรุง ไม่ถูกอัปเดตเลย
     //   → แตะเมนูโปรด "ผัด semilean 2.5 ฝ่ามือ" แล้วกางหัวข้อดู ตัวเลขยังเป็น 1.0 ปุ่มยังไฮไลต์ Lean/ต้ม
@@ -3859,6 +3961,9 @@ async function submitMeal(){
       C=Math.round(C);P=Math.round(P);F=Math.round(F);
       const menuName=document.getElementById('menu-name-input').value.trim();
       const menuDesc=document.getElementById('menu-desc-input').value.trim();
+      // v94: ลดทุกอย่างเหลือ 0 แล้วเผลอกดส่ง = มื้อ 0 kcal เข้าคิวโค้ชจริง
+      //   (โหมดฉลากกับ AI กันไว้แล้วตั้งแต่ v83 โหมดมือตกหล่น)
+      if(C<=0&&P<=0&&F<=0){showToast('ยังไม่ได้เลือกอะไรเลยค่ะ — ปรับคาร์บหรือโปรตีนก่อนนะคะ',3500);resetBtn();return;}
       handData={carbSlots:carbSlots.map(s=>({density:s.density,qty:s.qty})),
         protein:protQty,protType,eggWhole,eggWhite,cookMethod,visibleFat,avo:avoQty,
         fruits:fruitData,fruitLadles,menuName:menuName||null,menuDesc:menuDesc||null,
@@ -3871,6 +3976,8 @@ async function submitMeal(){
     }else if(_mode==='weigh'){
       weighData=getWeighData();
       if(!weighData){showToast('กรุณาให้ AI คำนวณก่อนค่ะ');resetBtn();return;}
+      // v94: ห้ามส่งชื่ออาหารใหม่พร้อมตัวเลขเก่า — โค้ชจะเห็นไก่ทอดอยู่ข้างเลข 136 kcal
+      if(!_aiSrcOk()){_aiStaleSync();showToast('✏️ ข้อความเปลี่ยนหลังคำนวณ — กด ✨ ให้ AI คำนวณอีกครั้งก่อนส่งนะคะ',4500);resetBtn();return;}
     }
     // D-GUARD v2: ถามเฉพาะเมื่อ "น่าจะซ้ำจริง" — มื้อเดิม+โหมดเดิม+แคลใกล้กัน ภายใน 3 นาที
     // ส่งทีละหมวด (AI แล้วต่อฉลาก) หรือส่งโหมดเดิมแต่คนละเมนู → ผ่านเงียบๆ ไม่มีกล่องถาม
@@ -4113,8 +4220,11 @@ function buildHistCard(s){
     if(hd.menuName)chips+=`<span class="chip" style="background:#FEF3C7;color:#92400E;font-weight:600">🍽️ ${escHtml(hd.menuName)}</span>`;
     if(hd.menuDesc)chips+=`<span class="chip" style="background:#FFFBEB;color:#A16207;font-size:11px">📝 ${escHtml(hd.menuDesc)}</span>`;
     if(hd.carbSlots){hd.carbSlots.forEach((sl,i)=>{chips+=`<span class="chip">${DL[sl.density]||'🟡'} ${sl.qty}มือ</span>`;});}
-    else{chips=`<span class="chip">${DL[hd.carbDensity]||'🟡'} ${hd.carb}มือ</span>`;if(hd.carb2>0)chips+=`<span class="chip">+${hd.carb2}มือ</span>`;}
-    chips+=`<span class="chip">โปรตีน ${hd.protein}ฝ่ามือ</span>`;
+    // v94: เดิมใช้ chips= (ทับชื่อเมนูที่เพิ่งใส่ไปทิ้ง) และไม่เช็คว่ามีค่าจริงไหม
+    //   มื้อที่ถูกแก้เป็นโหมดมือทีหลังมีแต่ยอดรวม → เคยขึ้น "🟡 undefinedมือ · โปรตีน undefinedฝ่ามือ"
+    else if(hd.carb!=null){chips+=`<span class="chip">${DL[hd.carbDensity]||'🟡'} ${hd.carb}มือ</span>`;if(hd.carb2>0)chips+=`<span class="chip">+${hd.carb2}มือ</span>`;}
+    else chips+=`<span class="chip">C ${hd.totalCarb??0} · P ${hd.totalProtein??0} · F ${hd.totalFat??0}</span>`;
+    if(hd.protein!=null)chips+=`<span class="chip">โปรตีน ${hd.protein}ฝ่ามือ</span>`;
     if(hd.eggWhole>0)chips+=`<span class="chip">🥚×${hd.eggWhole}</span>`;
     chips+=`<span class="chip">⚡ ${s.correction?`<del style="opacity:.55">${hd.totalKcal}</del> ${getSubMacros(s).kcal}`:hd.totalKcal} kcal</span>`; // BUGFIX v44: chip เดิมไม่เคยแสดงค่าที่โค้ชแก้ — ใช้ getSubMacros ให้ตรงกับ buildCard (ฝั่งโค้ช)
   }else if(s.mode==='label'&&s.labelData){
@@ -4552,11 +4662,54 @@ function _coachUserMap(){
   return m;
 }
 function _coachUser(userId){return _coachUserMap()[userId]||null;}
-function startCoach(){
+// ═════ v95: กู้ listener ของหน้าโค้ช ═════
+// Firestore ปิด listener ถาวรทันทีที่ error callback ทำงาน — เดิมมีแค่ console.error
+// ผลคือ allSubs แช่แข็ง โค้ชกดอนุมัติได้ ขึ้นว่าสำเร็จ แต่การ์ดไม่ขยับ และมื้อใหม่ไม่โผล่ทั้งวัน
+let _coachLive=false,_coachRetry=0,_coachTimer=null,_coachStarting=false;
+const _COACH_WAIT=[2000,5000,12000,30000,60000];
+function _coachBar(msg){
+  const b=document.getElementById('coach-conn-bar');
+  if(!b)return;
+  if(!msg){b.style.display='none';b.innerHTML='';return;}
+  b.style.display='block';b.innerHTML=msg;
+}
+function _scheduleCoachRetry(why){
+  _coachLive=false;
+  if(_coachTimer)return;
+  const w=_COACH_WAIT[Math.min(_coachRetry,_COACH_WAIT.length-1)];
+  _coachRetry++;
+  _coachBar('📡 การเชื่อมต่อหลุด — รายการอาจไม่อัปเดต กำลังต่อใหม่ให้ค่ะ ('+_coachRetry+') <button onclick="startCoach()" style="margin-left:6px;padding:3px 10px;border:none;border-radius:7px;background:#DC2626;color:#fff;font-size:11px;font-family:\'Prompt\',sans-serif;cursor:pointer">🔄 ลองเลย</button>');
+  _coachTimer=setTimeout(()=>{_coachTimer=null;startCoach();},w);
+  if(typeof _reportError==='function')_reportError('coach-listen-fail',String(why||''),'','startCoach');
+}
+// เน็ตกลับมา / สลับกลับเข้าแอป → ถ้า listener ตายอยู่ ให้ต่อใหม่ทันที
+function _kickCoach(){
+  if(typeof isCoach==='undefined'||!isCoach)return;
+  if(_coachLive||_coachStarting||_coachTimer)return;
+  _coachRetry=0;startCoach();
+}
+window.addEventListener('online',()=>setTimeout(_kickCoach,1200));
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)setTimeout(_kickCoach,600);});
+async function startCoach(){
+  if(_coachStarting)return; // กันยิงซ้อนตอนกดปุ่มลองใหม่รัวๆ
+  _coachStarting=true;
+  if(_coachTimer){clearTimeout(_coachTimer);_coachTimer=null;}
   const _cv=document.getElementById('coach-ver'); // v93
   if(_cv)_cv.textContent=APP_VERSION;
   if(_coachUnsub){_coachUnsub();_coachUnsub=null;} // H1: ยกเลิก listener เก่า
-  document.getElementById('coach-view').style.display='block';
+  // v95c (F2): ห้ามแย่งหน้าจอ — startCoach ถูกเรียกเองได้แล้วจาก retry / online / กลับเข้าแอป
+  //   ถ้าโค้ชกำลังบันทึกมื้อตัวเอง (enterCoachLog) หรืออยู่โหมดทดสอบ จะได้สอง view ซ้อนกัน
+  if(!coachLogMode&&!testMode)document.getElementById('coach-view').style.display='block';
+  // v95 (S4): Firestore กั้น read ไว้จนกว่าจะได้ auth token — ถ้ายิงก่อน จะโดนปฏิเสธ
+  //   และเพราะ listener ที่ error ถูกปิดถาวร = หน้าโค้ชตายตั้งแต่วินาทีแรกโดยไม่มีสัญญาณอะไรเลย
+  //   (ฝั่งนักเรียนใส่บรรทัดนี้ไว้ตั้งแต่ v85 ฝั่งโค้ชตกหล่น)
+  if(!_authOk){
+    // v95c (F6): ระหว่างรออย่าปล่อยให้เห็น "📭 ยังไม่มีรายการ" — อ่านแล้วเข้าใจว่าวันนี้ไม่มีใครส่ง
+    const _cc=document.getElementById('cards-container');
+    if(_cc&&!_cc.querySelector('.card'))_cc.innerHTML='<div class="empty-state"><div class="es-icon">⏳</div><p>กำลังเชื่อมต่อ...</p></div>';
+    try{await Promise.race([_authReady,new Promise(r=>setTimeout(r,6000))]);}catch(_){}
+  }
+  _coachStarting=false;
   loadStudentsRegistry(true); // v77: โหลดทะเบียนคู่ขนานไปกับ submissions
   // v78: เติมรายชื่อโค้ชจริงจาก collection coaches (อ่านครั้งเดียวตอนเปิด ไม่กระทบ path ปกติถ้าล้ม)
   db.collection('coaches').get().then(s=>{s.docs.forEach(d=>_coachIdSet.add(d.id));}).catch(()=>{});
@@ -4572,6 +4725,8 @@ function startCoach(){
   const cutoff=firebase.firestore.Timestamp.fromDate(new Date(Date.now()-_COACH_WIN*24*60*60*1000));
   _coachUnsub=db.collection('submissions').where('createdAt','>=',cutoff).orderBy('createdAt','desc').limit(_COACH_LIMIT)
     .onSnapshot(snap=>{
+      // v95c: ได้ snapshot = ต่อติดแล้ว — ต้องล้างแถบเตือนก่อน early return ทุกอัน
+      _coachLive=true;_coachRetry=0;_coachBar('');
       // v64: เช็คก่อนว่ามีเอกสารเปลี่ยนจริงไหม แล้วค่อยแปลงข้อมูล 800 รายการ
       // เดิมแปลงก่อนแล้วค่อยเช็ค = เสียแรงสร้าง object 800 ตัวทิ้งทุกครั้งที่ snapshot เด้ง
       let _changed0=true;
@@ -4591,16 +4746,20 @@ function startCoach(){
       // เช็ค "ทุกใบ" ไม่ใช่ snapshot.hasPendingWrites รวม เพราะถ้านักเรียนส่งมื้อใหม่เข้ามาพร้อมกัน ต้องวาด
       // v76: ข้ามการวาดเฉพาะเมื่อเอกสารที่เปลี่ยน "ทุกใบ" เป็น write ที่ยังไม่ซิงค์ "และ" มาจากปุ่มที่วาดหน้าให้เองแล้ว
       // นักเรียนส่งมื้อใหม่ / โค้ชบันทึกมื้อตัวเอง / แก้มื้อผ่านหน้า edit / ลบมื้อ → ไม่อยู่ใน Map → วาดตามปกติ
-      let _allLocal=false;
+      // v95: เดิมข้ามเฉพาะ snapshot ที่ยังไม่ซิงค์ (hasPendingWrites) — พอ server ยืนยันกลับมา
+      //   ยังวาดใหม่ทั้งหน้าอยู่ดี ทุกครั้งที่โค้ชกดปุ่ม จึงไม่ได้ลดงานลงจริง
+      //   ตอนนี้: ถ้าเอกสารที่เปลี่ยน "ทุกใบ" เป็นงานเขียนของเครื่องนี้เองภายใน 15 วิ
+      //   → อัปเดตทีละใบด้วยค่าจาก server (ถูกต้องเสมอ แม้ write ถูก rollback) แล้วข้ามการวาดทั้งหน้า
+      let _allMine=false;
       try{
         const _ch=snap.docChanges(),_now=Date.now();
-        _allLocal=_ch.length>0&&_ch.every(c=>{
-          if(!c.doc.metadata.hasPendingWrites)return false;
+        _allMine=_ch.length>0&&_ch.every(c=>{
           const t=_coachSelfWrites.get(c.doc.id);
           return !!t&&(_now-t)<15000;
         });
-      }catch(_){}
-      if(_allLocal&&_coachRendered)return;
+        if(_allMine&&_coachRendered)_ch.forEach(c=>{try{_syncCard(c.doc.id);}catch(_){}});
+      }catch(_){_allMine=false;}
+      if(_allMine&&_coachRendered)return;
       _coachRendered=true;
       renderCoach();
       // v91: รอบแรกที่ข้อมูลมาถึง ลองกู้ draft ที่ค้างจากรอบก่อน (หน้าถูกรีเอง)
@@ -4609,7 +4768,10 @@ function startCoach(){
         _corrDraftRestore();
         if(_cdPending){renderCoach();_corrDraftNotify();}
       }
-    },err=>console.error(err));
+    },err=>{ // v95: เดิมจบแค่ console.error → listener ตายถาวร ไม่มีใครรู้
+      console.error(err);
+      _scheduleCoachRetry((err&&err.code)||(err&&err.message)||'unknown');
+    });
 }
 function selCoachTab(tab){
   document.querySelectorAll('.coach-tab').forEach(t=>t.classList.remove('active'));
@@ -4622,14 +4784,17 @@ function selCoachTab(tab){
   renderCoach(); // NB8: renderCoach เรียก loadStudentList เองแล้วเมื่ออยู่ tab นักเรียน
 }
 function renderCoach(){
+  // v95 (M8): cState[id]._sub ถือ submission ทั้งใบไว้ และ allSubs ถูกแทนที่ทั้งชุดทุก snapshot
+  //   เปิดแผงแก้แล้วปิดโดยไม่บันทึก = object เก่าถูกตรึงไว้ตลอดเซสชัน ไม่มีเพดาน
+  //   ปล่อยเฉพาะใบที่ไม่ได้เปิดอยู่ — ใบที่เปิดอยู่ buildCorrPanel เซ็ตให้ใหม่ทุกครั้งที่วาด
+  try{Object.keys(cState).forEach(k=>{const c=cState[k];if(c&&c._sub&&!c.open&&!c.approveOpen)delete c._sub;});}catch(_){}
   const pending=allSubs.filter(s=>s.status==='pending'),done=allSubs.filter(s=>s.status!=='pending');
   // v57: คำนวณจาก allSubs (เรียงใหม่→เก่า) ไม่ใช่จากรายการที่กำลังวาด — ไม่งั้นพอโค้ชกดอนุมัติจากแท็บ "รออนุมัติ"
   // การ์ดจะวาดใหม่ทันทีโดยที่ชุดนี้ยังว่าง แล้วรูปที่เพิ่งตรวจจะหายวับไปต่อหน้า
   // v59: รวม "รายการที่โค้ชเพิ่งอนุมัติใน session นี้" เข้าไปด้วย
   // เคสจริง: เคลียร์ของค้าง 3 วันก่อน พออนุมัติปุ๊บมันไปเรียงอยู่ท้ายๆ (เรียงตามเวลาที่นักเรียนส่ง)
   // หลุดจาก 10 ล่าสุดทันที → รูปที่เพิ่งตรวจหายไปต่อหน้า กดดูซ้ำไม่ได้เลย
-  _photoOkIds=new Set(done.slice(0,_PHOTO_KEEP).map(x=>x.id));
-  _justActedIds.forEach(id=>_photoOkIds.add(id));
+  _recalcPhotoOk(done); // v95c
   const badge=document.getElementById('pending-count');
   if(pending.length>0){badge.style.display='inline-block';badge.textContent=pending.length;}else{badge.style.display='none';}
   const container=document.getElementById('cards-container');
@@ -4638,6 +4803,7 @@ function renderCoach(){
     if(filterBar)filterBar.style.display='none';
     // NB8: rebuild รายชื่อจาก allSubs ทันที (sync ไม่รอ network) — เดิมทับด้วย loading ค้าง
     // เมื่อ onSnapshot เรียก renderCoach ระหว่างโค้ชอยู่ tab นักเรียน แล้วไม่มีใครโหลดกลับ
+    _mountCardPhotos(); // v95b: ปลด observer ของการ์ดชุดเก่าที่เพิ่งถูกทิ้ง
     loadStudentList();
     return;
   }
@@ -4646,7 +4812,7 @@ function renderCoach(){
   let list;
   if(coachFilter==='pending') list=pending;
   else list=coachTab==='pending'?pending:done;
-  if(!list.length){container.innerHTML='<div class="empty-state"><div class="es-icon">'+(coachFilter==='pending'||coachTab==='pending'?'🎉':'📭')+'</div><p>'+(coachFilter==='pending'||coachTab==='pending'?'ไม่มีรายการรอค่ะ':'ยังไม่มีประวัติ')+'</p></div>';return;}
+  if(!list.length){container.innerHTML='<div class="empty-state"><div class="es-icon">'+(coachFilter==='pending'||coachTab==='pending'?'🎉':'📭')+'</div><p>'+(coachFilter==='pending'||coachTab==='pending'?'ไม่มีรายการรอค่ะ':'ยังไม่มีประวัติ')+'</p></div>';_mountCardPhotos();return;} // v95b: ปลด observer
   // F-G1: หน้ารออนุมัติ — จัดกลุ่มตามนักเรียน ให้โค้ชไล่เคลียร์ทีละคน (ประวัติยังเรียงตามเวลาเหมือนเดิม)
   if(coachFilter==='pending'||coachTab==='pending'){
     const groups={},order=[];
@@ -4658,7 +4824,16 @@ function renderCoach(){
     order.forEach(uid=>{let m=0;groups[uid].forEach(s=>{const t=s.createdAt?.seconds||0;if(t>m)m=t;});_mx[uid]=m;});
     order.sort((a,b)=>_mx[b]-_mx[a]);
     // v55: จำกัดจำนวนกลุ่มที่วาดต่อรอบ — โค้ชหายไปหลายวันอาจมีค้างเป็นร้อยรายการ วาดทีเดียวเครื่องค้าง
-    const _ordShown=order.slice(0,_doneShown);
+    // v95: _doneShown = จำนวน "การ์ด" ไม่ใช่จำนวน "คน"
+    //   เดิมนักเรียน 40 คน × มื้อค้างคนละ 6 ใบ = วาด 240 ใบพร้อมรูปครบ → webview ตาย
+    //   นับทั้งกลุ่มเข้าไปเลย (ไม่ตัดกลางกลุ่ม) เพื่อไม่ให้โค้ชเห็นมื้อของคนเดียวกันไม่ครบ
+    const _ordShown=[];let _cardsUsed=0,_cardsLeft=0,_usersLeft=0;
+    order.forEach(uid=>{
+      const n=groups[uid].length;
+      if(_ordShown.length&&_cardsUsed>=_doneShown){_cardsLeft+=n;_usersLeft++;return;}
+      _ordShown.push(uid);_cardsUsed+=n;
+    });
+    _lastShownCards=_cardsUsed; // v95c
     container.innerHTML=_ordShown.map(uid=>{
       // ในกลุ่ม: มื้อเก่าก่อน → อนุมัติตามลำดับที่นักเรียนกินจริง
       const subs=groups[uid].slice().sort((a,b)=>(a.createdAt?.seconds||0)-(b.createdAt?.seconds||0));
@@ -4666,21 +4841,27 @@ function renderCoach(){
       const av=u0.pictureUrl
         ?`<img src="${safeImg(u0.pictureUrl)}" style="width:28px;height:28px;border-radius:50%;object-fit:cover">` // v76 XSS: pictureUrl มาจากเอกสารที่เครื่องนักเรียนเขียน
         :`<div style="width:28px;height:28px;border-radius:50%;background:var(--light);display:flex;align-items:center;justify-content:center;font-size:14px">👤</div>`;
-      return`<div style="display:flex;align-items:center;gap:8px;margin:16px 2px 8px;padding-bottom:7px;border-bottom:2px solid var(--border)">
+      return`<div class="grp-hd" style="display:flex;align-items:center;gap:8px;margin:16px 2px 8px;padding-bottom:7px;border-bottom:2px solid var(--border)">
         ${av}
         <span style="font-size:14px;font-weight:700;font-family:'Prompt',sans-serif;color:var(--text)">${escHtml(u0.displayName||'นักเรียน')}</span>
-        <span style="background:#FEF3C7;color:#92400E;border-radius:10px;padding:1px 9px;font-size:11px;font-weight:700">${subs.length} รายการ</span>
+        <span class="grp-n" style="background:#FEF3C7;color:#92400E;border-radius:10px;padding:1px 9px;font-size:11px;font-weight:700">${subs.length} รายการ</span>
       </div>`+subs.map(s=>buildCard(s)).join('');
     }).join('')
-    +(order.length>_doneShown?`<button onclick="showMoreDone()" style="width:100%;margin:14px 0 8px;padding:12px;background:var(--card);border:1.5px solid var(--border);border-radius:12px;color:var(--primary-dark);font-size:13px;font-weight:600;font-family:'Prompt',sans-serif;cursor:pointer">👥 ดูนักเรียนที่รออนุมัติเพิ่ม (เหลืออีก ${order.length-_doneShown} คน)</button>`:'');
+    +(_usersLeft?`<button onclick="showMoreDone()" style="width:100%;margin:14px 0 8px;padding:12px;background:var(--card);border:1.5px solid var(--border);border-radius:12px;color:var(--primary-dark);font-size:13px;font-weight:600;font-family:'Prompt',sans-serif;cursor:pointer">👥 ดูเพิ่ม (เหลืออีก ${_cardsLeft} รายการ · ${_usersLeft} คน)</button>`:'');
+    _mountCardPhotos(); // v95
     return;
   }
   // v54.1: วาดทีละหน้า ไม่วาดทั้ง 800 ใบรวดเดียว
   const _shown=list.slice(0,_doneShown);
+  _lastShownCards=_shown.length; // v95c
   container.innerHTML=_shown.map(s=>buildCard(s)).join('')
+
     +(list.length>_doneShown?`<button onclick="showMoreDone()" style="width:100%;margin:14px 0 8px;padding:12px;background:var(--card);border:1.5px solid var(--border);border-radius:12px;color:var(--primary-dark);font-size:13px;font-weight:600;font-family:'Prompt',sans-serif;cursor:pointer">📅 ดูเพิ่มอีก ${Math.min(_DONE_PAGE,list.length-_doneShown)} รายการ (เหลือ ${list.length-_doneShown})</button>`:'');
+  _mountCardPhotos(); // v95
 }
-function showMoreDone(){_doneShown+=_DONE_PAGE;renderCoach();}
+// v95c: เดิม += 40 คงที่ — ถ้ากลุ่มที่วาดไปแล้วมีมากกว่า 40 ใบ (โค้ชหายไปหลายวัน)
+//   เพดานใหม่ยังต่ำกว่าที่วาดอยู่ = กดแล้วหน้าเหมือนเดิม จอเด้งกลับบนสุดฟรีๆ
+function showMoreDone(){_doneShown=Math.max(_doneShown,_lastShownCards)+_DONE_PAGE;renderCoach();}
 function setCoachFilter(f){
   _doneShown=_DONE_PAGE; // v59: เปลี่ยนตัวกรองแล้วเริ่มนับหน้าใหม่
   coachFilter=f;
@@ -6111,8 +6292,11 @@ function buildCard(s){
     if(hd.menuName)chips+=`<span class="est-chip" style="background:#FEF3C7;color:#92400E;font-weight:600">🍽️ ${escHtml(hd.menuName)}</span>`;
     if(hd.menuDesc)chips+=`<span class="est-chip" style="background:#FFFBEB;color:#A16207;font-size:11px">📝 ${escHtml(hd.menuDesc)}</span>`;
     if(hd.carbSlots){hd.carbSlots.forEach((sl,i)=>{chips+=`<span class="est-chip">${DL[sl.density]||'🟡'} ${sl.qty}มือ</span>`;});}
-    else{chips=`<span class="est-chip">${DL[hd.carbDensity]||'🟡'} ${hd.carb}มือ</span>`;if(hd.carb2>0)chips+=`<span class="est-chip">${DL[hd.carbDensity2]||'🟡'} +${hd.carb2}มือ</span>`;}
-    chips+=`<span class="est-chip">${protL} ${hd.protein}ฝ่ามือ</span>`;
+    // v94: เหมือนฝั่งการ์ดนักเรียน — ห้ามขึ้น undefined และห้ามทับชื่อเมนู
+    else if(hd.carb!=null){chips+=`<span class="est-chip">${DL[hd.carbDensity]||'🟡'} ${hd.carb}มือ</span>`;if(hd.carb2>0)chips+=`<span class="est-chip">${DL[hd.carbDensity2]||'🟡'} +${hd.carb2}มือ</span>`;}
+    else chips+=`<span class="est-chip">C ${hd.totalCarb??0} · P ${hd.totalProtein??0} · F ${hd.totalFat??0}</span>`;
+    // v94: ไม่มี protType จริง → ห้ามขึ้น "Lean" ให้โค้ชอ่าน มันคือค่าที่ไม่เคยถูกกรอก
+    if(hd.protein!=null)chips+=`<span class="est-chip">${hd.protType?protL:''} ${hd.protein}ฝ่ามือ</span>`;
     if(hd.eggWhole>0)chips+=`<span class="est-chip">🥚×${hd.eggWhole}</span>`;
     if(hd.eggWhite>0)chips+=`<span class="est-chip">ไข่ขาว×${hd.eggWhite}</span>`;
     chips+=`<span class="est-chip">${cookL}${hd.visibleFat>0?' +น้ำมัน'+hd.visibleFat+'ช':''}</span>`;
@@ -6160,8 +6344,10 @@ function buildCard(s){
     :_photoDone
     ?`<div id="ph-${s.id}" style="padding:6px 12px 0"><button onclick="showCardPhotos('${s.id}')" style="background:var(--light);border:1px solid var(--border);border-radius:8px;padding:5px 12px;font-size:11.5px;font-family:'Prompt',sans-serif;color:var(--gray);cursor:pointer">📷 ดูรูป${_photos.length>1?' ('+_photos.length+')':''}</button></div>`
     :_photos.length===1
-    ?`<img class="card-photo" src="${safeImg(_photos[0])}" loading="lazy">`
-    :`<div style="display:flex;gap:6px;overflow-x:auto;padding:8px 12px 4px;-webkit-overflow-scrolling:touch">${_photos.map(u=>`<img src="${safeImg(u)}" loading="lazy" style="height:110px;width:110px;object-fit:cover;border-radius:8px;flex-shrink:0">`).join('')}</div>`;
+    // v95: ไม่ใส่ src ตั้งแต่แรก — _mountCardPhotos จะใส่ให้เมื่อเข้าใกล้จอ แล้วถอดออกเมื่อไกลจอ
+    //   .card-photo มีความสูงจองไว้แล้ว (CSS v83) ตำแหน่ง scroll จึงไม่ยุบ
+    ?`<img class="card-photo" data-src="${safeImg(_photos[0])}" alt="">`
+    :`<div style="display:flex;gap:6px;overflow-x:auto;padding:8px 12px 4px;-webkit-overflow-scrolling:touch">${_photos.map(u=>`<img data-src="${safeImg(u)}" alt="" style="height:110px;width:110px;object-fit:cover;border-radius:8px;flex-shrink:0;background:#F3F4F6">`).join('')}</div>`;
   const avatarHtml=s.pictureUrl?`<img src="${safeImg(s.pictureUrl)}" onerror="this.src=''" alt="">`:`<div style="width:38px;height:38px;border-radius:50%;background:var(--light);display:flex;align-items:center;justify-content:center;font-size:18px">👤</div>`;
   let actions='';
   const showApprove=cs.approveOpen||false;
@@ -6397,7 +6583,59 @@ function showCardPhotos(id){
     ?`<img src="${safeImg(ph[0])}" style="width:100%;border-radius:8px" loading="lazy">`
     :`<div style="display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch">${ph.map(u=>`<img src="${safeImg(u)}" loading="lazy" style="height:110px;width:110px;object-fit:cover;border-radius:8px;flex-shrink:0">`).join('')}</div>`;
 }
-function _updateCard(id){const s=allSubs.find(x=>x.id===id);const el=document.getElementById('card-'+id);if(s&&el){el.outerHTML=buildCard(s);}else{renderCoach();}}
+// ═════ v95: อัปเดตการ์ดใบเดียว แทนการวาดใหม่ทั้งหน้า ═════
+// เดิมกดอนุมัติ 1 ครั้ง = ทำลาย DOM ทั้งชุดแล้วสร้างใหม่ + สร้าง <img> ใหม่ทุกใบ
+// ไล่เคลียร์ของค้าง 240 ใบ = buildCard ~28,800 ครั้งใน session เดียว
+// v95c: v59 ตั้งใจให้มื้อที่โค้ชเพิ่งจัดการยังกดดูรูปได้แม้หลุด 10 ล่าสุด
+//   เดิมคำนวณเฉพาะใน renderCoach — พอ v95 เปลี่ยนไปวาดใบเดียว ปุ่ม "📷 ดูรูป" เลยหายหลังกดบันทึก
+function _recalcPhotoOk(done){
+  const d=done||allSubs.filter(s=>s.status!=='pending');
+  _photoOkIds=new Set(d.slice(0,_PHOTO_KEEP).map(x=>x.id));
+  _justActedIds.forEach(id=>_photoOkIds.add(id));
+}
+function _cardBelongs(s){
+  if(!s||coachTab==='students')return false;
+  const isPending=s.status==='pending';
+  return (coachFilter==='pending'||coachTab==='pending')?isPending:!isPending;
+}
+function _syncCard(id){
+  if(coachTab==='students')return;
+  const s=allSubs.find(x=>x.id===id);
+  const el=document.getElementById('card-'+id);
+  _recalcPhotoOk(); // v95c: ไม่งั้นปุ่ม "ดูรูป" ของมื้อที่เพิ่งแก้หายไป
+  if(s&&_cardBelongs(s)){
+    if(el){el.outerHTML=buildCard(s);_mountCardPhotos();}
+    else renderCoach(); // ใบใหม่เข้ามาในแท็บนี้ → ต้องวาดใหม่เพื่อจัดกลุ่มให้ถูก
+    return;
+  }
+  if(!el)return;              // ไม่อยู่ในแท็บนี้อยู่แล้ว ไม่ต้องทำอะไร
+  el.remove();
+  _pruneCoachView();
+}
+// เก็บกวาดหลังการ์ดหายไป: ลบหัวกลุ่มที่ไม่มีการ์ดเหลือ · อัปเดตจำนวน · อัปเดตป้ายรออนุมัติ
+function _pruneCoachView(){
+  const box=document.getElementById('cards-container');
+  if(!box)return;
+  const kids=Array.from(box.children);
+  let hd=null,n=0;
+  const flush=()=>{if(hd){if(!n)hd.remove();else{const c=hd.querySelector('.grp-n');if(c)c.textContent=n+' รายการ';}}};
+  kids.forEach(k=>{
+    if(k.classList&&k.classList.contains('grp-hd')){flush();hd=k;n=0;}
+    else if(k.classList&&k.classList.contains('card'))n++;
+  });
+  flush();
+  const badge=document.getElementById('pending-count');
+  if(badge){
+    const p=allSubs.filter(s=>s.status==='pending').length;
+    if(p>0){badge.style.display='inline-block';badge.textContent=p;}else badge.style.display='none';
+  }
+  if(!box.querySelector('.card'))renderCoach(); // หมดแล้ว → ให้ renderCoach วาดหน้าว่าง/หน้าถัดไป
+  else _mountCardPhotos();
+}
+function _updateCard(id){const s=allSubs.find(x=>x.id===id);const el=document.getElementById('card-'+id);
+  // v95c: ต้อง mount รูปทุกครั้งที่วาดการ์ดใหม่ — buildCard คืน <img data-src> ที่ยังไม่มี src
+  //   ถ้าไม่เรียก รูปจะเป็นกล่องเทา และ node เก่ายังค้างอยู่ใน observer
+  if(s&&el){el.outerHTML=buildCard(s);_mountCardPhotos();}else{renderCoach();}}
 // ===== v91: DRAFT ของแผงแก้ค่า =====
 // เก็บสิ่งที่โค้ชกำลังแก้ไว้ในเครื่องทุกครั้งที่แตะปุ่ม
 // หน้าโหลดใหม่เมื่อไหร่ก็กู้กลับมาให้ พร้อมเปิดการ์ดเดิมค้างไว้ที่เดิม
@@ -6443,7 +6681,7 @@ function setCoachCorrMode(id,mode){if(!cState[id])cState[id]={};cState[id].corrM
 function toggleCorr(id){
   if(!cState[id])cState[id]={};
   cState[id].open=!cState[id].open;
-  if(!cState[id].open)_corrDraftClear(id); // v91: โค้ชกดยกเลิกเอง = ไม่ต้องกู้คืน
+  if(!cState[id].open){_corrDraftClear(id);delete cState[id]._sub;} // v91 + v95(M8): ปิดแผง = ปล่อย reference ด้วย
   _updateCard(id);
 }
 function updateCorrPreview(id){
@@ -6603,7 +6841,7 @@ function genCorrNote(id){
 function approveCard(id){if(!cState[id])cState[id]={};cState[id].approveOpen=!cState[id].approveOpen;_updateCard(id);} // v75: วาดใบเดียวพอ (เหมือน toggleCorr/setCoachCorrMode) — เดิม renderCoach() ทั้งหน้า จอเด้งกลับบนสุด
 const _approveInProgress=new Set(); // M1: ป้องกัน double-tap
 async function doApproveQuiet(id){
-  _markCoachSelfWrite(id); // v76: ฟังก์ชันนี้เรียก renderCoach() เองด้านล่าง
+  _markCoachSelfWrite(id); // v76 + v95: ฟังก์ชันนี้เรียก _syncCard() เองด้านล่าง (เดิม renderCoach ทั้งหน้า)
   _justActedIds.add(id); // v59: จำไว้ว่าโค้ชเพิ่งจัดการรายการนี้ → ยังกดดูรูปได้แม้หลุด 10 ล่าสุด
   if(_approveInProgress.has(id))return; // M1
   _approveInProgress.add(id);
@@ -6617,13 +6855,13 @@ async function doApproveQuiet(id){
       status:'approved',coachComment:'',coachCommentSent:true
     })); // W1
     if(cState[id])delete cState[id].approveOpen;
-    renderCoach();
-    showToast(_r==='timeout'?'📡 เน็ตช้า — อนุมัติไว้ในเครื่องแล้ว จะซิงค์อัตโนมัติค่ะ':'✅ อนุมัติแล้วค่ะ',_r==='timeout'?4000:2500);
+    _syncCard(id); // v95: วาดใบเดียว
+    showToast(_r==='timeout'?_slowMsg('📡 เน็ตช้า — อนุมัติไว้ในเครื่องแล้ว จะซิงค์อัตโนมัติค่ะ'):'✅ อนุมัติแล้วค่ะ',_r==='timeout'?4500:2500);
   }catch(e){showToast('⚠️ ไม่สำเร็จ: '+e.message,4000);} // v65: alert ถูก LINE บล็อกได้ = โค้ชไม่รู้ว่าพลาด
   finally{_approveInProgress.delete(id);} // M1
 }
 async function doApprove(id){
-  _markCoachSelfWrite(id); // v76: ฟังก์ชันนี้เรียก renderCoach() เองด้านล่าง
+  _markCoachSelfWrite(id); // v76 + v95: ฟังก์ชันนี้เรียก _syncCard() เองด้านล่าง (เดิม renderCoach ทั้งหน้า)
   _justActedIds.add(id); // v59: จำไว้ว่าโค้ชเพิ่งจัดการรายการนี้ → ยังกดดูรูปได้แม้หลุด 10 ล่าสุด
   if(_approveInProgress.has(id))return; // M1
   _approveInProgress.add(id);
@@ -6647,8 +6885,8 @@ async function doApprove(id){
     //   แถม toast ยังบอกโค้ชว่า "ส่ง Card ให้นักเรียนแล้วค่ะ" ทั้งที่ไม่ได้ส่ง
     //   ฝั่ง client พิสูจน์ไม่ได้ว่าส่งถึงใคร → ปล่อยให้นักเรียนรับตอนเปิดแอป (path นี้ทำงานถูกอยู่แล้ว)
     if(cState[id])cState[id].approveOpen=false;
-    renderCoach();
-    showToast(_r==='timeout'?'📡 เน็ตช้า — อนุมัติไว้ในเครื่องแล้ว Card จะส่งเมื่อนักเรียนเปิดแอปค่ะ':'✅ อนุมัติแล้ว — Card จะส่งเมื่อนักเรียนเปิดแอปค่ะ',_r==='timeout'?4500:2800);
+    _syncCard(id); // v95: วาดใบเดียว
+    showToast(_r==='timeout'?_slowMsg('📡 เน็ตช้า — อนุมัติไว้ในเครื่องแล้ว Card จะส่งเมื่อนักเรียนเปิดแอปค่ะ'):'✅ อนุมัติแล้ว — Card จะส่งเมื่อนักเรียนเปิดแอปค่ะ',_r==='timeout'?4500:2800);
   }catch(e){showToast('⚠️ ไม่สำเร็จ: '+e.message,4000);} // v65: alert ถูก LINE บล็อกได้ = โค้ชไม่รู้ว่าพลาด
   finally{_approveInProgress.delete(id);} // M1
 }
@@ -6687,8 +6925,8 @@ async function coachDeleteSub(id){
     const _i=allSubs.findIndex(x=>x.id===id);if(_i>=0)allSubs.splice(_i,1);
     if(cState[id])delete cState[id];
     _justActedIds.delete(id);
-    renderCoach();
-    showToast(_r==='timeout'?'📡 เน็ตช้า — ลบไว้ในเครื่องแล้ว จะซิงค์อัตโนมัติค่ะ':'🗑️ ลบแล้วค่ะ (สำรองไว้ที่ deletedSubs กู้คืนได้)',_r==='timeout'?4000:3200);
+    _syncCard(id); // v95: วาดใบเดียว (allSubs ถูก splice ไปแล้ว → _syncCard จะเอา node ออกให้)
+    showToast(_r==='timeout'?_slowMsg('📡 เน็ตช้า — ลบไว้ในเครื่องแล้ว จะซิงค์อัตโนมัติค่ะ'):'🗑️ ลบแล้วค่ะ (สำรองไว้ที่ deletedSubs กู้คืนได้)',_r==='timeout'?4500:3200);
   }catch(e){showToast('⚠️ ลบไม่ได้: '+e.message,4000);}
   finally{_delInProgress.delete(id);}
 }
@@ -6766,8 +7004,8 @@ async function sendCorrection(id,action='save'){
     // v83: ตัดการส่งทันทีทิ้งด้วยเหตุผลเดียวกับ doApprove — ส่งเข้าแชทโค้ชเองแล้วปิดธงถาวร
     _corrDraftClear(id); // v91: บันทึกแล้ว ไม่ต้องกู้คืนอีก
     cState[id]={};
-    renderCoach();
-    showToast(_r==='timeout'?'📡 เน็ตช้า — บันทึกไว้ในเครื่องแล้ว จะซิงค์อัตโนมัติค่ะ':(_isReEdit?'✅ แก้ไขแล้ว — Card อัปเดตจะส่งเมื่อนักเรียนเปิดแอปค่ะ':'✅ บันทึกแล้วค่ะ'),_r==='timeout'?4000:3200);
+    _syncCard(id); // v95: วาดใบเดียว
+    showToast(_r==='timeout'?_slowMsg('📡 เน็ตช้า — บันทึกไว้ในเครื่องแล้ว จะซิงค์อัตโนมัติค่ะ'):(_isReEdit?'✅ แก้ไขแล้ว — Card อัปเดตจะส่งเมื่อนักเรียนเปิดแอปค่ะ':'✅ บันทึกแล้วค่ะ'),_r==='timeout'?4000:3200);
   }catch(e){showToast('⚠️ ไม่สำเร็จ: '+e.message,4000);} // v65: alert ถูก LINE บล็อกได้ = โค้ชไม่รู้ว่าพลาด
   finally{_corrInProgress.delete(id);} // M2
 }
@@ -7136,9 +7374,12 @@ async function saveWeeklyNote(userId,weekId){
   const ta=document.getElementById(`wnote-${weekId}`);
   if(!ta)return;
   try{
-    await db.collection('students').doc(userId).collection('weeklySummaries').doc(weekId).set({
+    // v95 (L5): เดิมเป็น await เปล่าๆ — ออฟไลน์ + persistence เปิด = promise ไม่ settle ตลอดกาล
+    //   ไม่ล้าง cache ไม่ไฟเขียว ไม่ toast → โค้ชเปิดคนเดิมซ้ำเห็นโน้ตเก่าแล้วพิมพ์ใหม่ทั้งหมด
+    const _r=await _fsWrite(db.collection('students').doc(userId).collection('weeklySummaries').doc(weekId).set({
       weekId,weekStart:weekId,coachNote:ta.value.trim(),updatedAt:firebase.firestore.FieldValue.serverTimestamp()
-    },{merge:true});
+    },{merge:true}));
+    if(_r==='timeout')showToast(_slowMsg('📡 เน็ตช้า — บันทึกไว้ในเครื่องแล้ว จะซิงค์อัตโนมัติค่ะ'),4500);
     // v83 BUGFIX: เดิมไม่ล้าง cache (saveCoachNotes/saveTargets ทำถูกทั้งคู่ ตัวนี้ตกหล่น)
     //   → ปิดหน้าแล้วเปิดคนเดิมซ้ำ ช่องว่างเปล่าเหมือนไม่เคยบันทึก
     //   โค้ชนึกว่าเน็ตหลุด พิมพ์ใหม่สั้นๆ กดบันทึก → merge ระดับ field = โน้ตยาวเดิมถูกทับหายจริง
@@ -8184,8 +8425,14 @@ async function downloadDashboard(elId, name, type){
 
     // scrollX/scrollY ชดเชยตำแหน่ง element ใน viewport
     // formula: element_pos_in_canvas = rect.left + scrollX → ต้องการ 0 → scrollX = -rect.left
+    // v95: เลือก scale ตามขนาดจริง — เพดาน ~6 ล้านพิกเซล (canvas ~24MB + สำเนาอีก 2 ชุด)
+    //   เดิม scale:2 คงที่ หน้ายาว 8,000px = canvas 51MB → พีครวมทะลุ 150MB → webview ตายคาปุ่ม
+    const _MAXPX=8000000;
+    let _scale=2;
+    // พื้นล่างคือ 1 = ความละเอียดจริงของหน้า — ต่ำกว่านี้ตัวหนังสือจะเบลอกว่าที่เห็นบนจอ
+    while(_scale>1&&W*H*_scale*_scale>_MAXPX)_scale-=0.25;
     const canvas=await html2canvas(el,{
-      scale:2,
+      scale:_scale,
       useCORS:true,
       allowTaint:true,
       backgroundColor:'#F9FAFB',
@@ -8200,7 +8447,7 @@ async function downloadDashboard(elId, name, type){
     const fname=(name||'dashboard')+'_'+todayStr(); // v83: toISOString = UTC → ไทยได้ชื่อไฟล์เป็นเมื่อวานก่อน 7 โมงเช้า
     if(type==='pdf'){
       const {jsPDF}=window.jspdf;
-      const imgW=canvas.width/2,imgH=canvas.height/2;
+      const imgW=canvas.width/_scale,imgH=canvas.height/_scale; // v95: ตามสเกลที่ใช้จริง
       const pdf=new jsPDF({orientation:'portrait',unit:'px',format:[imgW,imgH]});
       pdf.addImage(canvas.toDataURL('image/png'),'PNG',0,0,imgW,imgH);
       pdf.save(fname+'.pdf');
@@ -8227,8 +8474,14 @@ async function downloadDashboard(elId, name, type){
 // B+ Tab warning
 let _pendingTab=null;
 function hasUnsavedData(mode){
-  if(mode==='hand'){return protQty!==1.0||carbSlots.length>1||(carbSlots[0]&&carbSlots[0].qty!==1.5)||eggWhole>0||eggWhite>0||visibleFat>0||avoQty>0||Object.values(fruitCounts).some(v=>v>0);}
-  if(mode==='label'){return !!(parseFloat(document.getElementById('lb-carb')?.value)||parseFloat(document.getElementById('lb-prot')?.value)||parseFloat(document.getElementById('lb-fat')?.value)||parseFloat(document.getElementById('lb-kcal')?.value));} // v80
+  const _v=id=>(document.getElementById(id)?.value||'').trim();
+  if(mode==='hand'){return protQty!==1.0||protType!=='lean'||cookMethod!=='none'
+    ||carbSlots.length>1||carbSlots.some(s=>s.qty!==1.5||s.density!=='normal')
+    ||eggWhole>0||eggWhite>0||visibleFat>0||avoQty>0||Object.values(fruitCounts).some(v=>v>0)
+    ||!!_v('menu-name-input')||!!_v('menu-desc-input');} // v94
+  // v94: เพิ่มจำนวนหน่วยบริโภค — เป็นตัวคูณของทุกค่า ถ้าตั้งไว้ 3 แล้วสลับแท็บก็หายเหมือนกัน
+  if(mode==='label'){return !!(parseFloat(document.getElementById('lb-carb')?.value)||parseFloat(document.getElementById('lb-prot')?.value)||parseFloat(document.getElementById('lb-fat')?.value)||parseFloat(document.getElementById('lb-kcal')?.value))
+    ||(parseFloat(document.getElementById('lb-serv')?.value)||1)!==1;} // v80
   if(mode==='weigh'){const ta=document.getElementById('ai-food-input');return !!(ta?.value?.trim())||!!aiParsedData;}
   return false;
 }
