@@ -124,6 +124,8 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
 .ptype-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
 .ptype-grid.three{grid-template-columns:repeat(3,1fr);gap:5px} /* v92: 3 ชั้นโปรตีน */
 .ptype-grid.three .ptype-btn{padding:9px 3px;font-size:11.5px;line-height:1.45}
+.ptype-grid.four{grid-template-columns:1fr 1fr;gap:6px} /* v97: 4 ชั้น — 2x2 */
+.ptype-grid.four .ptype-btn{padding:9px 5px;font-size:12px;line-height:1.45}
 .ptype-btn{background:#F9FAFB;border:2px solid #E5E7EB;border-radius:10px;padding:10px 8px;font-size:12px;text-align:center;cursor:pointer;line-height:1.5;font-family:'Prompt',sans-serif;transition:.15s}
 .ptype-btn.active{border-color:var(--primary);background:var(--light)}
 .ptype-sub{font-size:10px;color:var(--gray);display:block}
@@ -520,7 +522,10 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
 </head>
 <body>
 <!-- v96: แถบแจ้งเวอร์ชันใหม่ — ไม่รีโหลดเอง ให้ผู้ใช้กดเองเมื่อพร้อม -->
-<div id="ver-bar" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9998;padding:9px 12px;background:#D97706;color:#fff;font-size:12.5px;font-family:'Prompt',sans-serif;text-align:center;line-height:1.7;box-shadow:0 2px 8px rgba(0,0,0,.18)"></div>
+<!-- v98: เดิมเป็น position:fixed z-index 9998 ลอยทับหัวจอที่เป็น sticky
+     → รูปโปรไฟล์ (ทางเข้าฟอร์มข้อมูลของฉัน) และปุ่ม ← ปิดหน้ารายละเอียดนักเรียน กดไม่ได้
+     ตอนนี้อยู่ในลำดับปกติ ดันทุกอย่างลง แล้วเลื่อนหายไปเองเมื่อ scroll -->
+<div id="ver-bar" style="display:none;position:relative;z-index:9998;padding:9px 12px;background:#D97706;color:#fff;font-size:12.5px;font-family:'Prompt',sans-serif;text-align:center;line-height:1.7;box-shadow:0 2px 8px rgba(0,0,0,.18)"></div>
 
 <div id="loading">
   <div class="logo-circle"><span>DO</span></div>
@@ -643,7 +648,9 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
             <span class="hmb-chev" id="chev-protein">▸</span>
           </div>
           <div class="hmb-body collapsed" id="body-protein">
-            <div class="ptype-grid three">
+            <!-- v97: 4 ชั้นแล้ว — 2x2 อ่านง่ายกว่า 4 คอลัมน์บนจอมือถือ
+                 เรียง 3 ชั้นไขมันก่อน (บนซ้าย→บนขวา→ล่างซ้าย) แล้วค่อยเนื้อแปรรูปซึ่งเป็นคนละเรื่อง -->
+            <div class="ptype-grid four">
               <button class="ptype-btn active" data-pt="lean" onclick="setProtT('lean',this)">
                 ✅ Lean<span class="ptype-sub" style="color:var(--primary-dark);font-weight:600">~140 kcal</span>
               </button>
@@ -651,7 +658,10 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
                 🔶 Semi-lean<span class="ptype-sub" style="color:var(--primary-dark);font-weight:600">~215 kcal</span>
               </button>
               <button class="ptype-btn" data-pt="fatty" onclick="setProtT('fatty',this)">
-                🔴 ติดมันมาก<span class="ptype-sub" style="color:var(--primary-dark);font-weight:600">~315 kcal</span>
+                🔴 มันเยอะ<span class="ptype-sub" style="color:var(--primary-dark);font-weight:600">~315 kcal</span>
+              </button>
+              <button class="ptype-btn" data-pt="processed" onclick="setProtT('processed',this)">
+                🍡 เนื้อแปรรูป<br>ผสมแป้ง<span class="ptype-sub" style="color:var(--primary-dark);font-weight:600">~163 kcal</span>
               </button>
             </div>
             <!-- v92: ตัวอย่างอาหารของชั้นที่เลือก — แพตเทิร์นเดียวกับ .dens-hint ของคาร์บ
@@ -997,7 +1007,7 @@ function _slowMsg(okText){
 //   (loadSavedMenus ดึงมา .limit(40) อยู่แล้ว 20 จึงยังอยู่ใต้เพดานการอ่าน)
 //   ประกาศไว้บนสุด เพราะถูกใช้ทั้งใน loadStudentData / loadSavedMenus / saveCurrentMenu
 const MENU_CAP=20;
-const APP_VERSION='v96-2026-09-02'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
+const APP_VERSION='v98-2026-09-02'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
 const _errLogged=new Set();let _errCount=0;
 // ═════ v96: version gate ═════
 // ตั้ง field minVersion ใน Firestore → config/app (เช่น "v96") แล้วเครื่องที่ต่ำกว่าจะขึ้นแถบเตือน
@@ -1035,7 +1045,9 @@ async function _checkAppVersion(){
     if(!s||!s.exists)return;
     const d=s.data()||{};
     if(d.geminiKey&&typeof _setGeminiKey==='function'&&!GEMINI_KEY)_setGeminiKey(d.geminiKey); // อ่านมาแล้วใช้ให้คุ้ม
-    const m=/^v?(\d+)/.exec(String(d.minVersion||''));
+    // v98: ต้องทน "V96" (คีย์บอร์ดมือถือขึ้นต้นตัวใหญ่ให้เอง) และช่องว่างหน้าหลัง
+    //   เดิมพิมพ์ผิดนิดเดียว = gate เงียบสนิท ไม่มีสัญญาณอะไรเลย
+    const m=/^\s*v?(\d+)/i.exec(String(d.minVersion||''));
     const min=m?parseInt(m[1],10):0;
     if(min>_VER_N)_showUpdateBar(min);
   }catch(_){}
@@ -1603,7 +1615,9 @@ let aiParsedData=null;
 // v94: จำข้อความที่ใช้คำนวณรอบล่าสุด — ถ้านักเรียนพิมพ์ต่อแล้วไม่กด ✨ ซ้ำ
 //   ตัวเลขจะเป็นของรอบเก่า แต่ชื่ออาหารที่โค้ชเห็นเป็นของใหม่
 function _aiText(){return (document.getElementById('ai-food-input')?.value||'').trim();}
-function _aiSrcTouch(){if(aiParsedData)aiParsedData.__srcText=_aiText();}
+// v98: ต้องรับข้อความที่ "ใช้คำนวณจริง" เข้ามา — ระหว่างรอ AI ตอบ (หลายวินาที) ช่องข้อความยังพิมพ์ได้
+//   ถ้าอ่านสดตอนคำตอบกลับมา จะไปประทับข้อความใหม่ทับ แล้วตัวกันของ v94 ก็ปล่อยผ่านทันที
+function _aiSrcTouch(t){if(aiParsedData)aiParsedData.__srcText=(t===undefined?_aiText():String(t).trim());}
 function _aiSrcOk(){
   if(!aiParsedData)return true;
   if(typeof aiParsedData.__srcText!=='string')return true; // เมนูโปรดเก่าที่ไม่มีข้อความ — ไม่บล็อก
@@ -1681,7 +1695,11 @@ const CARB_D={
 //   1 ฝ่ามือ = เนื้อสุก 90g ≈ 3.1 ส่วน → ชั้นสูง = F 3.1×8 ≈ 25g
 //   ยืนยันด้วยแถวใน DB ของเราเอง: ["หมูสามชั้น","1 ฝ่ามือ 90g",0,15,28,314] = F28
 //   ⚠️ ห้ามลบ/เปลี่ยนชื่อ key เดิม — เอกสารเก่าเก็บ protType เป็นสตริงตรงๆ
-const PROT_T={lean:{c:0,p:28,f:3},semilean:{c:0,p:22,f:14},fatty:{c:0,p:22,f:25}};
+// v97: เพิ่มชั้น processed — เนื้อแปรรูปคือ "เนื้อที่ถูกเจือจางด้วยแป้ง" จึงได้โปรตีนน้อยกว่า
+//   และมีคาร์บติดมาด้วย ซึ่ง 3 ชั้นเดิม (c:0 ทุกตัว) แทนไม่ได้เลย
+//   ที่มา: แถวในแอปเอง ["ลูกชิ้นหมู","5 ลูก 80g",8,14,6,142] ปรับสเกลเป็น 1 ฝ่ามือ (90g)
+//   ⚠️ key เดิมห้ามเปลี่ยน/ลบ — เอกสารเก่าเก็บ protType เป็นสตริงตรงๆ
+const PROT_T={lean:{c:0,p:28,f:3},semilean:{c:0,p:22,f:14},fatty:{c:0,p:22,f:25},processed:{c:9,p:16,f:7}};
 // v92: ตัวอย่างอาหารของแต่ละชั้น — ที่เดียว ใช้ทั้งหน้านักเรียน แผงโค้ช และแผนอาหาร
 //   แพตเทิร์นเดียวกับ CARB_D[].hint ที่นักเรียนคุ้นอยู่แล้ว
 const PROT_INFO={
@@ -1690,10 +1708,13 @@ const PROT_INFO={
   //   ป้ายที่โกหกแปลว่านักเรียนเลือกผิดโดยคิดว่าต่างกันแค่ 40 kcal ทั้งที่ต่างจริง 75
   lean:    {emoji:'✅',label:'Lean',      short:'ไม่ติดมัน', kcal:140,
             hint:'อกไก่ · สันในไก่ · หมูสันใน · ปลาเนื้อขาว · กุ้ง · ปู · ทูน่าในน้ำ · ไข่ขาว'},
-  semilean:{emoji:'🔶',label:'Semi-lean', short:'ติดมัน',    kcal:215,
-            hint:'ไก่มีหนัง · แซลมอน · เนื้อวัว · เต้าหู้ · ลูกชิ้น · ปลาทู'},
-  fatty:   {emoji:'🔴',label:'ติดมันมาก', short:'ติดมันมาก', kcal:315,
-            hint:'หมูสามชั้น · คอหมู · ซี่โครง · หมูสับ · ไส้กรอก · กุนเชียง · เบคอน · หมูกรอบ'}
+  semilean:{emoji:'🔶',label:'Semi-lean', short:'ติดมันปานกลาง',kcal:215,
+            hint:'ไก่มีหนัง · แซลมอน · เนื้อวัว · เต้าหู้ · ปลาทู'},
+  fatty:   {emoji:'🔴',label:'มันเยอะ',   short:'มันเยอะ',   kcal:315,
+            hint:'หมูสามชั้น · คอหมู · ซี่โครง · หมูสับ · ไส้กรอก · กุนเชียง · เบคอน · หมูกรอบ'},
+  // v97: วางท้ายสุดเสมอ — 3 ชั้นแรกคือบันไดไขมัน ตัวนี้เป็นคนละเรื่อง (เนื้อเจือจางด้วยแป้ง)
+  processed:{emoji:'🍡',label:'เนื้อแปรรูปผสมแป้ง',short:'แปรรูป+แป้ง',kcal:163,
+             hint:'ลูกชิ้น · ปูอัด · หมูยอ — เนื้อผสมแป้ง ได้โปรตีนน้อยกว่าเนื้อจริงเกือบครึ่ง'}
 };
 function protLabelOf(t){const i=PROT_INFO[t]||PROT_INFO.lean;return i.emoji+i.label;}
 const COOK_M={none:{f:0},stirfry:{f:10},deep:{f:20}};
@@ -3047,7 +3068,7 @@ function renderProtHint(){
 function setCookM(m,btn){cookMethod=m;document.querySelectorAll('.cook-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');updateHandSummary();}
 
 function updateHandSummary(){
-  const pm=PROT_T[protType],ck=COOK_M[cookMethod];
+  const pm=PROT_T[protType]||PROT_T.lean,ck=COOK_M[cookMethod]||COOK_M.none; // v98: กันชั้นที่บิลด์นี้ไม่รู้จัก
   let C=0,P=0,F=0;
   carbSlots.forEach(s=>{const cm=CARB_D[s.density];C+=cm.c*s.qty;P+=cm.p*s.qty;F+=cm.f*s.qty;});
   C+=pm.c*protQty;P+=pm.p*protQty;F+=pm.f*protQty;
@@ -3062,7 +3083,7 @@ function updateHandSummary(){
   document.getElementById('hs-f').textContent=F+'g';
   // update summaries for closed sections
   updateCarbSummary();
-  const pm2=PROT_T[protType];
+  const pm2=PROT_T[protType]||PROT_T.lean; // v98
   const psum=document.getElementById('sum-protein');
   // v92: เดิมเป็น ternary 2 ทาง — ชั้น fatty จะโชว์ว่า "Semi🔶" ซึ่งโกหก
   if(psum)psum.textContent=protLabelOf(protType)+' '+protQty.toFixed(1)+' ฝ่ามือ'+(eggWhole>0?' +ไข่'+eggWhole:'')+(eggWhite>0?' +ขาว'+eggWhite:'');
@@ -3285,7 +3306,7 @@ async function _callGeminiAI(){
   if(_cached){
     aiParsedData=JSON.parse(JSON.stringify(_cached)); // deep copy ป้องกัน mutation
     _enrichAIData(aiParsedData,text); // v46.1: cache ที่บันทึกก่อน v46 ไม่มี _src/_dbRefs/total — เติมให้ก่อนแสดง
-    _aiSrcTouch();_aiStaleSync(); // v94
+    _aiSrcTouch(text);_aiStaleSync(); // v94 + v98
     renderAIResult(aiParsedData);
     _logAITiming({src:'ai',totalMs:Date.now()-_t0,cacheHit:true,items:(aiParsedData.items||[]).length});
     return;
@@ -3413,7 +3434,7 @@ async function _callGeminiAI(){
     if(!Array.isArray(aiParsedData.items)||!aiParsedData.items.length)
       throw new Error('AI ยังแยกรายการอาหารไม่ได้ ลองพิมพ์ให้ละเอียดขึ้นนะคะ (เช่น "ข้าวสวย 2 ทัพพี ไก่ย่าง 1 ชิ้น")');
     aiCacheSet(_cacheKey,aiParsedData); // เก็บ cache หลังผ่าน sanity check แล้วเท่านั้น
-    _aiSrcTouch();_aiStaleSync(); // v94: ผูกผลลัพธ์กับข้อความที่ใช้คำนวณ (หลังเก็บ cache แล้ว)
+    _aiSrcTouch(text);_aiStaleSync(); // v94 + v98: ผูกกับ text ที่ส่งไปจริง ไม่ใช่ค่าสดในช่อง
     renderAIResult(aiParsedData); // ← นักเรียนเห็นผลตรงนี้แล้ว ที่ทำหลังจากนี้ไม่กระทบเวลารอ
     _logDbMiss((aiParsedData.items||[]).filter(it=>it._src!=='db').map(it=>it.name)); // v62: จดไว้ว่าอะไรยังไม่มีใน DB
     _logAITiming({src:'ai',totalMs:Date.now()-_t0,keyLoadMs:_keyMs,netMs:_netMs,parseMs:Date.now()-_tp0,
@@ -3798,7 +3819,7 @@ async function deleteSavedMenu(id){
 // v88: แยกสูตรมาโครโหมดมือออกมา เพื่อให้ "ตัวเช็คฟอร์มว่าง" ใช้สูตรเดียวกับตอนบันทึกจริง
 //   (ลอกสูตรไปไว้สองที่ = วันหนึ่งแก้ที่เดียวแล้วเช็คกับบันทึกไม่ตรงกัน)
 function _handMenuMacros(){
-  const pm=PROT_T[protType];
+  const pm=PROT_T[protType]||PROT_T.lean; // v98
   let C=0,P=0,F=0;
   carbSlots.forEach(s=>{const cm=CARB_D[s.density];C+=cm.c*s.qty;P+=cm.p*s.qty;F+=cm.f*s.qty;});
   C+=pm.c*protQty;P+=pm.p*protQty;F+=pm.f*protQty;
@@ -3926,7 +3947,7 @@ async function applySavedMenu(id){
     //   ไม่งั้นเมนูเก่าติดพฤติกรรมเดิมไปตลอด ทั้งที่เจ้าของแก้อะไรไม่ได้เลย
     aiParsedData={items:(menu.items||[]).map(_it=>{const{_orig,..._rest}=_it;return JSON.parse(JSON.stringify(_rest));}),total:JSON.parse(JSON.stringify(menu.total||{}))};
     _enrichAIData(aiParsedData,menu.inputText||''); // v46.1: เมนูโปรดที่เซฟไว้ก่อน v46 ไม่มีข้อมูลที่มา — เติมให้ ไม่งั้นขึ้น 🤖 ผิดทุกรายการ
-    _aiSrcTouch();_aiStaleSync(); // v94
+    _aiSrcTouch(menu.inputText||'');_aiStaleSync(); // v94 + v98
     renderAIResult(aiParsedData);
   }else if(menu.mode==='label'&&menu.labelData){
     document.getElementById('lb-carb').value=menu.labelData.carbPerServ;
@@ -3999,7 +4020,7 @@ async function submitMeal(){
     const _meal=curMeal,_mode=curMode,_date=selectedDate;
     let handData=null,labelData=null,weighData=null;
     if(_mode==='hand'){
-      const pm=PROT_T[protType],ck=COOK_M[cookMethod];
+      const pm=PROT_T[protType]||PROT_T.lean,ck=COOK_M[cookMethod]||COOK_M.none; // v98
       let C=0,P=0,F=0;
       carbSlots.forEach(s=>{const cm=CARB_D[s.density];C+=cm.c*s.qty;P+=cm.p*s.qty;F+=cm.f*s.qty;});
       C+=pm.c*protQty;P+=pm.p*protQty;F+=pm.f*protQty;
@@ -4610,6 +4631,7 @@ function resetStudent(){
   aiParsedData=null;
   const aif=document.getElementById('ai-food-input');if(aif)aif.value='';
   const air=document.getElementById('ai-result-area');if(air)air.style.display='none';
+  if(typeof _aiStaleSync==='function')_aiStaleSync(); // v98: ไม่งั้นแถบ "ข้อความเปลี่ยน" ค้างบนฟอร์มเปล่า
   const bss2=document.getElementById('btn-save-success');if(bss2)bss2.style.display='none';
   document.getElementById('success-screen').style.display='none';
   document.getElementById('student-view').style.display='block';
@@ -4854,8 +4876,10 @@ function renderCoach(){
     if(filterBar)filterBar.style.display='none';
     // NB8: rebuild รายชื่อจาก allSubs ทันที (sync ไม่รอ network) — เดิมทับด้วย loading ค้าง
     // เมื่อ onSnapshot เรียก renderCoach ระหว่างโค้ชอยู่ tab นักเรียน แล้วไม่มีใครโหลดกลับ
-    _mountCardPhotos(); // v95b: ปลด observer ของการ์ดชุดเก่าที่เพิ่งถูกทิ้ง
+    // v98: ต้อง loadStudentList ก่อน (มันเขียนทับ container) แล้วค่อยปลด observer
+    //   เดิมสลับกัน = ไป observe การ์ดชุดเก่าที่กำลังจะถูกทิ้งในบรรทัดถัดไป
     loadStudentList();
+    _mountCardPhotos(); // v95b: ปลด observer ของการ์ดชุดเก่าที่เพิ่งถูกทิ้ง
     return;
   }
   if(filterBar)filterBar.style.display='none'; // F-G2: ซ่อนแถบ filter — ซ้ำซ้อนกับ tab รออนุมัติ/อนุมัติแล้ว
@@ -5535,8 +5559,8 @@ function renderPlanPanel(){
           <button onclick="adjPlanHand('carb',0.5)">+</button>
         </div>
         <div class="hmb-subtitle" style="margin-bottom:6px">🍗 โปรตีน</div>
-        <div class="ptype-grid three" style="margin-bottom:4px">
-          ${['lean','semilean','fatty'].map(t=>{const i=PROT_INFO[t];
+        <div class="ptype-grid four" style="margin-bottom:4px">
+          ${Object.keys(PROT_INFO).map(t=>{const i=PROT_INFO[t];
             return `<button class="ptype-btn${planHandProtType===t?' active':''}" data-pt="${t}" onclick="setPlanProtT('${t}')">${i.emoji} ${i.short}<span class="ptype-sub" style="color:var(--primary-dark);font-weight:600">~${i.kcal} kcal</span></button>`;}).join('')}
         </div>
         <div class="dens-hint" id="plan-prot-hint">${(PROT_INFO[planHandProtType]||PROT_INFO.lean).hint}</div>
@@ -6551,7 +6575,7 @@ ${_multiWarn}${_corrBanner}
 </div>
 <div style="margin-bottom:10px">
   <div class="hmb-subtitle" style="margin-bottom:5px">🍗 โปรตีน</div>
-  <div class="ptype-grid three" style="margin-bottom:6px">${ptBtn('lean')}${ptBtn('semilean')}${ptBtn('fatty')}</div>
+  <div class="ptype-grid four" style="margin-bottom:6px">${Object.keys(PROT_INFO).map(ptBtn).join('')}</div>
   <div class="dens-hint" id="hc-prot-hint-${s.id}">${(PROT_INFO[protType]||PROT_INFO.lean).hint}</div>
   <div class="hmb-subtitle" style="margin-bottom:4px">จำนวน (ฝ่ามือ)</div>
   <div class="corr-s-row"><button onclick="adjHCorr('${s.id}','protQty',-0.5)">−</button><input type="number" class="corr-input" id="hc-protQty-${s.id}" value="${protQty}" min="0" step="0.5" onchange="syncHCorr('${s.id}','protQty')"><button onclick="adjHCorr('${s.id}','protQty',0.5)">+</button></div>
@@ -7834,12 +7858,14 @@ function buildFeedbackFlex(mealCount, totC, totP, totF, totKcal, currentSub, day
     });
     // protein
     const pm=PROT_T[hd.protType]||PROT_T.lean;
-    const protLabel={lean:'โปรตีนไขมันต่ำ',semilean:'โปรตีนปกติ',fatty:'โปรตีนติดมันมาก'}[hd.protType]||'โปรตีนปกติ'; // v92
+    const protLabel={lean:'โปรตีนไขมันต่ำ',semilean:'โปรตีนปกติ',fatty:'โปรตีนมันเยอะ',processed:'เนื้อแปรรูปผสมแป้ง'}[hd.protType]||'โปรตีนปกติ'; // v92 + v97
     if((hd.protein||0)>0){
-      const kc=Math.round(pm.p*(hd.protein)*4+pm.f*(hd.protein)*9);
+      // v98: ชั้น processed มีคาร์บ (c:9) — เดิมบวกแต่ P กับ F แถวย่อยจึงบวกกันไม่เท่า "รวมมื้อนี้"
+      const _pc=Math.round(pm.c*(hd.protein));
+      const kc=Math.round(pm.c*(hd.protein)*4+pm.p*(hd.protein)*4+pm.f*(hd.protein)*9);
       mealRows.push({type:'box',layout:'horizontal',margin:'sm',contents:[
         {type:'text',text:`🥩 ${protLabel} ${hd.protein} ฝ่ามือ`,size:'xs',color:'#92400E',flex:1},
-        {type:'text',text:`P${Math.round(pm.p*(hd.protein))} · ${kc}kcal`,size:'xs',color:'#B45309',align:'end',flex:0}
+        {type:'text',text:`${_pc>0?'C'+_pc+' · ':''}P${Math.round(pm.p*(hd.protein))} · ${kc}kcal`,size:'xs',color:'#B45309',align:'end',flex:0}
       ]});
     }
     // fat (cooking + visible)
