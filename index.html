@@ -4,6 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>DO IT FIT Meal Log</title>
+<!-- v96: ติดตั้งลงหน้าจอโฮมได้จาก Safari/Chrome — ไม่มี service worker จึงดักอะไรไม่ได้เลย -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#F5A623">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="DO IT FIT">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
@@ -452,6 +460,7 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
 .ls-chart-card{background:white;border:1px solid #E5E7EB;border-radius:12px;padding:11px 13px;margin-bottom:10px}
 .ls-ch{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
 .ls-ctitle{font-size:13px;font-weight:700;color:var(--text)}
+.ls-cdays{font-weight:400;opacity:.62;font-size:.88em}
 .ls-cavg{font-size:10px;color:var(--gray);background:var(--light-gray);border-radius:20px;padding:2px 9px}
 .ls-bars{display:flex;gap:7px}
 .ls-bc{flex:1;display:flex;flex-direction:column;align-items:center}
@@ -510,6 +519,8 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
 </style>
 </head>
 <body>
+<!-- v96: แถบแจ้งเวอร์ชันใหม่ — ไม่รีโหลดเอง ให้ผู้ใช้กดเองเมื่อพร้อม -->
+<div id="ver-bar" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9998;padding:9px 12px;background:#D97706;color:#fff;font-size:12.5px;font-family:'Prompt',sans-serif;text-align:center;line-height:1.7;box-shadow:0 2px 8px rgba(0,0,0,.18)"></div>
 
 <div id="loading">
   <div class="logo-circle"><span>DO</span></div>
@@ -986,8 +997,49 @@ function _slowMsg(okText){
 //   (loadSavedMenus ดึงมา .limit(40) อยู่แล้ว 20 จึงยังอยู่ใต้เพดานการอ่าน)
 //   ประกาศไว้บนสุด เพราะถูกใช้ทั้งใน loadStudentData / loadSavedMenus / saveCurrentMenu
 const MENU_CAP=20;
-const APP_VERSION='v95-2026-09-02'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
+const APP_VERSION='v96-2026-09-02'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
 const _errLogged=new Set();let _errCount=0;
+// ═════ v96: version gate ═════
+// ตั้ง field minVersion ใน Firestore → config/app (เช่น "v96") แล้วเครื่องที่ต่ำกว่าจะขึ้นแถบเตือน
+// ห้ามรีโหลดเอง — โค้ชอาจกำลังแก้ค่าอยู่ นักเรียนอาจกรอกค้างอยู่ ให้เขากดเองเมื่อพร้อม
+const _VER_N=(()=>{const m=/^v(\d+)/.exec(APP_VERSION);return m?parseInt(m[1],10):0;})();
+const _VER_SKIP='_dfverskip';
+function _verReload(){
+  try{
+    const u=new URL(location.href);
+    u.searchParams.set('_v',String(Date.now())); // กัน HTTP cache 10 นาทีของ GitHub Pages
+    location.replace(u.toString());
+  }catch(_){location.reload();}
+}
+function _verDismiss(n){
+  try{localStorage.setItem(_VER_SKIP,String(n));}catch(_){}
+  const b=document.getElementById('ver-bar');if(b)b.style.display='none';
+}
+function _showUpdateBar(min){
+  let skip=0;try{skip=parseInt(localStorage.getItem(_VER_SKIP)||'0',10)||0;}catch(_){}
+  if(skip>=min)return; // ปิดไปแล้วสำหรับเวอร์ชันนี้ ไม่ตื๊อซ้ำ
+  const b=document.getElementById('ver-bar');if(!b)return;
+  b.innerHTML='✨ มีเวอร์ชันใหม่แล้วค่ะ '
+    +'<button onclick="_verReload()" style="margin-left:8px;padding:4px 12px;border:none;border-radius:8px;background:#fff;color:#B45309;font-size:12px;font-weight:700;font-family:\'Prompt\',sans-serif;cursor:pointer">โหลดใหม่</button>'
+    +'<button onclick="_verDismiss('+min+')" style="margin-left:6px;padding:4px 9px;border:none;border-radius:8px;background:rgba(255,255,255,.28);color:#fff;font-size:12px;font-family:\'Prompt\',sans-serif;cursor:pointer">ไว้ก่อน</button>';
+  b.style.display='block';
+}
+// อ่านครั้งเดียวตอนเปิดแอป · ล้มเหลวก็เงียบ ไม่กระทบอะไรทั้งสิ้น
+async function _checkAppVersion(){
+  try{
+    await Promise.race([_authReady,new Promise(r=>setTimeout(r,8000))]);
+    const s=await Promise.race([
+      db.collection('config').doc('app').get().catch(()=>null),
+      new Promise(r=>setTimeout(()=>r(null),10000))
+    ]);
+    if(!s||!s.exists)return;
+    const d=s.data()||{};
+    if(d.geminiKey&&typeof _setGeminiKey==='function'&&!GEMINI_KEY)_setGeminiKey(d.geminiKey); // อ่านมาแล้วใช้ให้คุ้ม
+    const m=/^v?(\d+)/.exec(String(d.minVersion||''));
+    const min=m?parseInt(m[1],10):0;
+    if(min>_VER_N)_showUpdateBar(min);
+  }catch(_){}
+}
 function _reportError(type,msg,stack,src){
   try{
     if(_errCount>=10)return; // cap 10 ต่อ session กัน error loop สแปม Firestore
@@ -1588,15 +1640,15 @@ let _photoProcessing=false;
 let selectedDate=todayStr();
 
 // HEALTH LOG STATE
-let hlSleep=7.0, hlStress=2, hlSteps=8000, hlCardio=0, hlMuscle='none', hlWeightMin=30;
-// v93: เลือกกล้ามเนื้อได้หลายส่วน — hlMuscles คือตัวจริง ส่วน hlMuscle เก็บไว้เป็น "ตัวแทน"
-//   (ตัวแรกในลิสต์) เพื่อให้กราฟ/การ์ด/โค้ชที่ยังอ่านฟิลด์เก่าทำงานต่อได้โดยไม่ต้องแก้
+let hlSleep=7.0, hlStress=2, hlSteps=8000, hlCardio=0, hlWeightMin=30;
+// v93: เลือกกล้ามเนื้อได้หลายส่วน — hlMuscles คือแหล่งความจริงเพียงตัวเดียว
+// v96: ลบ hlMuscle + _mgSync ทิ้ง — หลัง v93 ถูกเขียน 3 จุดแต่ไม่ถูกอ่านเลยสักจุด
+//   (ฟิลด์ muscleGroup ตัวเก่ายังถูกเขียนลง Firestore อยู่ตอนบันทึก อ่านจากตรงนั้นแทน)
 let hlMuscles=[];
 // v94: true = นักเรียนแตะฟอร์มสุขภาพไปแล้วในรอบนี้ ห้ามวาดทับ
 //   (_typing ดูจาก activeElement ซึ่งจับการกดปุ่มไม่ได้เลย)
 let _hlTouched=false;
 const MUSCLE_SOLO=['full','none'];             // เลือกแล้วล้างตัวอื่นทิ้ง
-function _mgSync(){hlMuscle=hlMuscles.length?hlMuscles[0]:'none';}
 function _mgFromEntry(e){
   if(!e)return [];
   if(Array.isArray(e.muscleGroups))return e.muscleGroups.filter(k=>k&&k!=='none');
@@ -2246,12 +2298,12 @@ function renderHealthLog(){
       hlStress=typeof entry.stress==='number'?entry.stress:2;
       hlSteps=typeof entry.steps==='number'?entry.steps:8000;
       hlCardio=typeof entry.cardio==='number'?entry.cardio:0;
-      hlMuscles=_mgFromEntry(entry); _mgSync(); // v93: รองรับทั้ง array ใหม่และสตริงเก่า
+      hlMuscles=_mgFromEntry(entry); // v93: รองรับทั้ง array ใหม่และสตริงเก่า
       // v94: 0 = "วันนั้นไม่ได้เล่น" ไม่ใช่ "เล่น 0 นาที" — กลับมาเลือกกล้ามเนื้อใหม่ต้องได้ค่าเริ่มต้น
       hlWeightMin=(typeof entry.weightMin==='number'&&entry.weightMin>0)?entry.weightMin:30;
     } else {
       // No saved log for this date — reset to defaults so previous date values don't bleed over
-      hlSleep=7.0;hlStress=2;hlSteps=8000;hlCardio=0;hlMuscles=[];hlMuscle='none';hlWeightMin=30;
+      hlSleep=7.0;hlStress=2;hlSteps=8000;hlCardio=0;hlMuscles=[];hlWeightMin=30;
     }
   }
   _hlTouched=false; // v94: วาดฟอร์มใหม่ = ค่าบนจอตรงกับข้อมูลจริงแล้ว เริ่มนับใหม่
@@ -2449,7 +2501,6 @@ function setMuscle(key){
     const i=hlMuscles.indexOf(key);
     if(i>=0)hlMuscles.splice(i,1); else hlMuscles.push(key);
   }
-  _mgSync();
   renderMuscleBtns();
 }
 function renderMuscleBtns(){
@@ -2924,7 +2975,7 @@ function renderCarbSlots(){
       <div class="dens-grid">
         <button class="dens-btn ${slot.density==='veggie'?'active':''}" onclick="setCarbSlotDensity(${slot.id},'veggie',this)">🟢<br>ผัก<br><span class="dens-kcal">~10 kcal</span></button>
         <button class="dens-btn ${slot.density==='light'?'active':''}" onclick="setCarbSlotDensity(${slot.id},'light',this)">🔵<br>เบา<br><span class="dens-kcal">~35 kcal</span></button>
-        <button class="dens-btn ${slot.density==='normal'?'active':''}" onclick="setCarbSlotDensity(${slot.id},'normal',this)">🟡<br>ปกติ<br><span class="dens-kcal">~80 kcal</span></button>
+        <button class="dens-btn ${slot.density==='normal'?'active':''}" onclick="setCarbSlotDensity(${slot.id},'normal',this)">🟡<br>ปกติ<br><span class="dens-kcal">~70 kcal</span></button>
         <button class="dens-btn ${slot.density==='dense'?'active':''}" onclick="setCarbSlotDensity(${slot.id},'dense',this)">🟠<br>แน่น<br><span class="dens-kcal">~100 kcal</span></button>
         <button class="dens-btn ${slot.density==='heavy'?'active':''}" onclick="setCarbSlotDensity(${slot.id},'heavy',this)">🔴<br>ตัวตึง<br><span class="dens-kcal">~160 kcal</span></button>
       </div>
@@ -6189,7 +6240,11 @@ function buildLifestyleSection(MON, TH_SHORT, healthLogs){
   const weightGrpArr=MON.map(d=>{const g=_mgOf(d);return g.length?g[0]:null;});
   const weightGrpAll=MON.map(d=>_mgOf(d));
 
+  // v96 (M6): เฉลี่ยเฉพาะวันที่ทำจริง และคืนจำนวนวันมาด้วย — เลขเฉลี่ยลอยๆ อ่านได้หลายแบบเกินไป
+  //   คาร์ดิโอ 30 นาทีวันเดียว กับ 30 นาทีทุกวัน ต้องไม่เขียนเหมือนกัน
   function numAvg(arr){const v=arr.filter(x=>x!==null&&x>0);return v.length?v.reduce((a,b)=>a+b,0)/v.length:0;}
+  function numDays(arr){return arr.filter(x=>x!==null&&x>0).length;}
+  const _dayNote=(arr,unit)=>{const n=numDays(arr);return n?` <span class="ls-cdays">(${n}/${MON.length} วัน)</span>`:'';};
   function calcBarH(val,min,max){if(val===null)return 0;const r=Math.max(0,Math.min(1,(val-min)/(max-min)));return Math.max(4,r*BAR_H);}
 
   // L1: barCol() removed — dead code, never called
@@ -6234,13 +6289,13 @@ function buildLifestyleSection(MON, TH_SHORT, healthLogs){
     <div class="sd-section-title">🏃 Lifestyle 7 วันล่าสุด</div>
 
     <div class="ls-chart-card">
-      <div class="ls-ch"><span class="ls-ctitle">😴 เวลานอน</span><span class="ls-cavg">avg ${avgSleep} ชม.</span></div>
+      <div class="ls-ch"><span class="ls-ctitle">😴 เวลานอน</span><span class="ls-cavg">avg ${avgSleep} ชม.${_dayNote(sleepArr)}</span></div>
       <div class="ls-bars">${sleepBars}</div>
       <div class="ls-scale-lbl">สเกล 0–10 ชม.</div>
     </div>
 
     <div class="ls-chart-card">
-      <div class="ls-ch"><span class="ls-ctitle">🧠 ความเครียด</span><span class="ls-cavg">avg ระดับ ${numAvg(stressArr).toFixed(1)}</span></div>
+      <div class="ls-ch"><span class="ls-ctitle">🧠 ความเครียด</span><span class="ls-cavg">avg ระดับ ${numAvg(stressArr).toFixed(1)}${_dayNote(stressArr)}</span></div>
       <div class="ls-bars">${stressBars}</div>
       <div class="ls-stress-legend">
         <div class="ls-sl"><div class="ls-sd" style="background:#22C55E"></div>1 แทบไม่มี</div>
@@ -6252,13 +6307,13 @@ function buildLifestyleSection(MON, TH_SHORT, healthLogs){
     </div>
 
     <div class="ls-chart-card">
-      <div class="ls-ch"><span class="ls-ctitle">👟 จำนวนก้าว</span><span class="ls-cavg">avg ${avgSteps}</span></div>
+      <div class="ls-ch"><span class="ls-ctitle">👟 จำนวนก้าว</span><span class="ls-cavg">avg ${avgSteps}${_dayNote(stepsArr)}</span></div>
       <div class="ls-bars">${stepsBars}</div>
       <div class="ls-scale-lbl">สเกล 0–15,000 ก้าว</div>
     </div>
 
     <div class="ls-chart-card">
-      <div class="ls-ch"><span class="ls-ctitle">🏃 คาร์ดิโอ</span><span class="ls-cavg">avg ${avgCardio} นาที</span></div>
+      <div class="ls-ch"><span class="ls-ctitle">🏃 คาร์ดิโอ</span><span class="ls-cavg">${numDays(cardioArr)?`avg ${avgCardio} นาที${_dayNote(cardioArr)}`:'ไม่ได้ทำเลย'}</span></div>
       <div class="ls-bars">${cardioBars}</div>
       <div class="ls-scale-lbl">สเกล 0–60 นาที</div>
     </div>
@@ -7237,9 +7292,14 @@ function buildStudentWeeklySummary(subs, byDate, healthLogs, weeklySummaries){
     const n=datesWithSub.length||1;
     const avgKcal=Math.round(totKcal/n),avgC=Math.round(totC/n),avgP=Math.round(totP/n),avgF=Math.round(totF/n);
     const hlDates=Object.keys(healthLogs).filter(d=>d>=mon&&d<=satStr);
-    const hlAvgSleep=hlDates.length?Math.round(hlDates.reduce((a,d)=>a+(healthLogs[d].sleep||0),0)/hlDates.length*10)/10:null;
-    const hlAvgSteps=hlDates.length?Math.round(hlDates.reduce((a,d)=>a+(healthLogs[d].steps||0),0)/hlDates.length):null;
-    const hlAvgCardio=hlDates.length?Math.round(hlDates.reduce((a,d)=>a+(healthLogs[d].cardio||0),0)/hlDates.length):null;
+    // v96 (M6): กติกาเดียวกับการ์ด Lifestyle — เฉลี่ยเฉพาะวันที่ทำจริง + จำไว้ว่ากี่วัน
+    //   เดิมหารด้วยจำนวนวันที่บันทึกทั้งหมด ทำให้เลขสองที่ในหน้าเดียวกันไม่ตรงกัน
+    const _hlA=k=>{const v=hlDates.map(d=>+(healthLogs[d]||{})[k]||0).filter(x=>x>0);
+      return{a:v.length?v.reduce((x,y)=>x+y,0)/v.length:0,n:v.length};};
+    const _hlS=_hlA('sleep'),_hlT=_hlA('steps'),_hlC=_hlA('cardio');
+    const hlAvgSleep=hlDates.length?Math.round(_hlS.a*10)/10:null;
+    const hlAvgSteps=hlDates.length?Math.round(_hlT.a):null;
+    const hlAvgCardio=hlDates.length?Math.round(_hlC.a):null;
     const wkNum=weeks.length-idx;
     const isOpen=idx===0;
     const coachNote=saved.coachNote||'';
@@ -7260,9 +7320,9 @@ function buildStudentWeeklySummary(subs, byDate, healthLogs, weeklySummaries){
           <div class="stat-box"><div class="stat-val" style="font-size:13px">${avgF}g</div><div class="stat-lbl">avg Fat</div></div>
         </div>
         ${hlAvgSleep!==null?`<div style="display:flex;gap:5px;margin-bottom:8px;flex-wrap:wrap">
-          <span class="stu-chip">😴 นอน avg ${hlAvgSleep} ชม.</span>
-          <span class="stu-chip">👟 ก้าว avg ${hlAvgSteps>=1000?(hlAvgSteps/1000).toFixed(1)+'k':hlAvgSteps}</span>
-          <span class="stu-chip">🏃 คาร์ดิโอ avg ${hlAvgCardio} นาที</span>
+          <span class="stu-chip">😴 นอน avg ${hlAvgSleep} ชม. (${_hlS.n} วัน)</span>
+          <span class="stu-chip">👟 ก้าว avg ${hlAvgSteps>=1000?(hlAvgSteps/1000).toFixed(1)+'k':hlAvgSteps} (${_hlT.n} วัน)</span>
+          <span class="stu-chip">🏃 ${_hlC.n?`คาร์ดิโอ avg ${hlAvgCardio} นาที (${_hlC.n} วัน)`:'ไม่ได้คาร์ดิโอเลย'}</span>
         </div>`:''}
         ${coachNote
           ?`<div style="background:#FFFBEB;border:1.5px solid #FDE68A;border-radius:10px;padding:11px;margin-top:4px">
@@ -7312,9 +7372,14 @@ function buildWeeklySummaryAccordion(u, byDate, targets, healthLogs, weeklySumma
     const avgKcal=Math.round(totKcal/n),avgC=Math.round(totC/n),avgP=Math.round(totP/n),avgF=Math.round(totF/n);
     // health log avg for the week
     const hlDates=Object.keys(healthLogs).filter(d=>d>=mon&&d<=satStr);
-    const hlAvgSleep=hlDates.length?Math.round(hlDates.reduce((a,d)=>a+(healthLogs[d].sleep||0),0)/hlDates.length*10)/10:null;
-    const hlAvgSteps=hlDates.length?Math.round(hlDates.reduce((a,d)=>a+(healthLogs[d].steps||0),0)/hlDates.length):null;
-    const hlAvgCardio=hlDates.length?Math.round(hlDates.reduce((a,d)=>a+(healthLogs[d].cardio||0),0)/hlDates.length):null;
+    // v96 (M6): กติกาเดียวกับการ์ด Lifestyle — เฉลี่ยเฉพาะวันที่ทำจริง + จำไว้ว่ากี่วัน
+    //   เดิมหารด้วยจำนวนวันที่บันทึกทั้งหมด ทำให้เลขสองที่ในหน้าเดียวกันไม่ตรงกัน
+    const _hlA=k=>{const v=hlDates.map(d=>+(healthLogs[d]||{})[k]||0).filter(x=>x>0);
+      return{a:v.length?v.reduce((x,y)=>x+y,0)/v.length:0,n:v.length};};
+    const _hlS=_hlA('sleep'),_hlT=_hlA('steps'),_hlC=_hlA('cardio');
+    const hlAvgSleep=hlDates.length?Math.round(_hlS.a*10)/10:null;
+    const hlAvgSteps=hlDates.length?Math.round(_hlT.a):null;
+    const hlAvgCardio=hlDates.length?Math.round(_hlC.a):null;
     const wkNum=weeks.length-idx;
     const isOpen=idx===0; // latest week open by default
     return`<div class="week-acc">
@@ -7333,9 +7398,9 @@ function buildWeeklySummaryAccordion(u, byDate, targets, healthLogs, weeklySumma
           <div class="stat-box"><div class="stat-val" style="font-size:13px">${avgF}g</div><div class="stat-lbl">avg Fat</div></div>
         </div>
         ${hlAvgSleep!==null?`<div style="display:flex;gap:5px;margin-bottom:8px;flex-wrap:wrap">
-          <span class="stu-chip">😴 นอน avg ${hlAvgSleep} ชม.</span>
-          <span class="stu-chip">👟 ก้าว avg ${hlAvgSteps>=1000?(hlAvgSteps/1000).toFixed(1)+'k':hlAvgSteps}</span>
-          <span class="stu-chip">🏃 คาร์ดิโอ avg ${hlAvgCardio} นาที</span>
+          <span class="stu-chip">😴 นอน avg ${hlAvgSleep} ชม. (${_hlS.n} วัน)</span>
+          <span class="stu-chip">👟 ก้าว avg ${hlAvgSteps>=1000?(hlAvgSteps/1000).toFixed(1)+'k':hlAvgSteps} (${_hlT.n} วัน)</span>
+          <span class="stu-chip">🏃 ${_hlC.n?`คาร์ดิโอ avg ${hlAvgCardio} นาที (${_hlC.n} วัน)`:'ไม่ได้คาร์ดิโอเลย'}</span>
         </div>`:''}
         <div style="font-size:11px;font-weight:600;color:var(--gray);margin-bottom:4px">📝 โน้ตโค้ช</div>
         <textarea id="wnote-${weekId}" rows="2"
@@ -8247,6 +8312,7 @@ async function saveHistEdit(){
 //   (ห้ามเขียนแท็กสคริปต์เต็มรูปแบบในคอมเมนต์ — วันหนึ่งมีคนพิมพ์ตัวปิดมาด้วยคือบล็อกขาดกลางไฟล์)
 //   init() ถูกเรียกจากบรรทัดนี้ที่เดียวในไฟล์
 window.addEventListener('DOMContentLoaded',init);
+setTimeout(()=>{try{_checkAppVersion();}catch(_){}} ,3000); // v96: เช็คเวอร์ชันหลังหน้าโหลดเสร็จ ไม่แย่งคิวตอนเปิด
 </script>
 
 <!-- ===== EDIT SUBMISSION MODAL ===== -->
