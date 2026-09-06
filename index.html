@@ -1007,7 +1007,7 @@ function _slowMsg(okText){
 //   (loadSavedMenus ดึงมา .limit(40) อยู่แล้ว 20 จึงยังอยู่ใต้เพดานการอ่าน)
 //   ประกาศไว้บนสุด เพราะถูกใช้ทั้งใน loadStudentData / loadSavedMenus / saveCurrentMenu
 const MENU_CAP=20;
-const APP_VERSION='v98-2026-09-02'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
+const APP_VERSION='v105-2026-09-06'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
 const _errLogged=new Set();let _errCount=0;
 // ═════ v96: version gate ═════
 // ตั้ง field minVersion ใน Firestore → config/app (เช่น "v96") แล้วเครื่องที่ต่ำกว่าจะขึ้นแถบเตือน
@@ -2018,7 +2018,7 @@ async function loadStudentData(){
       showToast(_lsdRetry>=_LSD_MAX?'📡 โหลดข้อมูลไม่สำเร็จ — แตะปุ่มลองใหม่ในแท็บประวัติได้ค่ะ':'📡 โหลดข้อมูลไม่สำเร็จ — กำลังลองใหม่ให้ค่ะ',3500);
     }
     applyTargets(td);
-    if(td&&td.exists){const d=td.data();studentProgramData={programStart:d.programStart||'',programWeeks:d.programWeeks||12,pausedDays:d.pausedDays||0,isPaused:d.isPaused||false,discountCode:d.discountCode||'',discountPercent:d.discountPercent||0};
+    if(td&&td.exists){const d=td.data();studentProgramData={programStart:d.programStart||'',programEnd:d.programEnd||'',programWeeks:d.programWeeks||12,pausedDays:d.pausedDays||0,isPaused:d.isPaused||false,discountCode:d.discountCode||'',discountPercent:d.discountPercent||0};
       studentProfile=d.profile||null; // v70
       maybeAskProfile(); // v70: ยังไม่เคยกรอก → ชวนกรอก (ข้ามได้)
     }
@@ -2837,7 +2837,10 @@ function buildSpark(vals, color, bigIsGood=false, w=240, h=30){
 }
 
 // ===== PROGRESS SECTION (Coach) =====
-function buildProgressSection(weeklyChecks, userId){
+// v104: canEdit — เปิดปุ่มแก้ไขเฉพาะฝั่งโค้ชเท่านั้น
+//   ★ ฟังก์ชันนี้ถูกเรียกจากแดชบอร์ดของนักเรียนเองด้วย (renderStudentDashboard)
+//     ถ้าไม่มีธงนี้ นักเรียนจะเห็นปุ่มแก้ข้อมูลตัวเองบนหน้าตัวเอง
+function buildProgressSection(weeklyChecks, userId, canEdit){
   if(!weeklyChecks||!weeklyChecks.length)return`<div class="sd-section">
     <div class="sd-section-title">📉 Progress</div>
     <div style="background:white;border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center;color:var(--gray);font-size:12px">ยังไม่มีข้อมูลการวัดผลค่ะ</div>
@@ -2915,6 +2918,15 @@ function buildProgressSection(weeklyChecks, userId){
     ?`<span style="background:#FEF2F2;color:#DC2626;border-radius:6px;padding:3px 8px;font-size:10px;font-weight:600">⚠ Stall 2+ สัปดาห์</span>`
     :`<span style="background:#ECFDF5;color:#059669;border-radius:6px;padding:3px 8px;font-size:10px;font-weight:600">✓ ลดดี</span>`;
 
+  // v104: รายการวัดทั้งหมด — โค้ชกดแก้ได้ทีละแถว (แถวแรก = น้ำหนักเริ่มต้น)
+  const editList=!canEdit?'':`<div style="background:white;border:1px solid var(--border);border-radius:10px;padding:10px;margin-top:8px">
+    <div style="font-size:11px;font-weight:600;color:var(--gray);margin-bottom:6px">✏️ แก้ไขผลการวัด</div>
+    ${entries.map((e,i)=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;${i<entries.length-1?'border-bottom:1px solid #F3F4F6':''}">
+      <span style="font-size:11px;color:var(--gray);width:78px;flex-shrink:0">${escHtml(e.date||e.id||'-')}</span>
+      <span style="font-size:12px;font-weight:600;color:var(--text);flex:1">${e.weight_kg!=null?e.weight_kg+' kg':'—'}${i===0?' <span style="font-size:9px;color:#1D4ED8;background:#EFF6FF;border-radius:4px;padding:1px 5px">เริ่มต้น</span>':''}${e.weight_kg_orig!=null?` <span style="font-size:9px;color:var(--gray)" title="ค่าที่กรอกไว้ครั้งแรก">(เดิม ${e.weight_kg_orig})</span>`:''}</span>
+      <button onclick="openWcEdit('${userId}','${escHtml(e.date||e.id||'')}')" style="border:1px solid var(--border);background:var(--card);border-radius:7px;padding:3px 9px;font-size:11px;font-family:'Prompt',sans-serif;cursor:pointer;color:var(--text)">แก้</button>
+    </div>`).join('')}
+  </div>`;
   return`<div class="sd-section" style="margin-top:10px">
     <div class="sd-section-title">📉 Progress (${entries.length} ครั้ง)</div>
     <div style="background:white;border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px">
@@ -2931,7 +2943,8 @@ function buildProgressSection(weeklyChecks, userId){
       <div style="font-size:11px;font-weight:600;color:var(--gray);margin-bottom:4px">🧬 องค์ประกอบร่างกาย</div>
       ${bodyRows}
     </div>`:''}
-    ${measRows?`<div style="background:white;border:1px solid var(--border);border-radius:10px;padding:12px">
+    ${editList}
+    ${measRows?`<div style="background:white;border:1px solid var(--border);border-radius:10px;padding:12px;margin-top:8px">
       <div style="font-size:11px;font-weight:600;color:var(--gray);margin-bottom:4px">📐 สัดส่วน</div>
       ${measRows}
     </div>`:''}
@@ -3208,7 +3221,7 @@ function getLabelData(){
 // v87: คอลัมน์ kcal ของทุกแถวต้องตรงกับ 4·4·9 ของมาโครในแถวเดียวกัน
 //   เพราะทั้งแอปคิดพลังงานด้วย macroKcal() — ถ้าแถวไหนไม่ตรง AI จะได้ค่าอ้างอิงที่ขัดกันเอง
 //   (ทุเรียน: ค่าห้องแล็บ USDA = 147 kcal ต่ำกว่า 4·4·9 เพราะใยอาหารสูง แต่ยึดโมเดลของแอปเป็นหลัก)
-const THAI_FOOD_DB=[["ข้าวสวย","1 ทัพพี 45g",15,2,0,68],["ข้าวกล้อง","1 ทัพพี 45g",14,2,0.5,68],["ข้าวเหนียว","1 ทัพพี 60g",31,2,0,132],["ข้าวต้ม","1 ชาม 250ml",18,2,0,80],["โจก","1 ชาม 250ml",16,3,1,85],["เส้นหมี่","1 ทัพพี 60g",11,2,0,52],["เส้นเล็ก","1 ทัพพี 60g",12,2,0,56],["เส้นใหญ่","1 ทัพพี 60g",12,2,0,56],["บะหมี่","1 ก้อน 60g",15,4,1,85],["วุ้นเส้น","1 ทัพพี 60g",22,0,0,88],["มักกะโรนี","1 ทัพพี 60g",16,4,1,89],["ขนมปังขาว","1 แผ่น 30g",15,2.5,1,79],["ขนมปังโฮลวีต","1 แผ่น 30g",13,3,1,73],["มันต้ม","1 หัวกลาง 150g",26,3,0,117],["มันเทศต้ม","1 ถ้วย 150g",29,2,0,124],["เผือกต้ม","1 ถ้วย 120g",23,2,0,100],["ข้าวโพดต้ม","1 ฝัก 160g",29,5,2,154],["ข้าวโอ๊ตดิบ","3 ช้อนโต๊ะ 30g",20,5,2,118],["ข้าวโอ๊ตหุงสุก","100g (= ดิบ ~35g)",23,5,2.5,135],["โจ๊กข้าวโอ๊ต","1 ถ้วย 200g",24,5,3,143],["ฟักทองนึ่ง","1 ถ้วย 120g",12,2,0,56],["อกไก่ต้ม","1 ฝ่ามือ 90g",0,28,3,139],["อกไก่ย่าง","1 ฝ่ามือ 90g",0,29,3,143],["ไก่ต้มไม่มีหนัง","1 ฝ่ามือ 90g",0,24,5,141],["ปลาแซลมอน","1 ชิ้น 100g",0,20,13,197],["ปลาทูน่า","1/2 กระป๋อง 80g",0,22,1,97],["ปลาทะเลนึ่ง","1 ชิ้น 100g",0,20,3,107],["ปลาทูทอด","1 ตัวกลาง 80g",0,19,14,202],["ปลาดุกย่าง","1 ชิ้น 100g",0,18,5,117],["กุ้งต้ม","10 ตัวกลาง 90g",0,22,1,97],["กุ้งทอด","10 ตัว 90g",8,18,8,176],["ปู","1/2 ตัว 90g",0,18,1,83],["หมูสันใน","1 ฝ่ามือ 90g",0,26,6,158],["หมูสับผัด","1 ฝ่ามือ 90g",0,22,16,234],["เนื้อวัวย่าง","1 ฝ่ามือ 90g",0,26,12,216],["เต้าหู้แข็ง","1/2 ก้อน 100g",2,8,4,76],["เต้าหู้ทอด","100g",4,12,12,172],["ไข่ต้ม","1 ฟอง 50g",1,6,5,68],["ไข่ดาว","1 ฟอง 50g",0.4,6,7,82],["ไข่เจียว","1 ฟอง 60g",1,7,10,120],["ลูกชิ้นหมู","5 ลูก 80g",8,14,6,142],["ไก่มีหนัง","1 ฝ่ามือ 90g",0,22,14,218],["หมูสามชั้น","1 ฝ่ามือ 90g",0,15,28,314],["เนื้อวัวสับ","1 ฝ่ามือ 90g",0,22,17,245],["ผักบุ้งลวก","1 ถ้วย 100g",4,3,0.5,32],["บร็อคโคลีนึ่ง","1 ถ้วย 100g",7,3,0.5,35],["แตงกวา","1/2 ผล 100g",4,1,0,16],["มะเขือเทศ","1 ลูกกลาง 120g",5,1,0,22],["กะหล่ำปลี","1 ถ้วย 90g",5,1,0,23],["แครอท","1 หัว 80g",9,1,0,40],["ผักกาดขาว","1 ถ้วย 70g",2,1,0,12],["เห็ดหอม","5 ดอก 70g",8,2,0.5,44],["ถั่วลันเตา","1 ถ้วย 100g",8,3,0.5,42],["หน่อไม้ฝรั่ง","5 ต้น 75g",3,2,0.5,20],["น้ำมันพืช","1 ช้อนชา 5g",0,0,5,44],["เนย","1 ช้อนชา 5g",0,0,4,36],["กะทิ","1/4 ถ้วย 60ml",3,1,13,130],["อะโวคาโด","1/4 ลูก 50g",4,1,8,88],["ถั่วลิสง","1 ช้อนโต๊ะ 15g",4,4,7,96],["น้ำมันปลา","1 ช้อนโต๊ะ 18g",1,0,0,5],["น้ำตาลทราย","1 ช้อนชา 5g",5,0,0,20],["น้ำพริกเผา","1 ช้อนโต๊ะ 16g",5,1,3,49],["ผักบุ้งไฟแดง","1 จาน 150g",8,3,10,130],["บร็อคโคลีหมูผัด","1 จาน 200g",8,18,10,190],["ผักรวมผัดน้ำมันหอย","1 จาน 200g",10,6,8,132],["หมูกระเพรา","1 จาน 150g",5,22,14,230],["ไก่กระเพรา","1 จาน 150g",5,24,10,206],["กระเพราไข่ดาว (ไม่มีข้าว)","200g",6,22,20,284],["แกงเขียวหวานไก่","1 ถ้วย 250ml",15,22,18,302],["แกงเผ็ดหมู","1 ถ้วย 250ml",12,20,18,284],["แกงมัสมั่น","1 ถ้วย 250ml",22,18,22,354],["แกงส้ม","1 ถ้วย 250ml",10,20,5,165],["แกงจืด","1 ชาม 300ml",6,15,4,120],["ต้มยำกุ้ง","1 ชาม 300ml",8,25,8,200],["ต้มยำไก่","1 ชาม 300ml",8,22,6,174],["ต้มข่าไก่","1 ชาม 300ml",10,18,16,252],["ส้มตำไทย","1 จาน 200g",25,4,3,143],["ส้มตำปูปลาร้า","1 จาน 200g",25,10,4,176],["ผัดไทยกุ้ง","1 จาน 300g",58,22,14,446],["ผัดไทยไก่","1 จาน 300g",58,20,14,434],["ผัดซีอิ้ว","1 จาน 300g",62,22,14,458],["ผัดขี้เมา","1 จาน 300g",60,20,15,451],["ก๋วยเตี๋ยวน้ำใสหมู","1 ชาม 400ml",44,20,6,308],["ก๋วยเตี๋ยวน้ำตกเนื้อ","1 ชาม 400ml",44,22,8,332],["บะหมี่น้ำ","1 ชาม 400ml",48,18,8,340],["ก๋วยเตี๋ยวคั่วไก่","1 จาน 300g",55,20,10,390],["ข้าวผัดหมู","1 จาน 350g",60,20,18,478],["ข้าวผัดไก่","1 จาน 350g",60,22,16,470],["ข้าวผัดกุ้ง","1 จาน 350g",60,20,16,464],["ข้าวมันไก่","1 จาน 380g",65,30,14,498],["ข้าวหน้าเป็ด","1 จาน 380g",65,28,22,562],["ข้าวกะเพราหมูไข่ดาว","1 จาน ข้าว+หมูกระเพรา+ไข่",80,32,28,692],["ไก่ย่าง","1 ชิ้น 120g",2,28,12,228],["หมูปิ้ง","3 ไม้ 90g",8,20,10,198],["คอหมูย่าง","1 ชิ้น 150g",4,30,22,334],["ยำวุ้นเส้น","1 จาน 200g",32,12,6,230],["ยำทะเล","1 จาน 200g",12,22,5,181],["ไก่ทอด","1 ชิ้น 100g",8,22,16,264],["ปลาทอด","1 ชิ้น 100g",8,20,14,234],["ข้าวเกรียบ","10 ชิ้น 15g",11,1,5,89],["ทอดมันกุ้ง","2 ชิ้น 60g",10,10,8,152],["สปริงโรล","2 ชิ้น 80g",20,6,8,176],["ไข่พะโล้","2 ไข่+หมู 200g",10,24,18,290],["ลาบหมู","1 จาน 180g",10,24,14,254],["น้ำพริกกะปิ","พร้อมผัก 200g",15,8,10,178],["มะม่วงสุก","1 ผลกลาง 200g",35,2,1,157],["มะม่วงเขียว","1/4 ผล 75g",9,1,0,40],["กล้วยน้ำว้า","1 ผล 90g",20,1,0.5,88],["กล้วยหอม","1 ผล 120g",27,1,0.5,116],["สับปะรด","8 ชิ้น 150g",20,1,0,84],["แตงโม","8 ชิ้น เล็ก 200g",15,1,0,60],["ส้ม","1 ผล 100g",12,1,0,47],["ลำไย","10 ผล 100g",15,1,0,60],["ลิ้นจี่","10 ผล 100g",16,1,0,66],["มะละกอสุก","8 ชิ้น 150g",17,1,0,68],["แอปเปิ้ล","1 ลูกกลาง 150g",21,0.5,0,86],["มังคุด","4 ผล 100g",18,1,0.5,73],["ทุเรียน","1 พู 100g",28,2,5,165],["นมวัวพร่องไขมัน","1 กล่อง 200ml",10,7,3,95],["โยเกิร์ตรสธรรมชาติ","1 ถ้วย 150g",9,8,4,104],["นมถั่วเหลือง","1 กล่อง 200ml",10,7,4,104],["นมอัลมอนด์","1 แก้ว 240ml",2,1,2,30],["ชาเขียวไม่หวาน","1 แก้ว 250ml",0,0,0,2],["มะม่วงข้าวเหนียว","1 จาน 300g",80,6,10,434],["ข้าวเหนียวมะม่วง+กะทิ","1 จาน 300g",82,6,12,454],["ขนมครก","6 ชิ้น 80g",20,4,8,164],["ทับทิมกรอบ","1 ถ้วย 200ml",40,2,8,236],["วุ้นมะพร้าว","100g",14,0,0,56],["ข้าวกะเพราไก่","1 จาน 350g",45,28,14,418],["ข้าวกะเพราหมู","1 จาน 350g",45,26,16,428],["ข้าวต้มหมู","1 ชาม 300ml",20,16,4,180],["ข้าวหมูกรอบ","1 จาน 350g",60,22,20,508],["ข้าวหมูแดง","1 จาน 350g",60,26,14,470],["ก๋วยเตี๋ยวหมูสับ","1 ชาม 400ml",42,20,8,320]];
+const THAI_FOOD_DB=[["ข้าวสวย","1 ทัพพี 45g",15,2,0,68],["ข้าวกล้อง","1 ทัพพี 45g",14,2,0.5,68],["ข้าวเหนียว","1 ทัพพี 60g",31,2,0,132],["ข้าวต้ม","1 ชาม 250ml",18,2,0,80],["โจ๊ก","1 ชาม 250ml",16,3,1,85],["เส้นหมี่","1 ทัพพี 60g",11,2,0,52],["เส้นเล็ก","1 ทัพพี 60g",12,2,0,56],["เส้นใหญ่","1 ทัพพี 60g",12,2,0,56],["บะหมี่","1 ก้อน 60g",15,4,1,85],["วุ้นเส้น","1 ทัพพี 60g",22,0,0,88],["มักกะโรนี","1 ทัพพี 60g",16,4,1,89],["ขนมปังขาว","1 แผ่น 30g",15,2.5,1,79],["ขนมปังโฮลวีต","1 แผ่น 30g",13,3,1,73],["มันต้ม","1 หัวกลาง 150g",26,3,0,117],["มันเทศต้ม","1 ถ้วย 150g",29,2,0,124],["เผือกต้ม","1 ถ้วย 120g",23,2,0,100],["ข้าวโพดต้ม","1 ฝัก 160g",29,5,2,154],["ข้าวโอ๊ตดิบ","30g (ตวงแล้ว ~5-6 ช้อนโต๊ะ)",20,5,2,118],["ข้าวโอ๊ตหุงสุก","100g (= ดิบ ~35g)",23,5,2.5,135],["โจ๊กข้าวโอ๊ต","1 ถ้วย 200g",24,5,3,143],["ฟักทองนึ่ง","1 ถ้วย 120g",12,2,0,56],["อกไก่ต้ม","1 ฝ่ามือ 90g",0,28,3,139],["อกไก่ย่าง","1 ฝ่ามือ 90g",0,29,3,143],["ไก่ต้มไม่มีหนัง","1 ฝ่ามือ 90g",0,24,5,141],["ปลาแซลมอน","1 ชิ้น 100g",0,20,13,197],["ปลาทูน่า","1/2 กระป๋อง 80g",0,22,1,97],["ปลาทะเลนึ่ง","1 ชิ้น 100g",0,20,3,107],["ปลาทูทอด","1 ตัวกลาง 80g",0,19,14,202],["ปลาดุกย่าง","1 ชิ้น 100g",0,18,5,117],["กุ้งต้ม","10 ตัวกลาง 90g",0,22,1,97],["กุ้งทอด","10 ตัว 90g",8,18,8,176],["ปู","1/2 ตัว 90g",0,18,1,83],["หมูสันใน","1 ฝ่ามือ 90g",0,26,6,158],["หมูสับผัด","1 ฝ่ามือ 90g",0,22,16,234],["เนื้อวัวย่าง","1 ฝ่ามือ 90g",0,26,12,216],["เต้าหู้แข็ง","1/2 ก้อน 100g",2,8,4,76],["เต้าหู้ทอด","100g",4,12,12,172],["ไข่ต้ม","1 ฟอง 50g",1,6,5,68],["ไข่ดาว","1 ฟอง 50g",0.4,6,7,82],["ไข่เจียว","1 ฟอง 60g",1,7,10,120],["ลูกชิ้นหมู","5 ลูก 80g",8,14,6,142],["ไก่มีหนัง","1 ฝ่ามือ 90g",0,22,14,218],["หมูสามชั้น","1 ฝ่ามือ 90g",0,15,28,314],["เนื้อวัวสับ","1 ฝ่ามือ 90g",0,22,17,245],["ผักบุ้งลวก","1 ถ้วย 100g",4,3,0.5,32],["บร็อคโคลีนึ่ง","1 ถ้วย 100g",7,3,0.5,35],["แตงกวา","1/2 ผล 100g",4,1,0,16],["มะเขือเทศ","1 ลูกกลาง 120g",5,1,0,22],["กะหล่ำปลี","1 ถ้วย 90g",5,1,0,23],["แครอท","1 หัว 80g",9,1,0,40],["ผักกาดขาว","1 ถ้วย 70g",2,1,0,12],["เห็ดหอม","5 ดอก 70g",8,2,0.5,44],["ถั่วลันเตา","1 ถ้วย 100g",8,3,0.5,42],["หน่อไม้ฝรั่ง","5 ต้น 75g",3,2,0.5,20],["น้ำมันพืช","1 ช้อนชา 5g",0,0,5,44],["เนย","1 ช้อนชา 5g",0,0,4,36],["กะทิ","1/4 ถ้วย 60ml",3,1,13,130],["อะโวคาโด","1/4 ลูก 50g",4,1,8,88],["ถั่วลิสง","1 ช้อนโต๊ะ 15g",4,4,7,96],["น้ำมันปลา","1 ช้อนโต๊ะ 15g",0,0,15,135],["น้ำตาลทราย","1 ช้อนชา 5g",5,0,0,20],["น้ำพริกเผา","1 ช้อนโต๊ะ 16g",5,1,3,49],["ผักบุ้งไฟแดง","1 จาน 150g",8,3,10,130],["บร็อคโคลีหมูผัด","1 จาน 200g",8,18,10,190],["ผักรวมผัดน้ำมันหอย","1 จาน 200g",10,6,8,132],["หมูกระเพรา","1 จาน 150g",5,22,14,230],["ไก่กระเพรา","1 จาน 150g",5,24,10,206],["กระเพราไข่ดาว (ไม่มีข้าว)","200g (กะเพราหมู 150g + ไข่ดาว 1 ฟอง)",5.4,28,21,323],["แกงเขียวหวานไก่","1 ถ้วย 250ml",15,22,18,302],["แกงเผ็ดหมู","1 ถ้วย 250ml",12,20,18,284],["แกงมัสมั่น","1 ถ้วย 250ml",22,18,22,354],["แกงส้ม","1 ถ้วย 250ml",10,20,5,165],["แกงจืด","1 ชาม 300ml",6,15,4,120],["ต้มยำกุ้ง","1 ชาม 300ml",8,25,8,200],["ต้มยำไก่","1 ชาม 300ml",8,22,6,174],["ต้มข่าไก่","1 ชาม 300ml",10,18,16,252],["ส้มตำไทย","1 จาน 200g",25,4,3,143],["ส้มตำปูปลาร้า","1 จาน 200g",25,10,4,176],["ผัดไทยกุ้ง","1 จาน 300g",58,22,14,446],["ผัดไทยไก่","1 จาน 300g",58,20,14,434],["ผัดซีอิ๊ว","1 จาน 300g",62,22,14,458],["ผัดขี้เมา","1 จาน 300g",60,20,15,451],["ก๋วยเตี๋ยวน้ำใสหมู","1 ชาม 400ml",44,20,6,308],["ก๋วยเตี๋ยวน้ำตกเนื้อ","1 ชาม 400ml",44,22,8,332],["บะหมี่น้ำ","1 ชาม 400ml",48,18,8,340],["ก๋วยเตี๋ยวคั่วไก่","1 จาน 300g",55,20,10,390],["ข้าวผัดหมู","1 จาน 350g",60,20,18,478],["ข้าวผัดไก่","1 จาน 350g",60,22,16,470],["ข้าวผัดกุ้ง","1 จาน 350g",60,20,16,464],["ข้าวมันไก่","1 จาน 380g",65,30,14,498],["ข้าวหน้าเป็ด","1 จาน 380g",65,28,22,562],["ข้าวกะเพราหมูไข่ดาว","1 จาน 440g (ข้าว 250 + กะเพราหมู 130 + ไข่ดาว 60)",80,32,28,700],["ไก่ย่าง","1 ชิ้น 120g",2,28,12,228],["หมูปิ้ง","3 ไม้ 90g",8,20,10,198],["คอหมูย่าง","1 ชิ้น 150g",4,30,22,334],["ยำวุ้นเส้น","1 จาน 200g",32,12,6,230],["ยำทะเล","1 จาน 200g",12,22,5,181],["ไก่ทอด","1 ชิ้น 100g",8,22,16,264],["ปลาทอด","1 ชิ้น 100g",8,20,14,234],["ข้าวเกรียบ","10 ชิ้น 15g",9,1,4.5,81],["ทอดมันกุ้ง","2 ชิ้น 60g",10,10,8,152],["สปริงโรล","2 ชิ้น 80g",20,6,8,176],["ไข่พะโล้","2 ไข่+หมู 200g",10,24,18,290],["ลาบหมู","1 จาน 180g",10,24,14,254],["น้ำพริกกะปิ","พร้อมผัก 200g",15,8,10,178],["มะม่วงสุก","1 ผลกลาง 200g",35,2,1,157],["มะม่วงเขียว","1/4 ผล 75g",9,1,0,40],["กล้วยน้ำว้า","1 ผล 90g",20,1,0.5,88],["กล้วยหอม","1 ผล 120g",27,1,0.5,116],["สับปะรด","8 ชิ้น 150g",20,1,0,84],["แตงโม","8 ชิ้น เล็ก 200g",15,1,0,60],["ส้ม","1 ผล 100g",12,1,0,47],["ลำไย","10 ผล 100g",15,1,0,60],["ลิ้นจี่","10 ผล 100g",16,1,0,66],["มะละกอสุก","8 ชิ้น 150g",17,1,0,68],["แอปเปิ้ล","1 ลูกกลาง 150g",21,0.5,0,86],["มังคุด","4 ผล 100g",18,1,0.5,73],["ทุเรียน","1 พู 100g",28,2,5,165],["นมวัวพร่องไขมัน","1 กล่อง 200ml",10,7,3,95],["โยเกิร์ตรสธรรมชาติ","1 ถ้วย 150g",9,8,4,104],["นมถั่วเหลือง","1 กล่อง 200ml",10,7,4,104],["นมอัลมอนด์","1 แก้ว 240ml",2,1,2,30],["ชาเขียวไม่หวาน","1 แก้ว 250ml",0,0,0,2],["มะม่วงข้าวเหนียว","1 จาน 300g",80,6,10,434],["ข้าวเหนียวมะม่วง+กะทิ","1 จาน 300g",82,6,12,454],["ขนมครก","6 ชิ้น 80g",20,4,8,164],["ทับทิมกรอบ","1 ถ้วย 200ml",40,2,8,236],["วุ้นมะพร้าว","100g",14,0,0,56],["ข้าวกะเพราไก่","1 จาน 350g",45,28,14,418],["ข้าวกะเพราหมู","1 จาน 350g",45,26,16,428],["ข้าวต้มหมู","1 ชาม 300ml",20,16,4,180],["ข้าวหมูกรอบ","1 จาน 350g",60,22,20,508],["ข้าวหมูแดง","1 จาน 350g",60,26,14,470],["ก๋วยเตี๋ยวหมูสับ","1 ชาม 400ml",42,20,8,320]];
 // fuzzy lookup: return row [name,serving,c,p,f,kcal] or null
 function dbLookup(query){
   // v46 FIX: เดิมให้คะแนนความ "คล้าย" แล้วเอาตัวที่คล้ายที่สุด — ภาษาไทยสระ/วรรณยุกต์ซ้ำกันแทบทุกคำ
@@ -3257,23 +3270,38 @@ function _isNoiseSeg(s){
   if(w.length&&w.every(x=>_NOISE_SEG.test(x)))return true;  // ทุกคำเป็นหน่วย/คำขยาย เช่น "raw grams"
   return false;
 }
+// v101: ดึงรูปแบบ "ตัวเลข+หน่วย" ออกมาเป็นค่าคงที่ตัวเดียว — เดิมเขียนซ้ำ 2 ที่ แก้ที่เดียวลืมอีกที่ได้ง่าย
+const _DBQTY='\\d+(\\.\\d+)?\\s*(จาน|ชาม|ฝ่ามือ|ทัพพี|ฟอง|ชิ้น|ลูก|ถ้วย|ก้อน|ผล|ไม้|กรัม|กก|ขีด|ตัว|แผ่น|ช้อนโต๊ะ|ช้อนชา|ฝัก|กระป๋อง|ขวด|ถุง|กล่อง|gram\\(s\\)|grams|gram|kgs|kg|tsp\\(s\\)|tsps|tsp|tbsp\\(s\\)|tbsps|tbsp|teaspoons|teaspoon|tablespoons|tablespoon|cups|cup|oz|ml|slices|slice|scoops|scoop|pieces|piece|pcs|servings|serving|pouch|bags|bag|boxes|box|g\\b)';
+// แปลงข้อความ 1 ท่อน → รายชื่ออาหารที่สะอาดแล้ว
+// v46.1: ตัดด้วย "เว้นวรรค 2 ช่องขึ้นไป" — นักเรียนมักพิมพ์ติดกันไม่ใส่ลูกน้ำ
+//   "ข้าวสวย 2 ทัพพี ไก่ย่าง 100g" พอตัดตัวเลข/หน่วยออกจะเหลือช่องว่างคู่ ตรงนั้นคือรอยต่อระหว่างเมนู
+function _dbSegs(seg){
+  return String(seg||'').replace(new RegExp(_DBQTY,'gi'),'  ').split(/\s{2,}/)
+    .map(s=>s.replace(new RegExp(_DBQTY,'gi'),'')
+             .replace(/\d+(\.\d+)?/g,'')                              // ลบตัวเลขที่เหลือ
+             .replace(/[\u2022\u00b7]/g,' ').replace(/\s{2,}/g,' ').trim()) // v72: ตัดจุด bullet ที่ก๊อปมาจากแอปนับแคลอื่น
+    .filter(s=>s.length>1&&!_isNoiseSeg(s));
+}
 function buildDBContext(text){
-  // v46.1: เพิ่มการตัดคำด้วย "เว้นวรรค 2 ช่องขึ้นไป" — นักเรียนมักพิมพ์ติดกันไม่ใส่ลูกน้ำ
-  // "ข้าวสวย 2 ทัพพี ไก่ย่าง 100g" พอตัดตัวเลข/หน่วยออกจะเหลือช่องว่างคู่ ตรงนั้นคือรอยต่อระหว่างเมนู
-  // เดิมกลายเป็นก้อนเดียว "ข้าวสวย  ไก่ย่าง" → หาเจอแค่ตัวแรก ตัวหลังหลุดหายไม่ได้ส่งให้ AI
-  const items=text.split(/[,\n、+]|และ|กับ|พร้อม/).flatMap(seg=>
-    seg.replace(/\d+(\.\d+)?\s*(จาน|ชาม|ฝ่ามือ|ทัพพี|ฟอง|ชิ้น|ลูก|ถ้วย|ก้อน|ผล|ไม้|กรัม|กก|ขีด|ตัว|แผ่น|ช้อนโต๊ะ|ช้อนชา|ฝัก|กระป๋อง|ขวด|ถุง|กล่อง|gram\(s\)|grams|gram|kgs|kg|tsp\(s\)|tsps|tsp|tbsp\(s\)|tbsps|tbsp|teaspoons|teaspoon|tablespoons|tablespoon|cups|cup|oz|ml|slices|slice|scoops|scoop|pieces|piece|pcs|servings|serving|pouch|bags|bag|boxes|box|g\b)/gi,'  ')
-       .split(/\s{2,}/)
-  ).map(s=>
-    s.replace(/\d+(\.\d+)?\s*(จาน|ชาม|ฝ่ามือ|ทัพพี|ฟอง|ชิ้น|ลูก|ถ้วย|ก้อน|ผล|ไม้|กรัม|กก|ขีด|ตัว|แผ่น|ช้อนโต๊ะ|ช้อนชา|ฝัก|กระป๋อง|ขวด|ถุง|กล่อง|gram\(s\)|grams|gram|kgs|kg|tsp\(s\)|tsps|tsp|tbsp\(s\)|tbsps|tbsp|teaspoons|teaspoon|tablespoons|tablespoon|cups|cup|oz|ml|slices|slice|scoops|scoop|pieces|piece|pcs|servings|serving|pouch|bags|bag|boxes|box|g\b)/gi,'')
-     .replace(/\d+(\.\d+)?/g,'') // ลบตัวเลขที่เหลือ
-     .trim()
-  ).map(s=>s.replace(/[\u2022\u00b7]/g,' ').replace(/\s{2,}/g,' ').trim()) // v72: ตัดจุด bullet ที่ติดมากับข้อความที่ก๊อปจากแอปนับแคลอื่น
-   .filter(s=>s.length>1&&!_isNoiseSeg(s));
+  // v101 FIX: เดิมตัดด้วย [,\n、+]|และ|กับ|พร้อม พร้อมกันทีเดียว
+  //   "+" จึงไปหั่นชื่อแถวของตัวเอง — "ข้าวเหนียวมะม่วง+กะทิ" (C82 P6 F12) แตกเป็น 2 ท่อน
+  //   แล้วไปเจอแถว "กะทิ" (C3 P1 F13) ส่งไปเป็นค่าอ้างอิงแทน = ชี้นำ AI ผิด 3.5 เท่า
+  //   และกฎข้อ 1 สั่งให้ AI เชื่อค่าอ้างอิงเป็นฐาน ความเสียหายจึงขยายต่อ
+  // ใหม่: ตัดหยาบด้วย , \n 、 ก่อน — ถ้าทั้งท่อนตรงกับแถวใน DB อยู่แล้ว ห้ามหั่นต่อ
+  const items=[];
+  for(const coarse of String(text||'').split(/[,\n、]/)){
+    const whole=_dbSegs(coarse);
+    if(whole.length===1&&dbLookup(whole[0])){items.push(whole[0]);continue;}
+    for(const fine of coarse.split(/[+]|และ|กับ|พร้อม/))items.push(..._dbSegs(fine));
+  }
   const refs=[];const seen=new Set();
   for(const food of items){
     const row=dbLookup(food);
-    if(row&&!seen.has(row[0])){seen.add(row[0]);refs.push(`${row[0]}(${row[1]})→C${row[2]}P${row[3]}F${row[4]} ${row[5]}kcal`);}
+    // v101: ตัดคอลัมน์ kcal ออกจากบรรทัดอ้างอิง
+    //   กฎข้อ 4 สั่งไว้เองว่า "ห้ามคำนวณ kcal — ระบบคำนวณเอง" ตัวเลขนี้จึงไม่มีใครใช้
+    //   แต่ 64/134 แถวมันไม่ตรงกับ 4·4·9 ของมาโครในแถวเดียวกัน (บร็อคโคลีนึ่ง C7P3F0.5 เขียน 35 จริง 45)
+    //   = ส่งสัญญาณขัดกันเองในบรรทัดเดียว เสี่ยงให้โมเดลปรับ C/P/F เข้าหา kcal ที่ผิด
+    if(row&&!seen.has(row[0])){seen.add(row[0]);refs.push(`${row[0]}(${row[1]})→C${row[2]}P${row[3]}F${row[4]}`);}
   }
   return refs.slice(0,8); // SPEED: จำกัด 8 อ้างอิง — prompt สั้นลง ตอบเร็วขึ้น (มื้อปกติไม่เกิน 8 รายการ ความแม่นยำไม่ลด)
 }
@@ -3301,14 +3329,26 @@ async function _callGeminiAI(){
     _t0=Date.now(); // v71: เวลาที่นักเรียนอ่านกล่องเตือน ห้ามนับเป็นเวลารอ AI ไม่งั้นสถิติความเร็วเพี้ยน
   }
   // เช็ค cache ก่อน — cache hit ไม่ต้องโหลด key ไม่ต้องยิง API (v45: ย้ายมาก่อน _ensureGeminiKey เพื่อไม่เสียเวลารอ key ฟรีๆ)
-  const _cacheKey=text.toLowerCase().replace(/\s+/g,' ');
+  // v101 (#17): เดิม key ไม่มีเลขเวอร์ชัน — พอแก้กฎในพรอมต์ คนที่เคยพิมพ์เมนูนั้นจะยัง
+  //   ได้คำตอบตามกฎเก่าไปอีก 30 วัน (cache hit ไม่ยิง API เลย) กฎใหม่จึงไม่มีผลกับคนเดิม
+  const _cacheKey=APP_VERSION+'|'+text.toLowerCase().replace(/\s+/g,' ');
   const _cached=aiCacheGet(_cacheKey);
   if(_cached){
-    aiParsedData=JSON.parse(JSON.stringify(_cached)); // deep copy ป้องกัน mutation
-    _enrichAIData(aiParsedData,text); // v46.1: cache ที่บันทึกก่อน v46 ไม่มี _src/_dbRefs/total — เติมให้ก่อนแสดง
-    _aiSrcTouch(text);_aiStaleSync(); // v94 + v98
-    renderAIResult(aiParsedData);
-    _logAITiming({src:'ai',totalMs:Date.now()-_t0,cacheHit:true,items:(aiParsedData.items||[]).length});
+    // v101 (#7): เดิมช่วงนี้ไม่มี try/catch เลย — ถ้า renderAIResult throw
+    //   aiParsedData ถูกตั้งค่าไปแล้ว (บรรทัดบน) แต่จอยังเป็นของเก่า และ _aiSrcOk() ก็ผ่าน
+    //   → นักเรียนเห็นเลขหนึ่ง แต่กดส่งแล้วบันทึกอีกเลขหนึ่ง
+    try{
+      aiParsedData=JSON.parse(JSON.stringify(_cached)); // deep copy ป้องกัน mutation
+      _enrichAIData(aiParsedData,text); // v46.1: cache ที่บันทึกก่อน v46 ไม่มี _src/_dbRefs/total — เติมให้ก่อนแสดง
+      _aiSrcTouch(text);_aiStaleSync(); // v94 + v98
+      renderAIResult(aiParsedData);
+      _logAITiming({src:'ai',totalMs:Date.now()-_t0,cacheHit:true,items:(aiParsedData.items||[]).length});
+    }catch(e){
+      aiParsedData=null;                       // ห้ามเหลือค่าค้างให้กดส่งได้
+      try{localStorage.removeItem('aic_'+_cacheKey);}catch(_){} // cache ก้อนนี้เสีย ทิ้งไปเลย
+      showToast('⚠️ ผลที่จำไว้ใช้ไม่ได้ กด ✨ อีกครั้งเพื่อคำนวณใหม่นะคะ',4000);
+      _logAITiming({src:'ai',totalMs:Date.now()-_t0,cacheHit:true,ok:false,err:'cache-render-failed'});
+    }
     return;
   }
   const _tk0=Date.now();
@@ -3348,11 +3388,16 @@ async function _callGeminiAI(){
 
 [ค่ามาตรฐานคอร์ส — ใช้เมื่ออาหารเข้าหมวดนี้จริงเท่านั้น ห้ามฝืนจับคู่]
 คาร์บ ต่อ 1 ฝ่ามือ/ทัพพี: ผัก C2 P1 F0 | เบา (วุ้นเส้น โจ๊ก ข้าวต้ม) C7 P1 F0 | ปกติ (ข้าวสวย ข้าวกล้อง มันต้ม เส้นเล็ก ขนมปัง 1 แผ่น) C15 P2 F0 | แน่น (พาสต้า ธัญพืช ข้าวโอ๊ตแห้ง) C20 P2 F0.5 | ตัวตึง (ข้าวเหนียว เส้นใหญ่ บะหมี่) C34 P3 F1
-โปรตีน ต่อ 1 ฝ่ามือ (เนื้อสุก ~90g): lean (อกไก่ ปลาเนื้อขาว กุ้ง ทูน่าในน้ำ) C0 P28 F3 | semi-lean (ไก่มีหนัง แซลมอน เนื้อวัว หมูสับ) C0 P22 F14
+โปรตีน ต่อ 1 ฝ่ามือ (เนื้อสุก ~90g) มี 4 ชั้น ต้องเลือกให้ตรงชั้น:
+  lean (อกไก่ สันในไก่ หมูสันใน ปลาเนื้อขาว กุ้ง ปู ทูน่าในน้ำ) C0 P28 F3
+  semi-lean (ไก่มีหนัง แซลมอน เนื้อวัว เต้าหู้ ปลาทู) C0 P22 F14
+  มันเยอะ (หมูสามชั้น คอหมู ซี่โครง หมูสับ ไส้กรอก กุนเชียง เบคอน หมูกรอบ) C0 P22 F25
+  แปรรูปผสมแป้ง (ลูกชิ้น ปูอัด หมูยอ) C9 P16 F7 — เนื้อผสมแป้ง ได้โปรตีนน้อยกว่าเนื้อจริงเกือบครึ่ง และมีคาร์บด้วย
 ไข่ทั้งฟอง C0.6 P6 F5 | ไข่ขาว 1 ฟอง C0 P3.6 F0 | น้ำมัน/เนย 1 ช้อนชา F5
 
 กฎเหล็ก:
 1. ถ้ามีค่าจาก Database ให้ใช้เป็นฐาน แต่ต้อง scale สัดส่วนตามปริมาณที่ผู้ใช้ระบุ เช่น DB บอก กุ้งต้ม(90g)→P22 ถ้าผู้ใช้บอก 130g → P≈31.8 (ใส่ตัวเลขผลลัพธ์ใน JSON เท่านั้น ห้ามใส่สูตรหรือ function call)
+   ★ ค่าในตารางอ้างอิงเป็นค่าของ "จานที่ปรุงเสร็จแล้ว" รวมน้ำมันที่ใช้ผัด/ทอดไว้ในตัวเลข F แล้ว — ห้ามเอากฎข้อ 7 ไปบวกน้ำมันทับอีก จะกลายเป็นนับสองรอบ
 2. ถ้าไม่มีใน Database ให้ประมาณจากส่วนประกอบ ใช้ค่ากลางที่สมเหตุสมผล
 3. ห้าม hallucinate ค่าเกินจริง
 4. ห้ามคำนวณ kcal หรือยอดรวม — ระบบคำนวณเอง ตอบแค่ c/p/f ต่อรายการพอ (SPEED v45: ตัดออกเพื่อให้คำตอบสั้นลง ~25%)
@@ -3363,6 +3408,8 @@ async function _callGeminiAI(){
 9. ถ้าผู้ใช้ระบุส่วนประกอบในวงเล็บ เช่น "เกาเหลา 1 ชาม (สันในหมู 70g หมูสับ 20g ลูกชิ้น 2 ลูก ไข่ขาว 1 ฟอง กะหล่ำปลี)" ให้แตก items ออกมาทีละส่วนประกอบในวงเล็บ ห้ามรวมเป็น item เดียวชื่อเมนู — เพราะโค้ชต้องตรวจ macro แยกทีละชิ้นส่วน ถ้าส่วนประกอบไม่ระบุกรัม ให้ประมาณปริมาณสมเหตุสมผลแล้วระบุใน amount
 10. น้ำหนักดิบ/สุก สำคัญมาก ต่างกันได้ถึง 3 เท่า — ถ้าระบุ "ดิบ/สด/แห้ง/ข้าวสาร" ให้คิดจากน้ำหนักดิบ (ข้าวสาร 100g = C79 P7 F0.7 · พาสต้าแห้ง 100g = C75 P13 F1.5 · ข้าวโอ๊ตดิบ 100g = C66 P17 F7) · ถ้าระบุ "สุก/ต้มแล้ว" หรือไม่ระบุ ให้ถือว่าเป็นน้ำหนักหลังปรุง (ข้าวสวย 100g = C28 P2.7 F0.3) · ห้ามแปลงหน่วยข้ามกันเอง
 10.1 ข้าวโอ๊ตแยก 2 แบบตามความข้น ห้ามปนกัน — "หุงแบบข้าว/เม็ดร่วน/เต็มเมล็ดหุงสุก" 100g = C23 P5 F2.5 (~135 kcal) · "โจ๊ก/ต้มเหลว/porridge" 100g = C12 P2.5 F1.5 (~71 kcal) · ถ้าบอกแค่ "ข้าวโอ๊ตหุงสุก" เฉยๆ ให้ใช้แบบเม็ดร่วน และใส่ assumption ว่า "ถือว่าหุงแบบเม็ดร่วน" 
+10.2 เนื้อสัตว์/ปลาดิบ (USDA ต่อ 100g ดิบ · c=0 ทุกตัว) ใช้เมื่อผู้ใช้ระบุ "ดิบ/สด" เท่านั้น — อกไก่ P22.5 F2.6 · น่อง/สะโพกไก่ลอกหนัง P19.7 F4.1 · หมูสันใน P20.9 F2.1 · หมูสับ P17.1 F21.4 · หมูสามชั้น P9.3 F53 · เนื้อวัวบด90/10 P20 F10 · แซลมอน P20.4 F13.4 · กุ้ง P20.1 F0.5 · ปลานิล/ปลาเนื้อขาว P20.1 F1.7
+   คิดจากกรัมดิบตรงๆ (โปรตีนไม่หายตอนปรุง เสียแต่น้ำ) ห้ามแปลงเป็นน้ำหนักสุกหรือหน่วย "ฝ่ามือ" — "ฝ่ามือ" คือเนื้อสุก 90g เสมอ · ถ้าไม่ระบุดิบ/สุก ให้ถือว่าเป็นน้ำหนักสุก และใส่ assumption ว่า "ถือว่าเป็นน้ำหนักหลังปรุง"
 12. แอลกอฮอล์ (a) — เอทานอลให้ 7 kcal/g ระบบมีช่องแยกให้แล้ว **ห้ามยัดเข้า c/p/f เด็ดขาด**
    สูตร: กรัมเอทานอล = ปริมาณ(มล.) × %ABV ÷ 100 × 0.789
    ค่าตั้งต้นเมื่อผู้ใช้ไม่ระบุ: เบียร์ 5% (กระป๋อง/ขวดเล็ก 330 มล.) · ไวน์ 13% (แก้ว 150 มล.) · สุรากลั่น/วิสกี้/วอดก้า/เหล้าขาว 40% (ช็อต 45 มล.) · สาเก 15% (แก้ว 90 มล.) · โซจู 17% (ช็อต 50 มล.)
@@ -3390,28 +3437,56 @@ async function _callGeminiAI(){
     // v61: ปิดไว้เป็นค่าเริ่มต้น — ความแม่นยำมาก่อนความเร็ว
     // ยังไม่มีข้อมูลยืนยันว่าสั่งให้โมเดลคิดน้อยลงแล้วยังคำนวณสารอาหารแม่นเท่าเดิม
     // จะเปิดใช้ก็ต่อเมื่อทดสอบความแม่นยำผ่านแล้วเท่านั้น (ตั้ง localStorage._dfthink='1' เพื่อทดลอง)
-    const _noThink=(()=>{try{return localStorage.getItem('_dfthink')!=='1';}catch(_){return true;}})();
-    const _mkBody=(withThink)=>{
+    // v101 (#18): บรรทัดล่างเขียน '_dfnothink' ไว้ตอน API ปฏิเสธ thinkingConfig
+    //   แต่ไม่มีใครอ่านมันเลย (อ่านแค่ '_dfthink' คนละคีย์) กลไก "จำไว้แล้วไม่ส่งอีก" จึงไม่ทำงาน
+    const _noThink=(()=>{try{
+      return localStorage.getItem('_dfthink')!=='1'||localStorage.getItem('_dfnothink')==='1';
+    }catch(_){return true;}})();
+    // v102: responseSchema เป็นของใหม่ (v100) — ถ้ารุ่นที่ใช้ไม่รับ จะจำไว้แล้วไม่ส่งอีก
+    //   ถอยแล้วได้พฤติกรรมเท่า v99 ซึ่งทำงานได้อยู่แล้ว (โค้ดรับผลลัพธ์ยังกัน NaN/ฟิลด์ขาดไว้ครบ)
+    const _noSchema=(()=>{try{return localStorage.getItem('_dfnoschema')==='1';}catch(_){return false;}})();
+    const _mkBody=(withThink,withSchema)=>{
+      // v100: responseMimeType บังคับได้แค่ "ต้องเป็น JSON" ไม่ได้บังคับชนิดฟิลด์
+      //   ปิด 4 เคสที่เคยหลุดเข้าระบบเงียบๆ: items เป็น array ของ string (total=NaN),
+      //   ขาดฟิลด์ c, c เป็น "15g", assumptions เป็น string (renderAIResult throw)
+      //   ★ ไม่ใส่ kcal/total — กฎข้อ 4 สั่งห้าม AI คำนวณ ระบบคิดเองใน _enrichAIData
       const gc={temperature:0.1,responseMimeType:'application/json'};
+      if(withSchema)gc.responseSchema={type:'OBJECT',properties:{
+        items:{type:'ARRAY',items:{type:'OBJECT',properties:{
+          name:{type:'STRING'},amount:{type:'STRING'},
+          c:{type:'NUMBER'},p:{type:'NUMBER'},f:{type:'NUMBER'},a:{type:'NUMBER'}
+        },required:['name','amount','c','p','f','a']}},
+        assumptions:{type:'ARRAY',items:{type:'STRING'}}
+      },required:['items','assumptions']};
       if(withThink)gc.thinkingConfig={thinkingLevel:'low'};
       return JSON.stringify({contents:[{parts:[{text:_fullPrompt}]}],generationConfig:gc});
     };
-    const _callAI=async(withThink)=>{
+    const _callAI=async(withThink,withSchema)=>{
       const c=new AbortController();const t=setTimeout(()=>c.abort(),15000); // H2: 15s timeout
       try{
         return await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent',{
           method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':GEMINI_KEY},
-          body:_mkBody(withThink),signal:c.signal
+          body:_mkBody(withThink,withSchema),signal:c.signal
         });
       }finally{clearTimeout(t);}
     };
     const _tn0=Date.now();
-    let res=await _callAI(!_noThink);
+    // v102: รุ่นนี้ไม่รู้จักพารามิเตอร์ตัวไหน → จำไว้ แล้วยิงใหม่ทันที (นักเรียนไม่รู้สึกอะไร)
+    //   ถอย schema ก่อน เพราะเป็นของใหม่กว่าและเสี่ยงกว่า · ยังเหลือ responseMimeType บังคับ JSON อยู่
+    const _paramErr=d=>!!(d&&d.error&&/schema|thinking|unknown name|invalid json payload|not supported|invalid value/i.test(d.error.message||''));
+    let _sendSchema=!_noSchema, _sendThink=!_noThink;
+    let res=await _callAI(_sendThink,_sendSchema);
     let data=await res.json();
-    // รุ่นนี้ไม่รู้จักพารามิเตอร์ → จำไว้ แล้วยิงใหม่แบบเดิมทันที (นักเรียนไม่รู้สึกอะไร)
-    if(!_noThink&&data&&data.error&&/thinking|unknown name|invalid json payload|not supported/i.test(data.error.message||'')){
+    if(_paramErr(data)&&_sendSchema){
+      try{localStorage.setItem('_dfnoschema','1');}catch(_){}
+      _sendSchema=false;
+      res=await _callAI(_sendThink,false);
+      data=await res.json();
+    }
+    if(_paramErr(data)&&_sendThink){
       try{localStorage.setItem('_dfnothink','1');}catch(_){}
-      res=await _callAI(false);
+      _sendThink=false;
+      res=await _callAI(false,_sendSchema);
       data=await res.json();
     }
     _netMs=Date.now()-_tn0; // v45: เวลารอ API ล้วนๆ (ไม่รวมโหลด key / ประมวลผล)
@@ -3426,19 +3501,27 @@ async function _callGeminiAI(){
     aiParsedData=_enrichAIData(_parsed,text);
     // Sanity check: ป้องกัน hallucination ค่าเกินจริง
     const t=aiParsedData.total||{};
-    if((t.kcal||0)>3000||(t.c||0)>400||(t.p||0)>300||(t.f||0)>300||(t.kcal||0)<0) // v76: เดิมมีแต่ขอบบน ค่าติดลบเล็ดลอด
+    // v101 (#5): เดิมเขียน (t.c||0)>400 ซึ่ง NaN||0 = 0 → NaN ผ่านทุกเงื่อนไขเสมอ
+    //   ตรวจ "เป็นตัวเลขจริงไหม" แยกออกมาก่อน แล้วค่อยตรวจขอบเขต
+    if(![t.c,t.p,t.f,t.a,t.kcal].every(Number.isFinite))
+      throw new Error('ค่าสารอาหารจาก AI ไม่ใช่ตัวเลข กรุณากด ✨ ใหม่อีกครั้งนะคะ');
+    if(t.kcal>3000||t.c>400||t.p>300||t.f>300||t.kcal<0) // v76: เดิมมีแต่ขอบบน ค่าติดลบเล็ดลอด
       throw new Error('ค่าสารอาหารผิดปกติ (AI ให้ค่าเกินจริง) กรุณาลองพิมพ์ใหม่ให้ละเอียดขึ้น');
     // v86: items ว่าง → total=0 ทุกช่อง ผ่าน sanity check ทุกข้อ แล้วถูกเก็บ cache 30 วัน
     //   นักเรียนกด ✨ ใหม่กี่ครั้งก็ได้ "ลบครบทุกรายการแล้วค่ะ" ทันที (cache hit ไม่ยิง API ซ้ำ)
     //   = เมนูนั้นบันทึกไม่ได้อีกเลย 30 วัน ปิดเปิดแอปก็ไม่หาย
     if(!Array.isArray(aiParsedData.items)||!aiParsedData.items.length)
       throw new Error('AI ยังแยกรายการอาหารไม่ได้ ลองพิมพ์ให้ละเอียดขึ้นนะคะ (เช่น "ข้าวสวย 2 ทัพพี ไก่ย่าง 1 ชิ้น")');
-    aiCacheSet(_cacheKey,aiParsedData); // เก็บ cache หลังผ่าน sanity check แล้วเท่านั้น
     _aiSrcTouch(text);_aiStaleSync(); // v94 + v98: ผูกกับ text ที่ส่งไปจริง ไม่ใช่ค่าสดในช่อง
     renderAIResult(aiParsedData); // ← นักเรียนเห็นผลตรงนี้แล้ว ที่ทำหลังจากนี้ไม่กระทบเวลารอ
+    // v101 (#7): ย้าย aiCacheSet มาไว้ "หลัง" render สำเร็จ
+    //   เดิมเก็บก่อน ถ้า renderAIResult throw (เช่น AI ตอบ assumptions เป็น string แทน array)
+    //   ของเสียจะถูกเก็บ cache 30 วัน แล้วรอบต่อไป cache hit จะ throw เงียบๆ ใน path ที่ไม่มี catch
+    aiCacheSet(_cacheKey,aiParsedData); // เก็บเมื่อผ่านทั้ง sanity check และวาดผลได้จริงแล้วเท่านั้น
     _logDbMiss((aiParsedData.items||[]).filter(it=>it._src!=='db').map(it=>it.name)); // v62: จดไว้ว่าอะไรยังไม่มีใน DB
     _logAITiming({src:'ai',totalMs:Date.now()-_t0,keyLoadMs:_keyMs,netMs:_netMs,parseMs:Date.now()-_tp0,
-      promptChars:_fullPrompt.length,respChars:_respChars,dbRefs:dbRefs.length,items:(aiParsedData.items||[]).length,ok:true,thinkLow:!_noThink});
+      promptChars:_fullPrompt.length,respChars:_respChars,dbRefs:dbRefs.length,items:(aiParsedData.items||[]).length,ok:true,thinkLow:_sendThink,
+      schema:_sendSchema}); // v102: ดูจาก aiTiming ได้เลยว่ารุ่นรับ responseSchema ไหม
   }catch(e){
     // v76: ล้างผลทิ้งเสมอเมื่อพลาด — ไม่ใช่แค่ผลของ "มื้อก่อน" (v46.1) แต่รวมผลของมื้อนี้ที่ sanity check ตีตกด้วย
     // เดิม aiParsedData ถูกตั้งค่าที่บรรทัดก่อน throw → นักเรียนเห็นกล่องแดง "ค่าผิดปกติ" แต่กดส่งแล้วบันทึกได้จริง
@@ -3482,17 +3565,32 @@ function _noQtyLines(txt){
 function _enrichAIData(data,srcText){
   if(!data)return data;
   if(!Array.isArray(data.items))data.items=[];
+  // v101 (#5): รายการที่ไม่ใช่ object (เช่น AI ตอบ items เป็น array ของ string)
+  //   เดิม it.c=... เป็น no-op เงียบๆ แล้ว c+=it.c กลายเป็น NaN ทะลุ sanity check ไปบันทึกจริง
+  //   ตัดทิ้งตรงนี้ → items ว่าง → เข้าด่าน "AI ยังแยกรายการอาหารไม่ได้" ที่มีอยู่แล้ว (fail loud)
+  data.items=data.items.filter(it=>it&&typeof it==='object');
+  // v101 (#4): ต้องรู้ก่อนว่า "ส่ง ref อะไรไปให้ AI จริง" ถึงจะติดป้าย 📚 ได้ถูก
+  //   เดิมติดป้ายจาก dbLookup(ชื่อที่ AI ตอบกลับมา) ซึ่งเป็นคนละชุดกับ ref ที่ส่งไป
+  //   พิมพ์ "ต้มยำกุ้งน้ำข้น" → ส่ง ref = [] (AI เดาเอง 100%) → AI ตอบชื่อ "ต้มยำกุ้ง" → ติดป้าย 📚
+  //   ผลคือหน้าโค้ช (est-chip) ไม่ขึ้นสีเหลือง 🤖 "ควรตรวจ" ให้รายการที่เดาล้วน = ปิดตาด่านตรวจสุดท้าย
+  //   และ _logDbMiss ก็ไม่จดเป็น miss ระบบเลยไม่รู้ว่าต้องเพิ่มแถวไหน
+  if(!Array.isArray(data._dbRefs))data._dbRefs=srcText?buildDBContext(srcText):[];
+  const _sentDb=data._dbRefs;
   let c=0,p=0,f=0,a=0;
   data.items.forEach(it=>{
     it.c=Math.max(0,+it.c||0);it.p=Math.max(0,+it.p||0);it.f=Math.max(0,+it.f||0); // v76: ||0 ไม่กันค่าติดลบ
     it.a=Math.max(0,+it.a||0); // v79: กรัมแอลกอฮอล์ (เอทานอล)
     it.kcal=macroKcal(it.c,it.p,it.f,it.a);
-    if(it._src!=='db'&&it._src!=='ai'){const r=dbLookup(it.name||'');it._src=r?'db':'ai';it._ref=r?r[0]:null;}
+    if(it._src!=='db'&&it._src!=='ai'){
+      const r=dbLookup(it.name||'');
+      // ★ ต้องอยู่ในชุด ref ที่ส่งไปจริงด้วย ไม่ใช่แค่ "มีแถวนี้ใน DB"
+      const hit=!!r&&_sentDb.some(x=>String(x).indexOf(r[0]+'(')===0);
+      it._src=hit?'db':'ai';it._ref=hit?r[0]:null;
+    }
     c+=it.c;p+=it.p;f+=it.f;a+=it.a;
   });
   c=Math.round(c*10)/10;p=Math.round(p*10)/10;f=Math.round(f*10)/10;a=Math.round(a*10)/10;
   data.total={c,p,f,a,kcal:macroKcal(c,p,f,a)};
-  if(!Array.isArray(data._dbRefs))data._dbRefs=srcText?buildDBContext(srcText):[];
   data._noQty=_noQtyLines(srcText); // v71
   return data;
 }
@@ -3564,9 +3662,18 @@ function renderAIResult(data){
   </div>`;
   area.style.display='block';
 }
+// v101 (#8): เพดานเดียวกับที่ updateAIAmount ใช้อยู่แล้ว — ดึงออกมาใช้ร่วมกัน จะได้ไม่หลุดอีกฝั่ง
+const _AI_CAP={c:400,p:300,f:300,a:200};
+const _aiOverCap=(field,v)=>_AI_CAP[field]!==undefined&&v>_AI_CAP[field];
 function updateAIItem(idx,field,val){
   if(!aiParsedData||!aiParsedData.items[idx])return;
-  aiParsedData.items[idx][field]=Math.max(0,parseFloat(val)||0);
+  const _v=Math.max(0,parseFloat(val)||0);
+  // เดิมไม่มีขอบบนเลย พิมพ์ 450 แทน 45 ในช่อง C ยอดรวมเด้งเป็น ~1,800 kcal เงียบๆ แล้วกดส่งได้
+  if(_aiOverCap(field,_v)){
+    showToast('⚠️ ตัวเลขนี้เกินจริงมาก — เช็คอีกครั้งนะคะ (ยังไม่เปลี่ยนให้)',4000);
+    return;
+  }
+  aiParsedData.items[idx][field]=_v;
   const it=aiParsedData.items[idx];
   it.kcal=macroKcal(it.c,it.p,it.f,it.a); // v79
   // v46: อัปเดตเฉพาะตัวเลข kcal ของแถวนี้ ห้าม re-render ทั้งก้อน
@@ -4557,7 +4664,8 @@ function renderStudentDashboard(subs, targets, coachNotes, healthLogs, weeklyChe
   const macro7Html=buildMacro7Html(MON,TH_SHORT,byDate,targets);
   const zigzagHtml=buildStudentZigzagSection(MON,TH_SHORT,byDate,targets);
   const lifestyleHtml=buildLifestyleSection(MON,TH_SHORT,healthLogs);
-  const progressHtml=buildProgressSection(weeklyChecks,user.userId);
+  // v105: นักเรียนแก้ "ผลการวัดของตัวเอง" ได้ (วันเริ่ม/วันจบคอร์สยังเป็นของโค้ชเท่านั้น — อยู่คนละส่วน)
+  const progressHtml=buildProgressSection(weeklyChecks,user.userId,true);
   const weeklyHtml=buildStudentWeeklySummary(subs,byDate,healthLogs,weeklySummaries);
 
   document.getElementById('dashboard-content').innerHTML=`
@@ -5116,7 +5224,7 @@ async function _prefetchRun(userId){
       const d=tdSnap.data();
       if(d.targets)targets=d.targets;
       if(d.coachNotes)targets.coachNotes=d.coachNotes;
-      targets.programStart=d.programStart||'';targets.programWeeks=d.programWeeks||12;
+      targets.programStart=d.programStart||'';targets.programEnd=d.programEnd||'';targets.programWeeks=d.programWeeks||12;
       targets.pausedDays=d.pausedDays||0;targets.isPaused=d.isPaused||false;
       targets.discountCode=d.discountCode||'';targets.discountPercent=d.discountPercent||0;
       targets.profile=d.profile||null; // v70.1 ลืมก๊อปมา → การ์ดข้อมูลพื้นฐานว่างตลอด
@@ -5180,6 +5288,7 @@ async function openStudentDetail(userId){
     if(d.targets)targets=d.targets;
     if(d.coachNotes)targets.coachNotes=d.coachNotes;
     targets.programStart=d.programStart||'';
+    targets.programEnd=d.programEnd||'';
     targets.programWeeks=d.programWeeks||12;
     targets.pausedDays=d.pausedDays||0;
     targets.isPaused=d.isPaused||false;
@@ -5237,7 +5346,7 @@ async function openStudentDetail(userId){
       else wsEl.innerHTML=buildWeeklySummaryAccordion(u,byDate,targets,healthLogs,weeklySummaries);
     }
     const pgEl=document.getElementById('sd-progress-'+userId);
-    if(pgEl)pgEl.innerHTML=buildProgressSection(weeklyChecks,userId);
+    if(pgEl)pgEl.innerHTML=buildProgressSection(weeklyChecks,userId,isCoach); // v104
   }
   const byDateTmp={};realSubs(u.subs).forEach(s=>{const k=subDate(s);if(!byDateTmp[k])byDateTmp[k]=[];byDateTmp[k].push(s);}); // v48
   autoMarkMissedDays(userId,byDateTmp,tzOfUser(userId)).catch(()=>{});
@@ -5791,8 +5900,13 @@ async function runPlanAI(){
     const raw=data.candidates?.[0]?.content?.parts?.[0]?.text||'{}';
     const match=raw.match(/\{[\s\S]*?\}/);
     const parsed=JSON.parse(match?match[0]:'{}');
-    if(!parsed.carb&&!parsed.protein&&!parsed.fat)throw new Error('ไม่ได้ข้อมูล macro');
-    planAIData={c:Math.round(parsed.carb||0),p:Math.round(parsed.protein||0),f:Math.round(parsed.fat||0),name:parsed.name||query};
+    // v101 (#9): เดิมไม่ clamp เลย ทั้งที่โหมด fill ข้างล่างทำตั้งแต่ v81
+    //   carb:-50 เป็น truthy ผ่านด่านล่าง แล้ว Math.round(-50) = -50 เข้า mealPlan → Firestore
+    //   carb:"25g" → Math.round("25g") = NaN → LINE ได้ข้อความ "C NaN"
+    const _pn=v=>{const n=Math.round(+v||0);return Number.isFinite(n)?Math.max(0,n):0;};
+    const _pc=_pn(parsed.carb),_pp=_pn(parsed.protein),_pf=_pn(parsed.fat);
+    if(!_pc&&!_pp&&!_pf)throw new Error('ไม่ได้ข้อมูล macro');
+    planAIData={c:_pc,p:_pp,f:_pf,name:parsed.name||query};
     const resultEl=document.getElementById('plan-ai-result');
     const resultText=document.getElementById('plan-ai-result-text');
     if(resultEl)resultEl.style.display='block';
@@ -5925,9 +6039,35 @@ async function loadPlanFromFirestore(){
 //   ตลอดช่วงก่อน DST แล้วพอเวลาถอยหลัง เลขค้างอยู่เลขเดิม 2 วันติด
 //   พ่วง: การ์ด "ใกล้จบคอร์ส" ยิงช้าไป 1 วัน และยิงได้ครั้งเดียวต่อคอร์ส (เขียน localStorage) แก้ย้อนหลังไม่ได้
 //   ไฟล์มี shiftYmd/daysBetweenYmd (ยึดเที่ยงวัน UTC) เขียนไว้เพื่อการนี้อยู่แล้ว
-function calcProgramEndYmd(prog){
+// v103: วันจบ "ฐาน" — ก่อนบวกวันพัก
+//   ถ้าโค้ชกรอกวันจบเอง (programEnd) ให้ใช้อันนั้น · ไม่งั้นคิดจาก วันเริ่ม + สัปดาห์×7 เหมือนเดิม
+//   ข้อมูลเก่าที่ไม่มี programEnd จึงได้ผลลัพธ์เท่าเดิมทุกประการ
+// v103: ตรวจว่าเป็นวันที่ "ที่มีอยู่จริง" ไม่ใช่แค่รูปแบบถูก
+//   '2026-13-99' ผ่าน regex ได้ แต่ Date.UTC ม้วนไปเป็น 2027-04-09 → วันจบเพี้ยนไปปีหน้าเงียบๆ
+//   ช่อง <input type="date"> สร้างค่าแบบนี้ไม่ได้ แต่ค่าใน Firestore แก้มือได้
+function isValidYmd(v){
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(String(v||'')))return false;
+  const a=String(v).split('-').map(Number);
+  const d=new Date(Date.UTC(a[0],a[1]-1,a[2],12,0,0));
+  return d.getUTCFullYear()===a[0]&&d.getUTCMonth()===a[1]-1&&d.getUTCDate()===a[2];
+}
+function progBaseEndYmd(prog){
   if(!prog||!prog.programStart)return null;
-  return shiftYmd(prog.programStart,(prog.programWeeks||12)*7+(prog.pausedDays||0));
+  const e=prog.programEnd||'';
+  if(isValidYmd(e)&&daysBetweenYmd(prog.programStart,e)>0)return e;
+  return shiftYmd(prog.programStart,(prog.programWeeks||12)*7);
+}
+function calcProgramEndYmd(prog){
+  const b=progBaseEndYmd(prog);
+  if(!b)return null;
+  return shiftYmd(b,prog.pausedDays||0); // วันพักขยายวันจบต่อจากฐานเสมอ
+}
+// จำนวนวันทั้งคอร์ส (รวมวันพักแล้ว) — ใช้คิด % ความคืบหน้า
+// v103 BUGFIX: เดิมเขียน (weeks*7 + pausedDays) ซ้ำอยู่ 3 ที่ ถ้าโค้ชกรอกวันจบเองจะไม่ตรงกัน
+function progTotalDays(prog){
+  const b=progBaseEndYmd(prog);
+  if(!b)return 0;
+  return Math.max(1,daysBetweenYmd(prog.programStart,b)+(prog.pausedDays||0)); // กันหาร 0
 }
 function calcProgramEndDate(prog){
   const y=calcProgramEndYmd(prog);
@@ -5954,7 +6094,7 @@ function renderProgramBar(){
   const prog=studentProgramData;
   if(!prog||!prog.programStart){bar.style.display='none';return;}
   const end=calcProgramEndDate(prog);if(!end){bar.style.display='none';return;}
-  const totalDays=(prog.programWeeks||12)*7+(prog.pausedDays||0);
+  const totalDays=progTotalDays(prog); // v103: สูตรเดียวกับทุกที่ + กันหารศูนย์
   const elapsed=progElapsedDays(prog); // v83
   const pct=Math.min(100,Math.round(elapsed/totalDays*100));
   const left=getProgramDaysLeft(prog);
@@ -6031,7 +6171,7 @@ function buildProgramSection(uid, prog){
   // v83: ใช้ "วันนี้" ตามโซนของนักเรียน ไม่ใช่ของโค้ช — ไม่งั้นสองฝั่งเห็นคนละเลข
   const _ptz=(typeof tzOfUser==='function'?tzOfUser(uid):null);
   const left=hasProgram?getProgramDaysLeft(prog,_ptz):null;
-  const totalDays=hasProgram?(prog.programWeeks||12)*7+(prog.pausedDays||0):0;
+  const totalDays=hasProgram?progTotalDays(prog):0; // v103
   const elapsed=hasProgram?progElapsedDays(prog,_ptz):0;
   const pct=totalDays>0?Math.min(100,Math.round(elapsed/totalDays*100)):0;
   const statusLine=!hasProgram?'ยังไม่ได้ตั้งค่าคอร์ส':
@@ -6043,23 +6183,38 @@ function buildProgramSection(uid, prog){
     ?`<button class="pause-btn resume" onclick="resumeStudentProgram('${uid}')">▶ กลับมาเทรนต่อ — คำนวณวันจบใหม่</button>`
     :`<button class="pause-btn pause" onclick="pauseStudentProgram('${uid}')">⏸ พักเทรน — ขยายวันจบ</button>`
   ):'';
-  const endDateStr=end?(()=>{const pad=n=>String(n).padStart(2,'0');return formatDateLong(`${end.getFullYear()}-${pad(end.getMonth()+1)}-${pad(end.getDate())}`)})():'—';
+  // v103: ค่าที่ใส่ในช่อง "วันจบ" คือวันจบ "ฐาน" (ยังไม่รวมวันพัก) — โค้ชแก้ตัวนี้ได้
+  const baseEndVal=hasProgram?(progBaseEndYmd(prog)||''):'';
+  const _baseDays=hasProgram?daysBetweenYmd(prog.programStart,baseEndVal):0;
+  // ★ ถ้าจำนวนสัปดาห์ไม่ตรง preset ไหนเลย (เช่นโค้ชกรอกวันจบเอง) ต้องมีตัวเลือก "กำหนดเอง"
+  //   ไม่งั้น <select> จะเด้งไปตัวแรก (4 สัปดาห์) แล้วถ้ากดบันทึกจะกลายเป็น 4 สัปดาห์จริงๆ
+  const _PRESETS=[4,8,12,16,20,24];
+  const _matched=_baseDays>0&&_baseDays%7===0&&_PRESETS.indexOf(_baseDays/7)>=0;
+  const _weekOpts=(_matched?'':`<option value="" selected>${_baseDays>0?`กำหนดเอง (${_baseDays} วัน)`:'— เลือกระยะเวลา —'}</option>`)
+    +_PRESETS.map(w=>`<option value="${w}"${_matched&&_baseDays/7===w?' selected':''}>${w} สัปดาห์ (${w*7} วัน)</option>`).join('');
+  const _previewInner=_progPreviewHtml(baseEndVal,prog.pausedDays||0,prog.programStart||'');
   return`<div class="sd-prog-section">
     <div class="sd-prog-title">📅 ข้อมูลคอร์ส</div>
     <div id="prog-status-${uid}" style="font-size:12px;color:var(--text);margin-bottom:6px;font-weight:600">${statusLine}</div>
     ${progBarHtml}
-    <div style="margin-bottom:8px">
-      <div style="font-size:10px;color:var(--gray);margin-bottom:2px">วันเริ่มเทรน</div>
-      <input type="date" id="prog-start-${uid}" class="prog-input" value="${prog.programStart||''}" oninput="updateProgEndPreview('${uid}')" onchange="updateProgEndPreview('${uid}');debounceSaveProg('${uid}')">
+    <div style="display:flex;gap:8px;margin-bottom:8px">
+      <div style="flex:1">
+        <div style="font-size:10px;color:var(--gray);margin-bottom:2px">วันเริ่มคอร์ส</div>
+        <input type="date" id="prog-start-${uid}" class="prog-input" value="${prog.programStart||''}" oninput="updateProgEndPreview('${uid}')" onchange="updateProgEndPreview('${uid}');debounceSaveProg('${uid}')">
+      </div>
+      <div style="flex:1">
+        <div style="font-size:10px;color:var(--gray);margin-bottom:2px">วันจบคอร์ส</div>
+        <input type="date" id="prog-end-${uid}" class="prog-input" value="${baseEndVal}" oninput="updateProgEndPreview('${uid}')" onchange="updateProgEndPreview('${uid}');debounceSaveProg('${uid}')">
+      </div>
     </div>
     <div style="margin-bottom:8px">
-      <div style="font-size:10px;color:var(--gray);margin-bottom:2px">ระยะเวลา</div>
-      <select id="prog-weeks-${uid}" class="prog-input" onchange="updateProgEndPreview('${uid}')">
-        ${[4,8,12,16,20,24].map(w=>`<option value="${w}"${prog.programWeeks===w?' selected':''}>${w} สัปดาห์</option>`).join('')}
+      <div style="font-size:10px;color:var(--gray);margin-bottom:2px">ตั้งวันจบเร็วๆ (เลือกแล้วจะเติมช่องวันจบให้)</div>
+      <select id="prog-weeks-${uid}" class="prog-input" onchange="applyWeeksPreset('${uid}')">
+        ${_weekOpts}
       </select>
     </div>
     <div id="prog-end-preview-${uid}" style="font-size:12px;color:#1D4ED8;background:#EFF6FF;border-radius:8px;padding:7px 10px;margin-bottom:10px">
-      📅 วันจบคอร์ส: <strong>${endDateStr}</strong>${hasProgram&&prog.pausedDays>0?` <span style="font-size:10px;color:var(--gray)">· พักสะสม ${prog.pausedDays} วัน</span>`:''}
+      ${_previewInner}
     </div>
     <button onclick="saveProgramSettings('${uid}')"
       style="width:100%;padding:8px;background:#1D4ED8;color:white;border:none;border-radius:9px;font-size:13px;font-weight:600;font-family:'Prompt',sans-serif;cursor:pointer;margin-bottom:6px">
@@ -6068,30 +6223,71 @@ function buildProgramSection(uid, prog){
     ${pauseBtn}
   </div>`;
 }
-function updateProgEndPreview(uid){
+// v103: สร้างข้อความสรุปที่เดียว ใช้ทั้งตอน render ครั้งแรกและตอนแก้สดๆ
+//   เดิมสองที่คำนวณคนละแบบ → กล่องพรีวิวกับบรรทัดสถานะข้างบนโชว์คนละวัน
+function _progPreviewHtml(baseEnd,pausedDays,startYmd){
+  if(!isValidYmd(baseEnd))return '📅 วันจบคอร์ส: <strong>—</strong>';
+  const days=startYmd?daysBetweenYmd(startYmd,baseEnd):0;
+  const wk=Math.floor(days/7),rd=days%7;
+  const dur=days>0?` <span style="font-size:10px;color:var(--gray)">· รวม ${days} วัน${wk?` (${wk} สัปดาห์${rd?` ${rd} วัน`:''})`:''}</span>`:'';
+  if(pausedDays>0){
+    const real=shiftYmd(baseEnd,pausedDays);
+    return `📅 วันจบคอร์ส: <strong>${formatDateLong(real)}</strong>${dur}`
+      +`<div style="font-size:10px;color:var(--gray);margin-top:2px">= ${formatDateLong(baseEnd)} + พักสะสม ${pausedDays} วัน</div>`;
+  }
+  return `📅 วันจบคอร์ส: <strong>${formatDateLong(baseEnd)}</strong>${dur}`;
+}
+// เลือก preset สัปดาห์ → เติมช่อง "วันจบ" ให้ แล้วค่อยบันทึก (ช่องวันจบยังเป็นตัวจริงเสมอ)
+// v103 BUGFIX: เดิม <select> เปลี่ยนแล้ว "ไม่บันทึก" ขณะที่ช่องวันเริ่มบันทึกอัตโนมัติ
+//   โค้ชเปลี่ยนระยะเวลา เห็นพรีวิวขยับ แล้วปิดหน้าไป → ค่าหายเงียบๆ
+function applyWeeksPreset(uid){
   const startEl=document.getElementById(`prog-start-${uid}`);
   const weeksEl=document.getElementById(`prog-weeks-${uid}`);
+  const endEl=document.getElementById(`prog-end-${uid}`);
+  if(!startEl||!weeksEl||!endEl)return;
+  const w=parseInt(weeksEl.value);
+  if(!w||!isValidYmd(startEl.value||'')){updateProgEndPreview(uid);return;}
+  endEl.value=shiftYmd(startEl.value,w*7); // v83: ใช้ shiftYmd (เที่ยงวัน UTC) ไม่ใช่ Date+setDate
+  updateProgEndPreview(uid);
+  debounceSaveProg(uid);
+}
+function updateProgEndPreview(uid){
+  const startEl=document.getElementById(`prog-start-${uid}`);
+  const endEl=document.getElementById(`prog-end-${uid}`);
   const previewEl=document.getElementById(`prog-end-preview-${uid}`);
-  if(!startEl||!weeksEl||!previewEl)return;
-  const startVal=startEl.value;
-  const weeks=parseInt(weeksEl.value)||12;
-  if(!startVal){previewEl.innerHTML='📅 วันจบคอร์ส: <strong>—</strong>';return;}
-  const start=new Date(startVal+'T00:00:00');
-  const end=new Date(start);end.setDate(start.getDate()+weeks*7);
-  const pad=n=>String(n).padStart(2,'0');
-  const endStr=formatDateLong(`${end.getFullYear()}-${pad(end.getMonth()+1)}-${pad(end.getDate())}`);
-  previewEl.innerHTML=`📅 วันจบคอร์ส: <strong>${endStr}</strong>`;
+  if(!startEl||!endEl||!previewEl)return;
+  // v103 BUGFIX: เดิมคำนวณด้วย new Date()+setDate() ซึ่งเป็นวิธีที่ v83 แก้ไปแล้วในฟังก์ชันอื่น
+  //   โค้ชในโซนที่มี DST จะเห็นพรีวิวคลาดจากวันจบจริง 1 วัน
+  //   และเดิมพรีวิวไม่นับ pausedDays เลย → นักเรียนที่เคยพัก เห็นสองเลขไม่ตรงกันบนหน้าเดียว
+  const _pd=(()=>{try{const c=_sdCache[uid];return (c&&c.targets&&c.targets.pausedDays)||0;}catch(_){return 0;}})();
+  const s=startEl.value||'',e=endEl.value||'';
+  // เตือนทันทีถ้าวันจบมาก่อนวันเริ่ม — ไม่ต้องรอกดบันทึกแล้วค่อยเด้ง
+  if(isValidYmd(s)&&isValidYmd(e)&&daysBetweenYmd(s,e)<=0){
+    previewEl.innerHTML='⚠️ <strong style="color:#DC2626">วันจบต้องอยู่หลังวันเริ่ม</strong>';
+    return;
+  }
+  previewEl.innerHTML=_progPreviewHtml(e,_pd,s);
 }
 const _progDebounce={};
 function debounceSaveProg(uid){clearTimeout(_progDebounce[uid]);_progDebounce[uid]=setTimeout(()=>saveProgramSettings(uid),800);}
 async function saveProgramSettings(uid){
+  // v105: วันเริ่ม/วันจบคอร์สเป็นของโค้ชเท่านั้น — UI เรนเดอร์เฉพาะหน้าโค้ชอยู่แล้ว
+  //   แต่ guard ตรงนี้กันเรียกตรงจาก console (แบบเดียวกับ openWcEdit)
+  if(!isCoach){showToast('วันเริ่ม/วันจบคอร์ส แก้ได้เฉพาะโค้ชค่ะ',3000);return;}
   const startEl=document.getElementById(`prog-start-${uid}`);
   const weeksEl=document.getElementById(`prog-weeks-${uid}`);
   if(!startEl||!weeksEl)return;
   // v83: ช่องวันที่ที่ยังกรอกไม่ครบ / โดนกดล้าง คืน '' — เดิมไหลเข้าไปเขียน programStart:''
   //   พร้อมล้าง pausedDays/isPaused/pauseStartDate ทิ้ง (วันพักสะสมหายถาวร ย้อนคืนไม่ได้)
-  if(!/^\d{4}-\d{2}-\d{2}$/.test(startEl.value||'')){showToast('กรุณาเลือกวันเริ่มเทรนให้ครบก่อนค่ะ',3000);return;}
-  const payload={programStart:startEl.value,programWeeks:parseInt(weeksEl.value)||12}; // NB6: กัน NaN → Firestore reject
+  if(!isValidYmd(startEl.value||'')){showToast('กรุณาเลือกวันเริ่มคอร์สให้ครบก่อนค่ะ',3000);return;}
+  // v103: ช่อง "วันจบ" คือตัวจริง — programWeeks คิดจากช่วงวันที่ เก็บไว้ให้บิลด์เก่าที่ยังอ่านฟิลด์นี้อยู่
+  const endVal=(document.getElementById(`prog-end-${uid}`)||{}).value||'';
+  if(!isValidYmd(endVal)){showToast('กรุณาเลือกวันจบคอร์สให้ครบก่อนค่ะ',3000);return;}
+  const _span=daysBetweenYmd(startEl.value,endVal);
+  if(_span<=0){showToast('⚠️ วันจบต้องอยู่หลังวันเริ่มค่ะ',3500);return;}
+  if(_span>730){showToast('⚠️ คอร์สยาวเกิน 2 ปี — เช็ควันที่อีกครั้งนะคะ',4000);return;}
+  const payload={programStart:startEl.value,programEnd:endVal,
+    programWeeks:Math.max(1,Math.round(_span/7))}; // NB6: กัน NaN → Firestore reject
   // v76 BUGFIX: pausedDays / isPaused / pauseStartDate ไม่เคยถูกล้างที่ไหนเลยทั้งไฟล์ → ติดตัวนักเรียนข้ามคอร์ส
   //   วันจบคอร์สใหม่ = (สัปดาห์ × 7) + วันพักของคอร์สเก่า → เลื่อนสะสมไปเรื่อยๆ
   //   และถ้าคอร์สเก่าจบตอนยังพักอยู่ isPaused ค้าง true → checkNearEnd มี "if(prog.isPaused)return"
@@ -6115,6 +6311,7 @@ async function saveProgramSettings(uid){
   }catch(e){showToast('⚠️ บันทึกไม่ได้: '+e.message,4000);}
 }
 async function pauseStudentProgram(uid){
+  if(!isCoach){showToast('จัดการคอร์สได้เฉพาะโค้ชค่ะ',3000);return;} // v105
   if(!await askConfirm('พักเทรนนักเรียนคนนี้?\nวันจบจะถูกเลื่อนออกไปทุกวันที่พัก',{icon:'⏸️',okText:'พักเทรน'}))return; // v65
   // v76: กดซ้ำ (เช่นเปิดค้างอีกแท็บที่ยังเห็นปุ่มเดิม) จะทับ pauseStartDate → วันพักที่สะสมไว้หายไปเป็นสัปดาห์
   let _isP=null;
@@ -6129,6 +6326,7 @@ async function pauseStudentProgram(uid){
   }catch(e){showToast('เกิดข้อผิดพลาด: '+e.message);}
 }
 async function resumeStudentProgram(uid){
+  if(!isCoach){showToast('จัดการคอร์สได้เฉพาะโค้ชค่ะ',3000);return;} // v105
   try{
     // calculate days paused — NB5: timeout 8s + cache fallback กันค้าง
     const _ref=db.collection('students').doc(uid);
@@ -6165,7 +6363,7 @@ function renderStudentDetail(u, targets, healthLogs, weeklySummaries={}, weeklyC
 
   // --- PROGRAM ---
   const uid=u.userId;
-  const progData={programStart:targets.programStart||'',programWeeks:targets.programWeeks||12,
+  const progData={programStart:targets.programStart||'',programEnd:targets.programEnd||'',programWeeks:targets.programWeeks||12,
     pausedDays:targets.pausedDays||0,isPaused:targets.isPaused||false,
     discountCode:targets.discountCode||'',discountPercent:targets.discountPercent||0};
   const progHtml=buildProgramSection(uid,progData);
@@ -6230,7 +6428,7 @@ function renderStudentDetail(u, targets, healthLogs, weeklySummaries={}, weeklyC
   // --- WEEKLY SUMMARY ACCORDION ---
   const weeklyHtml=buildWeeklySummaryAccordion(u, byDate, targets, healthLogs, weeklySummaries);
 
-  const progressHtml=buildProgressSection(weeklyChecks, u.userId);
+  const progressHtml=buildProgressSection(weeklyChecks, u.userId, isCoach); // v104
   const planSectionHtml=`<div class="sd-section">
     <div class="sd-section-title">📋 แผนมื้ออาหาร</div>
     <div id="coach-plan-${uid}"><div style="padding:10px;text-align:center"><div class="df-spin sm"></div><div style="color:var(--gray);font-size:12px">กำลังโหลด...</div></div></div>
@@ -7573,6 +7771,134 @@ async function autoMarkMissedDays(userId, byDate, tz){
   }catch(e){console.log('missed mark err',e);}
 }
 
+// ===== v104: โค้ชแก้ผลการวัด =====
+// ช่องทั้งหมดใช้กติกาเดียวกับตอนนักเรียนกรอก (saveWeeklyCheck) จะได้ไม่มีสองมาตรฐาน
+const WC_FIELDS=[
+  {k:'weight_kg',      label:'น้ำหนัก',      unit:'kg', min:20, max:250, req:true},
+  {k:'bodyFat_pct',    label:'% ไขมัน',      unit:'%',  min:1,  max:80},
+  {k:'muscle_mass_kg', label:'มวลกล้ามเนื้อ',unit:'kg', min:1,  max:150},
+  {k:'waist_cm',       label:'รอบเอว',       unit:'cm', min:1,  max:250},
+  {k:'hip_cm',         label:'สะโพก',        unit:'cm', min:1,  max:250},
+  {k:'chest_cm',       label:'อก',           unit:'cm', min:1,  max:250},
+  {k:'arm_left_cm',    label:'แขนซ้าย',      unit:'cm', min:1,  max:250},
+  {k:'arm_right_cm',   label:'แขนขวา',       unit:'cm', min:1,  max:250},
+  {k:'thigh_left_cm',  label:'ขาซ้าย',       unit:'cm', min:1,  max:250},
+  {k:'thigh_right_cm', label:'ขาขวา',        unit:'cm', min:1,  max:250},
+];
+let _wcEdit=null; // {uid,date}
+// v105: ใครมีสิทธิ์แก้ผลการวัดของ uid นี้ — โค้ช หรือ เจ้าของข้อมูลเอง
+function canEditWc(uid){
+  if(isCoach)return true;
+  return !!(user&&user.userId&&uid===user.userId);
+}
+// v105: ★ ผลการวัดอยู่คนละที่ระหว่างสองหน้าจอ
+//   หน้าโค้ช  → _sdCache[uid].weeklyChecks (โหลดตอนเปิดหน้านักเรียน)
+//   หน้านักเรียน → dashCache[4] (โหลดตอนเปิด Dashboard) — ไม่มี _sdCache เลย
+//   เดิมอ่าน _sdCache อย่างเดียว → นักเรียนกดแก้จะเจอ 'ไม่พบรายการวัดนี้' ทุกครั้ง
+function _wcEntries(uid){
+  const c=(typeof _sdCache!=='undefined'&&_sdCache)?_sdCache[uid]:null;
+  if(c&&Array.isArray(c.weeklyChecks)&&c.weeklyChecks.length)return c.weeklyChecks;
+  const own=user&&user.userId&&uid===user.userId;
+  if(own&&typeof dashCache!=='undefined'&&dashCache&&Array.isArray(dashCache[4]))return dashCache[4];
+  return [];
+}
+function openWcEdit(uid,date){
+  if(!canEditWc(uid)){showToast('แก้ได้เฉพาะข้อมูลของตัวเองค่ะ',2500);return;} // v105: กันเรียกตรงจาก console
+  const e=_wcEntries(uid).find(x=>(x.date||x.id)===date);
+  if(!e){showToast('ไม่พบรายการวัดนี้ ลองเปิดหน้านักเรียนใหม่นะคะ',3500);return;}
+  _wcEdit={uid,date};
+  document.getElementById('wc-edit-date').textContent=formatDateLong(date);
+  document.getElementById('wc-edit-body').innerHTML=WC_FIELDS.map(f=>{
+    const v=e[f.k], o=e[f.k+'_orig'];
+    return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+      <span style="font-size:12px;color:var(--text);width:96px;flex-shrink:0">${f.label}${f.req?' <span style="color:#DC2626">*</span>':''}</span>
+      <input type="number" step="0.1" inputmode="decimal" id="wce-${f.k}" value="${v!=null?v:''}"
+        placeholder="—" style="flex:1;border:1.5px solid #E5E7EB;border-radius:9px;padding:7px 10px;font-size:13px;font-family:'Prompt',sans-serif;color:var(--text);background:var(--card);box-sizing:border-box">
+      <span style="font-size:11px;color:var(--gray);width:26px">${f.unit}</span>
+      ${o!=null?`<span style="font-size:9px;color:var(--gray)" title="ค่าที่กรอกไว้ครั้งแรก">เดิม ${o}</span>`:''}
+    </div>`;
+  }).join('');
+  const m=document.getElementById('wc-edit-modal');
+  m.style.display='flex';
+}
+function closeWcEdit(){const m=document.getElementById('wc-edit-modal');if(m)m.style.display='none';_wcEdit=null;}
+async function saveWcEdit(){
+  if(!_wcEdit)return;
+  const {uid,date}=_wcEdit;
+  // v105: เช็คซ้ำตอนบันทึก ไม่พึ่งแค่ตอนเปิด — modal เปิดค้างไว้แล้วสถานะเปลี่ยนได้
+  if(!canEditWc(uid)){showToast('แก้ได้เฉพาะข้อมูลของตัวเองค่ะ',2500);return;}
+  const e=_wcEntries(uid).find(x=>(x.date||x.id)===date)||{};
+  const btn=document.getElementById('wce-save-btn');
+  const upd={}, del=[];
+  // ★ เก็บค่าที่นักเรียนกรอกไว้ "ครั้งแรกเท่านั้น" — แก้ซ้ำต้องไม่ทับค่าต้นฉบับ
+  const keepOrig=k=>{if(e[k+'_orig']===undefined&&e[k]!=null)upd[k+'_orig']=e[k];};
+  for(const f of WC_FIELDS){
+    const el=document.getElementById('wce-'+f.k);
+    if(!el)continue;
+    const raw=(el.value||'').trim();
+    // ★★ เทียบเป็นสตริงกับค่าที่แสดงอยู่ — ถ้าพิมพ์เท่าเดิมเป๊ะ ถือว่าไม่แตะ
+    //   กันเคส: นักเรียนกรอก 65.55 แล้วการปัดทศนิยมทำให้กลายเป็น 65.6 เงียบๆ
+    //   ทั้งที่โค้ชเปิดมาแก้ช่องอื่นแล้วไม่ได้ยุ่งกับช่องนี้เลย
+    const cur=e[f.k]!=null?String(e[f.k]):'';
+    if(raw===cur)continue;
+    if(raw===''){
+      if(f.req){showToast(`กรุณากรอก${f.label}ค่ะ`,3000);return;}
+      keepOrig(f.k);del.push(f.k); // ลบค่าเดิมทิ้ง (ตั้งใจล้าง) แต่ยังเก็บต้นฉบับไว้
+      continue;
+    }
+    const v=parseFloat(raw);
+    // v78 rule: ค่าติดลบเป็น truthy และไม่ NaN — ต้องเทียบขอบเขตตรงๆ
+    // ★ ตรวจเฉพาะช่องที่เปลี่ยนจริง — เรคคอร์ดเก่าที่ค่าเกินขอบใหม่ (เช่น bodyFat 90 ที่นักเรียน
+    //   บันทึกได้ตอน saveWeeklyCheck ยอมถึง 250) จะไม่บล็อกโค้ชไม่ให้แก้ช่องอื่น
+    if(isNaN(v)||v<f.min||v>f.max){
+      showToast(`${f.label} ต้องอยู่ระหว่าง ${f.min}–${f.max} ${f.unit} ค่ะ`,4000);return;
+    }
+    upd[f.k]=Math.round(v*10)/10;
+    keepOrig(f.k);
+  }
+  if(!Object.keys(upd).length&&!del.length){showToast('ไม่มีอะไรเปลี่ยนค่ะ',2500);closeWcEdit();return;}
+  if(btn){btn.disabled=true;btn.textContent='กำลังบันทึก...';}
+  try{
+    // v105: เดิม hardcode 'coach' — นักเรียนแก้เองจะบันทึกประวัติผิดคน
+    upd.editedBy=isCoach?'coach':'student';
+    upd.editedAt=firebase.firestore.FieldValue.serverTimestamp();
+    del.forEach(k=>{upd[k]=firebase.firestore.FieldValue.delete();});
+    const _r=await _fsWrite(db.doc(`weeklyChecks/${uid}/entries/${date}`).set(upd,{merge:true})); // W1
+    showToast(_r==='timeout'?'📡 เน็ตช้า — บันทึกไว้ในเครื่องแล้ว จะซิงค์อัตโนมัติค่ะ':'✅ แก้ไขผลการวัดแล้วค่ะ',_r==='timeout'?4000:2800);
+    closeWcEdit();
+    // ★ ค่าที่เขียนจริงลง Firestore (ตัด FieldValue ที่เอามาแสดงไม่ได้ออก)
+    const _applied={};
+    Object.keys(upd).forEach(k=>{if(k!=='editedAt'&&del.indexOf(k)<0)_applied[k]=upd[k];});
+    if(typeof _sdCache!=='undefined'&&_sdCache)delete _sdCache[uid]; // ต้องล้าง ไม่งั้นเปิดซ้ำเห็นค่าเก่า
+    if(typeof currentStudentData!=='undefined'&&currentStudentData&&currentStudentData.userId===uid){
+      openStudentDetail(uid); // หน้าโค้ช
+    }else if(user&&user.userId===uid){
+      // v105: หน้านักเรียน — ไม่มี openStudentDetail ให้เรียก ต้องอัปเดต cache เองแล้ววาดใหม่
+      //   ทำแบบเดียวกับ saveWeeklyCheck (v50.1): merge ไม่ทับ เพราะ Firestore ใช้ merge:true
+      if(typeof dashCache!=='undefined'&&dashCache&&Array.isArray(dashCache[4])){
+        const _i=dashCache[4].findIndex(x=>(x.id||x.date)===date);
+        if(_i>=0){
+          const _row={...dashCache[4][_i],..._applied};
+          del.forEach(k=>{delete _row[k];}); // ช่องที่ตั้งใจล้าง ต้องหายจากจอด้วย
+          _row.editedBy=isCoach?'coach':'student';
+          dashCache[4][_i]=_row;
+        }
+      }
+      _myProgressCache=null; // กราฟ 'ผลลัพธ์ของฉัน' ต้องดึงใหม่
+      if(typeof loadDashboard==='function')loadDashboard();
+      if(typeof loadMyProgress==='function')loadMyProgress();
+    }
+  }catch(err){
+    // ★ permission-denied = Firestore rules ยังไม่เปิดให้โค้ชเขียน path นี้ (ดู RULES ท้ายไฟล์แพตช์)
+    const msg=/permission|insufficient/i.test(err.message||'')
+      ? '⚠️ สิทธิ์ไม่พอ — ต้องอัปเดต Firestore rules ให้เขียน weeklyChecks ได้ก่อนค่ะ'
+      : '⚠️ บันทึกไม่ได้: '+err.message;
+    showToast(msg,6000);
+  }finally{
+    if(btn){btn.disabled=false;btn.textContent='💾 บันทึก';}
+  }
+}
+
 // ===== TESTIMONIAL SYSTEM =====
 let _testimonialInProgress=false; // NH1: ป้องกัน race condition ส่งซ้ำ
 async function checkTestimonialEligibility(weeklyChecks){
@@ -8342,6 +8668,21 @@ setTimeout(()=>{try{_checkAppVersion();}catch(_){}} ,3000); // v96: เช็ค
 </script>
 
 <!-- ===== EDIT SUBMISSION MODAL ===== -->
+<div id="wc-edit-modal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.78);align-items:flex-end;justify-content:center" onclick="if(event.target===this)closeWcEdit()">
+  <div style="background:#fff;border-radius:20px 20px 0 0;width:100%;max-width:480px;padding:20px 16px 30px;box-sizing:border-box;max-height:90vh;overflow-y:auto">
+    <div style="width:40px;height:4px;background:#E5E7EB;border-radius:2px;margin:0 auto 14px"></div>
+    <div style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:2px">⚖️ แก้ไขผลการวัด</div>
+    <div id="wc-edit-date" style="font-size:12px;color:var(--gray);margin-bottom:14px"></div>
+    <div id="wc-edit-body"></div>
+    <div style="font-size:10px;color:var(--gray);background:#F9FAFB;border-radius:8px;padding:7px 9px;margin:10px 0">
+      ค่าที่นักเรียนกรอกไว้เดิมจะถูกเก็บไว้ ไม่หายไปไหน · เว้นว่างเพื่อลบค่านั้นทิ้ง
+    </div>
+    <div style="display:flex;gap:8px">
+      <button onclick="closeWcEdit()" style="flex:1;padding:11px;background:var(--card);color:var(--text);border:1.5px solid #E5E7EB;border-radius:11px;font-size:14px;font-weight:600;font-family:'Prompt',sans-serif;cursor:pointer">ยกเลิก</button>
+      <button id="wce-save-btn" onclick="saveWcEdit()" style="flex:2;padding:11px;background:#059669;color:white;border:none;border-radius:11px;font-size:14px;font-weight:700;font-family:'Prompt',sans-serif;cursor:pointer">💾 บันทึก</button>
+    </div>
+  </div>
+</div>
 <div id="edit-sub-modal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.78);align-items:flex-end;justify-content:center">
   <div style="background:#fff;border-radius:20px 20px 0 0;width:100%;max-width:480px;padding:20px 16px 36px;box-sizing:border-box;max-height:90vh;overflow-y:auto">
     <div style="width:40px;height:4px;background:#E5E7EB;border-radius:2px;margin:0 auto 16px"></div>
