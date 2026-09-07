@@ -1007,7 +1007,7 @@ function _slowMsg(okText){
 //   (loadSavedMenus ดึงมา .limit(40) อยู่แล้ว 20 จึงยังอยู่ใต้เพดานการอ่าน)
 //   ประกาศไว้บนสุด เพราะถูกใช้ทั้งใน loadStudentData / loadSavedMenus / saveCurrentMenu
 const MENU_CAP=20;
-const APP_VERSION='v111-2026-09-07'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
+const APP_VERSION='v113-2026-09-07'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
 const _errLogged=new Set();let _errCount=0;
 // ═════ v96: version gate ═════
 // ตั้ง field minVersion ใน Firestore → config/app (เช่น "v96") แล้วเครื่องที่ต่ำกว่าจะขึ้นแถบเตือน
@@ -2842,9 +2842,11 @@ function buildSpark(vals, color, bigIsGood=false, w=240, h=30){
 //   ★ ฟังก์ชันนี้ถูกเรียกจากแดชบอร์ดของนักเรียนเองด้วย (renderStudentDashboard)
 //     ถ้าไม่มีธงนี้ นักเรียนจะเห็นปุ่มแก้ข้อมูลตัวเองบนหน้าตัวเอง
 function buildProgressSection(weeklyChecks, userId, canEdit){
+  // v113: ★★★ เดิมการ์ดนี้ไม่มีปุ่มอะไรเลย → นักเรียนที่ไม่เคยชั่งสักครั้ง
+  //   (เคสที่ฟีเจอร์ v112 เกิดมาเพื่อแก้พอดี) โค้ชกดเพิ่มย้อนหลังไม่ได้เลย
   if(!weeklyChecks||!weeklyChecks.length)return`<div class="sd-section">
     <div class="sd-section-title">📉 Progress</div>
-    <div style="background:white;border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center;color:var(--gray);font-size:12px">ยังไม่มีข้อมูลการวัดผลค่ะ</div>
+    <div style="background:white;border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center;color:var(--gray);font-size:12px">ยังไม่มีข้อมูลการวัดผลค่ะ${canEdit?`<div style="margin-top:10px"><button onclick="openWcAdd('${safeUidArg(userId)}')" style="border:1px solid #A7F3D0;background:#ECFDF5;border-radius:7px;padding:6px 12px;font-size:12px;font-family:'Prompt',sans-serif;cursor:pointer;color:#047857;font-weight:600">➕ เพิ่มย้อนหลัง</button></div>`:''}</div>
   </div>`;
 
   const entries=weeklyChecks;
@@ -2921,7 +2923,10 @@ function buildProgressSection(weeklyChecks, userId, canEdit){
 
   // v104: รายการวัดทั้งหมด — โค้ชกดแก้ได้ทีละแถว (แถวแรก = น้ำหนักเริ่มต้น)
   const editList=!canEdit?'':`<div style="background:white;border:1px solid var(--border);border-radius:10px;padding:10px;margin-top:8px">
-    <div style="font-size:11px;font-weight:600;color:var(--gray);margin-bottom:6px">✏️ แก้ไขผลการวัด</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <span style="font-size:11px;font-weight:600;color:var(--gray)">✏️ แก้ไขผลการวัด</span>
+      <button onclick="openWcAdd('${safeUidArg(userId)}')" style="border:1px solid #A7F3D0;background:#ECFDF5;border-radius:7px;padding:3px 9px;font-size:11px;font-family:'Prompt',sans-serif;cursor:pointer;color:#047857;font-weight:600">➕ เพิ่มย้อนหลัง</button>
+    </div>
     ${entries.map((e,i)=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;${i<entries.length-1?'border-bottom:1px solid #F3F4F6':''}">
       <span style="font-size:11px;color:var(--gray);width:78px;flex-shrink:0">${escHtml(e.date||e.id||'-')}</span>
       <span style="font-size:12px;font-weight:600;color:var(--text);flex:1">${e.weight_kg!=null?e.weight_kg+' kg':'—'}${i===0?' <span style="font-size:9px;color:#1D4ED8;background:#EFF6FF;border-radius:4px;padding:1px 5px">เริ่มต้น</span>':''}${e.weight_kg_orig!=null?` <span style="font-size:9px;color:var(--gray)" title="ค่าที่กรอกไว้ครั้งแรก">(เดิม ${e.weight_kg_orig})</span>`:''}</span>
@@ -7864,14 +7869,32 @@ function _wcEntries(uid){
   if(own&&typeof dashCache!=='undefined'&&dashCache&&Array.isArray(dashCache[4]))return dashCache[4];
   return [];
 }
-function openWcEdit(uid,date){
-  if(!canEditWc(uid)){showToast('แก้ได้เฉพาะข้อมูลของตัวเองค่ะ',2500);return;} // v105: กันเรียกตรงจาก console
-  // v108: ถ้าปุ่มถูกกรองจนเหลือ '' (ข้อมูลรูปแบบเพี้ยน) ต้องไม่ไปเปิด path Firestore มั่ว
-  if(!isValidYmd(date)){showToast('รายการวัดนี้มีวันที่ผิดรูปแบบ แก้ไม่ได้ค่ะ',3500);return;}
-  const e=_wcEntries(uid).find(x=>(x.date||x.id)===date);
-  if(!e){showToast('ไม่พบรายการวัดนี้ ลองเปิดหน้านักเรียนใหม่นะคะ',3500);return;}
-  _wcEdit={uid,date};
-  document.getElementById('wc-edit-date').textContent=formatDateLong(date);
+// v112: เปิดกล่องเดิมในโหมด "เพิ่มย้อนหลัง" — ใช้ WC_FIELDS ชุดเดียวกัน ไม่สร้าง UI ซ้อน
+//   เกิดจากเคสจริง: คอร์สเริ่ม 26 ส.ค. แต่ชั่งครั้งแรก 6 ก.ย. → ไม่มีแถวให้แก้
+//   และแถบวันฝั่งนักเรียนย้อนได้แค่ 7 วัน เจ้าตัวก็ทำเองไม่ได้
+function openWcAdd(uid){
+  if(!canEditWc(uid)){showToast('แก้ได้เฉพาะข้อมูลของตัวเองค่ะ',2500);return;}
+  _wcEdit={uid,date:'',isNew:true};
+  document.getElementById('wc-edit-title').textContent='➕ เพิ่มผลการวัดย้อนหลัง';
+  document.getElementById('wc-edit-date').textContent='';
+  document.getElementById('wc-add-daterow').style.display='';
+  const di=document.getElementById('wc-add-date');
+  // บอกวันเริ่มคอร์สไว้ให้เห็น จะได้ไม่ต้องเปิดอีกหน้าจอไปดู
+  const _ps=(_sdCache&&_sdCache[uid]&&_sdCache[uid].targets&&_sdCache[uid].targets.programStart)||'';
+  // v113: ★ ใช้ "วันของนักเรียน" ไม่ใช่เวลาเครื่องโค้ช — กติกาเดียวกับ v74
+  //   โค้ชกับนักเรียนอยู่คนละโซนเวลาได้ ด่านกันวันอนาคตจะเพี้ยนไป 1 วัน
+  di.value=''; di.max=todayStrTZ(tzOfUser(uid)); // ★ ห้ามใส่วันอนาคต
+  // v113: กรอบล่างให้ picker = วันเริ่มคอร์ส กันพิมพ์ปีผิด (2016 แทน 2026)
+  //   ปีผิดจะกลายเป็นแถว "เริ่มต้น" เงียบๆ แล้ว %เปลี่ยนแปลงทั้งหน้าพัง
+  //   ★ เป็นแค่กรอบของ picker ไม่ได้บล็อกตอนพิมพ์เอง — ตั้งใจ เผื่อโค้ชมีค่าก่อนเริ่มคอร์สจริง
+  di.min=/^\d{4}-\d{2}-\d{2}$/.test(_ps)?_ps:'';
+  document.getElementById('wc-add-hint').textContent=_ps?('วันเริ่มคอร์สของนักเรียนคนนี้คือ '+_ps):'';
+  document.getElementById('wc-edit-note').textContent='ใส่ได้เฉพาะวันที่ยังไม่มีข้อมูล — ถ้าวันนั้นมีอยู่แล้ว ระบบจะเตือนและไม่เขียนทับ';
+  _wcRenderFields({});
+  document.getElementById('wc-edit-modal').style.display='flex';
+}
+// v112: แยกส่วนสร้างช่องกรอกออกมา ให้ทั้งโหมดแก้และโหมดเพิ่มใช้ร่วมกัน
+function _wcRenderFields(e){
   document.getElementById('wc-edit-body').innerHTML=WC_FIELDS.map(f=>{
     const v=e[f.k], o=e[f.k+'_orig'];
     return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
@@ -7882,18 +7905,38 @@ function openWcEdit(uid,date){
       ${safeNum(o)?`<span style="font-size:9px;color:var(--gray)" title="ค่าที่กรอกไว้ครั้งแรก">เดิม ${safeNum(o)}</span>`:''}
     </div>`;
   }).join('');
+}
+function openWcEdit(uid,date){
+  if(!canEditWc(uid)){showToast('แก้ได้เฉพาะข้อมูลของตัวเองค่ะ',2500);return;} // v105: กันเรียกตรงจาก console
+  // v108: ถ้าปุ่มถูกกรองจนเหลือ '' (ข้อมูลรูปแบบเพี้ยน) ต้องไม่ไปเปิด path Firestore มั่ว
+  if(!isValidYmd(date)){showToast('รายการวัดนี้มีวันที่ผิดรูปแบบ แก้ไม่ได้ค่ะ',3500);return;}
+  const e=_wcEntries(uid).find(x=>(x.date||x.id)===date);
+  if(!e){showToast('ไม่พบรายการวัดนี้ ลองเปิดหน้านักเรียนใหม่นะคะ',3500);return;}
+  _wcEdit={uid,date,isNew:false};
+  // v112: กล่องเดียวใช้สองโหมด — ต้องรีเซ็ตกลับทุกครั้ง ไม่งั้นเปิดแก้หลังเพิ่มจะยังเห็นช่องวันที่ค้าง
+  document.getElementById('wc-edit-title').textContent='⚖️ แก้ไขผลการวัด';
+  document.getElementById('wc-add-daterow').style.display='none';
+  document.getElementById('wc-edit-note').textContent='ค่าที่นักเรียนกรอกไว้เดิมจะถูกเก็บไว้ ไม่หายไปไหน · เว้นว่างเพื่อลบค่านั้นทิ้ง';
+  document.getElementById('wc-edit-date').textContent=formatDateLong(date);
+  _wcRenderFields(e); // v112: ใช้ตัวสร้างช่องกรอกร่วมกับโหมดเพิ่ม
   const m=document.getElementById('wc-edit-modal');
   m.style.display='flex';
 }
 function closeWcEdit(){const m=document.getElementById('wc-edit-modal');if(m)m.style.display='none';_wcEdit=null;}
 async function saveWcEdit(){
   if(!_wcEdit)return;
-  const {uid,date}=_wcEdit;
+  const {uid,isNew}=_wcEdit;
+  let {date}=_wcEdit;
   // v105: เช็คซ้ำตอนบันทึก ไม่พึ่งแค่ตอนเปิด — modal เปิดค้างไว้แล้วสถานะเปลี่ยนได้
   if(!canEditWc(uid)){showToast('แก้ได้เฉพาะข้อมูลของตัวเองค่ะ',2500);return;}
+  if(isNew){
+    date=((document.getElementById('wc-add-date')||{}).value||'').trim();
+    if(!isValidYmd(date)){showToast('กรุณาเลือกวันที่ชั่งค่ะ',3000);return;}
+    if(date>todayStrTZ(tzOfUser(uid))){showToast('เลือกวันในอนาคตไม่ได้ค่ะ',3000);return;} // v113: วันของนักเรียน
+  }
   // v108: กันเขียนลง path ที่ประกอบจากค่าเพี้ยน — db.doc() ต้องได้ segment ที่ถูกต้อง
   if(!isValidYmd(date)||!safeUidArg(uid)){showToast('ข้อมูลรายการนี้ผิดรูปแบบ บันทึกไม่ได้ค่ะ',3500);return;}
-  const e=_wcEntries(uid).find(x=>(x.date||x.id)===date)||{};
+  const e=isNew?{}:(_wcEntries(uid).find(x=>(x.date||x.id)===date)||{});
   const btn=document.getElementById('wce-save-btn');
   const upd={}, del=[];
   // ★ เก็บค่าที่นักเรียนกรอกไว้ "ครั้งแรกเท่านั้น" — แก้ซ้ำต้องไม่ทับค่าต้นฉบับ
@@ -7922,15 +7965,36 @@ async function saveWcEdit(){
     upd[f.k]=Math.round(v*10)/10;
     keepOrig(f.k);
   }
+  //   ★ ลูปข้างบนข้ามช่องที่ "ไม่เปลี่ยน" — ตอนเพิ่มใหม่ค่าว่างนับเป็นไม่เปลี่ยน จึงหลุดด่าน req
+  //   ต้องเช็คน้ำหนักอีกรอบตรงนี้ ไม่งั้นสร้างแถวเปล่าได้
+  if(isNew&&!(upd.weight_kg>0)){showToast('กรุณากรอกน้ำหนักค่ะ',3000);return;}
   if(!Object.keys(upd).length&&!del.length){showToast('ไม่มีอะไรเปลี่ยนค่ะ',2500);closeWcEdit();return;}
   if(btn){btn.disabled=true;btn.textContent='กำลังบันทึก...';}
   try{
     // v105: เดิม hardcode 'coach' — นักเรียนแก้เองจะบันทึกประวัติผิดคน
     upd.editedBy=isCoach?'coach':'student';
     upd.editedAt=firebase.firestore.FieldValue.serverTimestamp();
+    if(isNew){
+      // ★★ ห้ามเช็คจากตัวแปรในเครื่องอย่างเดียว — _wcEntries มีแค่ 20 รายการล่าสุดที่โหลดมา
+      //   วันที่เก่ากว่านั้นจะ "ดูเหมือนว่าง" แล้วเขียนทับข้อมูลจริงหายถาวร
+      const _ex=await db.doc(`weeklyChecks/${uid}/entries/${date}`).get().catch(()=>'err');
+      // ★ ถ้าถามเซิร์ฟเวอร์ไม่ได้ (เน็ตหลุด) ต้อง "ไม่เขียน" — ไม่ใช่เดาว่าว่าง
+      if(_ex==='err'){
+        showToast('เช็คข้อมูลวันนั้นไม่ได้ (เน็ตมีปัญหา) — ลองใหม่อีกครั้งนะคะ',5000);
+        if(btn){btn.disabled=false;btn.textContent='💾 บันทึก';}
+        return;
+      }
+      if(_ex&&_ex.exists){
+        showToast('วันที่ '+date+' มีข้อมูลอยู่แล้ว — ปิดหน้านี้แล้วกดปุ่ม แก้ ของแถวนั้นแทนนะคะ',6000);
+        if(btn){btn.disabled=false;btn.textContent='💾 บันทึก';}
+        return;
+      }
+      upd.date=date;   // แถวปกติเก็บ date ไว้ในเอกสารด้วย ต้องใส่ให้เหมือนกัน
+      upd.addedBack=true; // ทำเครื่องหมายว่าเป็นการเพิ่มย้อนหลัง ไม่ใช่ที่นักเรียนกรอกเอง
+    }
     del.forEach(k=>{upd[k]=firebase.firestore.FieldValue.delete();});
     const _r=await _fsWrite(db.doc(`weeklyChecks/${uid}/entries/${date}`).set(upd,{merge:true})); // W1
-    showToast(_r==='timeout'?'📡 เน็ตช้า — บันทึกไว้ในเครื่องแล้ว จะซิงค์อัตโนมัติค่ะ':'✅ แก้ไขผลการวัดแล้วค่ะ',_r==='timeout'?4000:2800);
+    showToast(_r==='timeout'?'📡 เน็ตช้า — บันทึกไว้ในเครื่องแล้ว จะซิงค์อัตโนมัติค่ะ':(isNew?'✅ เพิ่มผลการวัดย้อนหลังแล้วค่ะ':'✅ แก้ไขผลการวัดแล้วค่ะ'),_r==='timeout'?4000:2800);
     closeWcEdit();
     // ★ ค่าที่เขียนจริงลง Firestore (ตัด FieldValue ที่เอามาแสดงไม่ได้ออก)
     const _applied={};
@@ -7948,7 +8012,16 @@ async function saveWcEdit(){
           del.forEach(k=>{delete _row[k];}); // ช่องที่ตั้งใจล้าง ต้องหายจากจอด้วย
           _row.editedBy=isCoach?'coach':'student';
           dashCache[4][_i]=_row;
+        }else if(isNew){
+          // v113: ★★ แถวเพิ่มย้อนหลังยังไม่มีใน cache — ถ้าไม่ push เอง
+          //   loadDashboard() จะวาดจาก cache เดิม (บรรทัด ~4608 ใช้ cache ถ้ามี)
+          //   ผลคือกดบันทึกแล้วจอไม่เปลี่ยน เหมือนไม่มีอะไรเกิดขึ้น
+          //   saveWeeklyCheck มี else push มาตั้งแต่ v50.1 แล้ว ตรงนี้ตกหล่น
+          dashCache[4].push({id:date,..._applied});
         }
+        // v113: ★★ วันย้อนหลังต้องกลับไปอยู่ต้นแถว ไม่ใช่ต่อท้าย
+        //   ทุก query เรียง desc แล้ว reverse เป็น เก่า→ใหม่ กราฟกับป้าย "เริ่มต้น" อ่านลำดับนี้ตรงๆ
+        dashCache[4].sort((a,b)=>String(a.date||a.id).localeCompare(String(b.date||b.id)));
       }
       _myProgressCache=null; // กราฟ 'ผลลัพธ์ของฉัน' ต้องดึงใหม่
       if(typeof loadDashboard==='function')loadDashboard();
@@ -8737,10 +8810,15 @@ setTimeout(()=>{try{_checkAppVersion();}catch(_){}} ,3000); // v96: เช็ค
 <div id="wc-edit-modal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.78);align-items:flex-end;justify-content:center" onclick="if(event.target===this)closeWcEdit()">
   <div style="background:#fff;border-radius:20px 20px 0 0;width:100%;max-width:480px;padding:20px 16px 30px;box-sizing:border-box;max-height:90vh;overflow-y:auto">
     <div style="width:40px;height:4px;background:#E5E7EB;border-radius:2px;margin:0 auto 14px"></div>
-    <div style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:2px">⚖️ แก้ไขผลการวัด</div>
+    <div id="wc-edit-title" style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:2px">⚖️ แก้ไขผลการวัด</div>
     <div id="wc-edit-date" style="font-size:12px;color:var(--gray);margin-bottom:14px"></div>
+    <div id="wc-add-daterow" style="display:none;margin-bottom:14px">
+      <div style="font-size:12px;color:var(--text);margin-bottom:5px">วันที่ชั่ง <span style="color:#DC2626">*</span></div>
+      <input type="date" id="wc-add-date" style="width:100%;border:1.5px solid #E5E7EB;border-radius:9px;padding:8px 10px;font-size:13px;font-family:'Prompt',sans-serif;color:var(--text);background:var(--card);box-sizing:border-box">
+      <div id="wc-add-hint" style="font-size:10px;color:var(--gray);margin-top:5px"></div>
+    </div>
     <div id="wc-edit-body"></div>
-    <div style="font-size:10px;color:var(--gray);background:#F9FAFB;border-radius:8px;padding:7px 9px;margin:10px 0">
+    <div id="wc-edit-note" style="font-size:10px;color:var(--gray);background:#F9FAFB;border-radius:8px;padding:7px 9px;margin:10px 0">
       ค่าที่นักเรียนกรอกไว้เดิมจะถูกเก็บไว้ ไม่หายไปไหน · เว้นว่างเพื่อลบค่านั้นทิ้ง
     </div>
     <div style="display:flex;gap:8px">
