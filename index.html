@@ -1030,8 +1030,40 @@ function _slowMsg(okText){
 //   (loadSavedMenus ดึงมา .limit(40) อยู่แล้ว 20 จึงยังอยู่ใต้เพดานการอ่าน)
 //   ประกาศไว้บนสุด เพราะถูกใช้ทั้งใน loadStudentData / loadSavedMenus / saveCurrentMenu
 const MENU_CAP=20;
-const APP_VERSION='v119-2026-09-08'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
+const APP_VERSION='v120-2026-09-09'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
 const _errLogged=new Set();let _errCount=0;
+// ═════ v120: บันทึกเหตุการณ์คิวมื้ออาหาร ═════
+// ★ แยกโควตาจาก _reportError โดยตั้งใจ — idb-known/photo-fail ยิงถี่จนกินเพดาน 10 หมด
+//   แล้วมื้อค้างซึ่งสำคัญกว่าจะไม่ได้ log (ดู ★B ใน patch_v120.py)
+// ★ dedupe ด้วย ev+path ไม่ใช่ข้อความ — ข้อความมี 'ค้างกี่นาที' ที่เปลี่ยนทุกรอบ flush
+//   ถ้า dedupe ด้วยข้อความจะยิงซ้ำทุก 60 วินาทีไม่หยุด
+const _qLogged=new Set();let _qLogCount=0;
+function _qlog(ev,path,msg){
+  try{
+    if(_qLogCount>=12)return;
+    const k=ev+'|'+path;
+    if(_qLogged.has(k))return;
+    _qLogged.add(k);_qLogCount++;
+    db.collection('errorLogs').add({
+      type:ev,
+      msg:String(msg||'').slice(0,300),
+      stack:'',
+      src:String(path||'').slice(0,200),
+      userId:(typeof user!=='undefined'&&user&&user.userId)||null,
+      isCoach:(typeof isCoach!=='undefined'&&!!isCoach),
+      ua:navigator.userAgent.slice(0,200),
+      ver:APP_VERSION,
+      online:navigator.onLine,
+      authed:_authOk,
+      at:firebase.firestore.FieldValue.serverTimestamp()
+    }).catch(()=>{});   // ยิงแล้วลืม — ห้าม throw กลับเข้าเส้นทางกู้ข้อมูล (★D)
+  }catch(_){}
+}
+// ตัวช่วยอ่านง่ายในหน้า Firebase Console: 95 → '95 นาที' · 1200 → '1200 นาที (20.0 ชม.)'
+function _qAge(ms){
+  const m=Math.round((ms||0)/60000);
+  return m<60?(m+' นาที'):(m+' นาที ('+(m/60).toFixed(1)+' ชม.)');
+}
 // ═════ v96: version gate ═════
 // ตั้ง field minVersion ใน Firestore → config/app (เช่น "v96") แล้วเครื่องที่ต่ำกว่าจะขึ้นแถบเตือน
 // ห้ามรีโหลดเอง — โค้ชอาจกำลังแก้ค่าอยู่ นักเรียนอาจกรอกค้างอยู่ ให้เขากดเองเมื่อพร้อม
@@ -1533,7 +1565,14 @@ async function _flushBackupQueue(){
         if(it.p.indexOf('submissions/')===0){
           // W3-2: เช็คกับ server ตรงๆ (ไม่ใช่ cache — cache โชว์ pending write หลอกว่ามีแล้ว)
           const ex=await Promise.race([ref.get({source:'server'}).catch(()=>null),new Promise(r=>setTimeout(()=>r(null),6000))]);
-          if(!ex){remain.push(it);continue;} // เช็ค server ไม่ได้ (เน็ตยังแย่) → เก็บไว้รอบหน้า
+          if(!ex){
+            remain.push(it);   // เช็ค server ไม่ได้ (เน็ตยังแย่) → เก็บไว้รอบหน้า
+            // v120: เกณฑ์ 2 ชม. เดียวกับข้อ 4 — เคสนี้คือ 'ติดต่อเซิร์ฟเวอร์ไม่ได้' ไม่ใช่ 'เขียนแล้วไม่ผ่าน'
+            try{ if(it.d.mode&&it.at&&(Date.now()-it.at)>7200000)_qlog('queue-stuck-meal',it.p,
+              it.p+' | '+(it.d.meal||'?')+' '+(it.d.mealDate||'?')+' | เช็ค server ไม่ได้ ค้างมา '+
+              _qAge(Date.now()-it.at)+' | online='+navigator.onLine); }catch(_){}
+            continue;
+          }
           // อัปโหลดรูปค้าง (base64) หรือใช้ URL ที่อัปไว้แล้ว (entry เติมรูป __ph)
           let _photoUrls=[];
           if(it.d.__photos&&it.d.__photos.length)_photoUrls=await _upPhotos(it.d.__photos,it.d.userId||'unknown');
@@ -1572,12 +1611,24 @@ async function _flushBackupQueue(){
           const r=await _race(ref.set(data,{merge:true}),8000);
           if(r==='ok'){
             sent++;_flushedSub=data;
+            // v120: ★ log ตัวหลัก — ตอนนี้เน็ต/Firestore ใช้ได้แล้ว log จึงถึงเซิร์ฟเวอร์แน่นอน
+            //   และเป็นจุดเดียวที่คำนวณ 'ค้างกี่นาที' ได้ เพราะรู้ทั้ง it.at และเวลาปัจจุบัน
+            //   ★ นับเฉพาะมื้อเต็ม (it.d.mode) — entry เติมรูปไม่ใช่ข้อมูลมื้อหาย ไม่ต้องรบกวน log
+            try{ if(it.d.mode)_qlog('queue-flush-meal',it.p,
+              it.p+' | '+(it.d.meal||'?')+' '+(it.d.mealDate||'?')+' | ค้าง '+_qAge(Date.now()-(it.at||Date.now()))); }catch(_){}
             // เขียนข้อความสำเร็จแต่รูปอัปโหลดล้ม → คิวเติมรูปภายหลัง (W4-1)
             if(!_photoUrls.length&&it.d.__photos&&it.d.__photos.length){
               const n=(it.n||0)+1;
               if(n<=5)remain.push({p:it.p,d:{userId:it.d.userId,__photos:it.d.__photos},n,at:it.at});
             }
-          }else remain.push(it);
+          }else{
+            remain.push(it);
+            // v120: ยังเขียนไม่ผ่านหลังพยายามแล้ว — log เฉพาะที่ค้างนานจริง (>2 ชม.)
+            //   ★ ต่ำกว่านี้คือเน็ตสะดุดชั่วครู่ ซึ่งระบบกู้เองได้อยู่แล้ว log ไปก็มีแต่กลบเรื่องจริง
+            try{ if(it.d.mode&&it.at&&(Date.now()-it.at)>7200000)_qlog('queue-stuck-meal',it.p,
+              it.p+' | '+(it.d.meal||'?')+' '+(it.d.mealDate||'?')+' | ยังส่งไม่ได้ ค้างมา '+
+              _qAge(Date.now()-it.at)+' | online='+navigator.onLine); }catch(_){}
+          }
           continue;
         }
         // ---- non-submissions (healthLogs / weeklyChecks / plans / savedMenus) ----
@@ -4419,6 +4470,16 @@ async function submitMeal(){
       }
       _queueBackup('submissions/'+docRef.id,_bk);
       try{_renderPendingBar();}catch(_){} // v119: ขึ้นแถบทันทีที่เข้าคิว
+      // v120: บันทึกว่ามื้อเข้าคิว — ★ อาจไม่ถึงเซิร์ฟเวอร์ เพราะเหตุที่เข้าคิวคือเขียนไม่ผ่านอยู่แล้ว
+      //   ตัวที่ถึงแน่คือ queue-flush-meal ตอนระบายคิว (★A) — ต้องมีทั้งคู่
+      //   เก็บบริบทที่ใช้แยกสาเหตุจริง: ออนไลน์อยู่ไหม · คิวยาวแค่ไหน · มีรูปค้างไหม
+      try{
+        let _qn=0;try{_qn=JSON.parse(localStorage.getItem('_dfq')||'[]').length;}catch(__){}
+        _qlog('queue-meal','submissions/'+docRef.id,
+          'submissions/'+docRef.id+' | '+(_meal||'?')+' '+(_date||'?')+' | '+(_mode||'?')+
+          ' | online='+navigator.onLine+' | คิว '+_qn+' รายการ'+
+          (_bk.__photos?(' | รูปค้าง '+_bk.__photos.length):''));
+      }catch(_){}
     }else{
       _dropBackup('submissions/'+docRef.id);
       // v67: เซฟสำเร็จแต่รูปอัปไม่ขึ้น → เข้าคิวเติมรูปย้อนหลัง (ใช้กลไก __photos เดิมที่มีอยู่แล้ว)
