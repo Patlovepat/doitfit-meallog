@@ -557,6 +557,11 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
     <button onclick="openProfileForm(null,studentProfile)" style="background:#F59E0B;color:#fff;border:none;border-radius:8px;padding:6px 13px;font-size:12px;font-weight:600;font-family:'Prompt',sans-serif;cursor:pointer;flex-shrink:0">กรอกเลย</button>
   </div>
 
+  <!-- v119: มื้อที่ยังไม่ถึงโค้ช — เดิมป้ายนี้อยู่แค่ในแท็บประวัติ ไม่เปิดก็ไม่มีทางรู้ -->
+  <div id="pending-bar" style="display:none;align-items:center;gap:9px;background:#FFF7ED;border-bottom:1.5px solid #FDBA74;padding:9px 13px;font-size:12.5px;color:#9A3412;font-family:'Prompt',sans-serif">
+    <span style="flex:1;line-height:1.5" id="pending-bar-txt"></span>
+    <button onclick="_flushBackupQueue()" style="background:#EA580C;color:#fff;border:none;border-radius:8px;padding:6px 13px;font-size:12px;font-weight:600;font-family:'Prompt',sans-serif;cursor:pointer;flex-shrink:0">ส่งเลย</button>
+  </div>
   <!-- PROGRAM BAR -->
   <div id="program-bar" class="prog-bar-wrap"></div>
   <!-- DATE STRIP (log mode only) -->
@@ -901,6 +906,10 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
   <div class="success-icon">✅</div>
   <h2>ส่งเรียบร้อยแล้วค่ะ!</h2>
   <p id="success-msg">โค้ชจะตรวจสอบและให้ feedback<br>เร็วๆ นี้ค่ะ</p>
+  <!-- v119: แถบความคืบหน้าตอนยังไม่ยืนยันกับ server -->
+  <div id="succ-pending-bar" style="display:none;width:100%;max-width:260px;height:5px;background:#FDE68A;border-radius:4px;overflow:hidden;margin:-8px 0 18px">
+    <div style="height:100%;width:60%;background:#D97706;border-radius:4px"></div>
+  </div>
   <div class="milestone-box" id="milestone-box">
     <div class="mfire">🔥</div>
     <div class="mt" id="milestone-title"></div>
@@ -1021,7 +1030,7 @@ function _slowMsg(okText){
 //   (loadSavedMenus ดึงมา .limit(40) อยู่แล้ว 20 จึงยังอยู่ใต้เพดานการอ่าน)
 //   ประกาศไว้บนสุด เพราะถูกใช้ทั้งใน loadStudentData / loadSavedMenus / saveCurrentMenu
 const MENU_CAP=20;
-const APP_VERSION='v118-2026-09-08'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
+const APP_VERSION='v119-2026-09-08'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
 const _errLogged=new Set();let _errCount=0;
 // ═════ v96: version gate ═════
 // ตั้ง field minVersion ใน Firestore → config/app (เช่น "v96") แล้วเครื่องที่ต่ำกว่าจะขึ้นแถบเตือน
@@ -1122,6 +1131,9 @@ function _dfAsk(opt){
     if(opt.input){inp.value=opt.value||'';inp.placeholder=opt.placeholder||'';}
     yes.textContent=opt.okText||'ตกลง';
     no.textContent=opt.cancelText||'ยกเลิก';
+    // v119: กล่องแบบ "รับทราบ" ปุ่มเดียว — ใช้กับกรณีที่แอปไม่ยอมส่ง ไม่มีอะไรให้เลือก
+    //   ★ ต้องคืนค่า display ทุกครั้ง เพราะ element นี้ใช้ร่วมกันทุกกล่อง
+    no.style.display=opt.oneBtn?'none':'';
     yes.style.background=opt.danger?'#DC2626':'#10B981';
     box.style.display='flex';
     if(opt.input)setTimeout(()=>{try{inp.focus();}catch(_){}},80);
@@ -1132,6 +1144,14 @@ function _dfAsk(opt){
   });
 }
 function askConfirm(msg,opt){return _dfAsk(Object.assign({msg},opt||{}));}
+// v119: กล่องแจ้งเตือนที่ต้องแตะปิด — แทน toast ในกรณีที่ "ไม่ได้ส่ง"
+//   toast หายเองใน 3-4 วิ และหน้าตาเหมือนตอนสำเร็จ นักเรียนจึงพลาดได้ง่ายมาก
+//   ★ log ด้วยทุกครั้ง (ชั้นที่ 3) — ไม่งั้นเราไม่มีทางรู้ว่าเกิดบ่อยแค่ไหน
+function askOK(msg,opt){
+  opt=opt||{};
+  try{ if(opt.log&&typeof _reportError==='function')_reportError('send-blocked',opt.log,'','submitMeal'); }catch(_){}
+  return _dfAsk(Object.assign({msg,oneBtn:true,okText:'เข้าใจแล้ว',icon:'⚠️'},opt));
+}
 function askText(msg,value,opt){return _dfAsk(Object.assign({msg,input:true,value:value||''},opt||{}));}
 // ---- การ์ดข้อมูลพื้นฐาน (ฝั่งโค้ช) ----
 const _pfCache={},_pfWeight={}; // v70.1 เก็บไว้เรียกตอนกดแก้ไข — ห้ามยัดข้อมูลนักเรียนลง onclick
@@ -1430,6 +1450,9 @@ function _queueBackup(path,data){
     //   มื้ออาหารที่หลุดคิว = หายจริง นักเรียนคิดว่าส่งไปแล้ว จึงต้องเป็นตัวสุดท้ายที่ยอมทิ้ง
     while(q.length>20){
       const _i=q.findIndex(it=>String(it.p||'').indexOf('submissions/')!==0);
+      // v119: _i<0 = ในคิวเป็นมื้ออาหารล้วน → จำใจตัดมื้อเก่าสุด = ข้อมูลหายจริง
+      //   เดิมเงียบสนิท ไม่มีใครรู้เลยว่าเคยเกิด ต้อง log ไว้เสมอ
+      if(_i<0){try{if(typeof _reportError==='function')_reportError('queue-drop-meal','คิวเต็ม 20 ตัดมื้อเก่าสุดทิ้ง: '+String(q[0]&&q[0].p||''),'','_queueBackup');}catch(_){}}
       q.splice(_i>=0?_i:0,1);
     }
     localStorage.setItem('_dfq',JSON.stringify(q));
@@ -1450,6 +1473,27 @@ function _dropBackup(path){ // เรียกเมื่อ write path เด�
     const q=JSON.parse(localStorage.getItem('_dfq')||'[]');
     const n=q.filter(it=>it.p!==path);
     if(n.length!==q.length)localStorage.setItem('_dfq',JSON.stringify(n));
+  }catch(_){}
+}
+// v119: วาดแถบ "ยังไม่ถึงโค้ช" จากคิวจริงใน localStorage
+//   ★ นับเฉพาะ entry ที่เป็นมื้อเต็ม (มี mode) ของ user คนนี้ — entry เติมรูปไม่นับ
+//     ไม่งั้นจะขึ้นว่ามีมื้อค้างทั้งที่มื้อถึงแล้ว เหลือแค่รูป
+function _renderPendingBar(){
+  try{
+    const bar=document.getElementById('pending-bar');
+    if(!bar)return;                       // หน้าโค้ชไม่มีแถบนี้
+    if(typeof user==='undefined'||!user||!user.userId){bar.style.display='none';return;}
+    let q=[];try{q=JSON.parse(localStorage.getItem('_dfq')||'[]');}catch(_){q=[];}
+    const meals=q.filter(it=>it&&it.p&&it.p.indexOf('submissions/')===0&&it.d&&it.d.mode&&it.d.userId===user.userId);
+    if(!meals.length){bar.style.display='none';return;}
+    const names=meals.map(m=>m.d.meal).filter(Boolean);
+    const txt=document.getElementById('pending-bar-txt');
+    if(txt)txt.innerHTML='⏳ <b>มี '+meals.length+' มื้อยังไม่ถึงโค้ช</b>'+
+      (names.length?'<br><span style="font-size:11px">'+names.join(' · ')+' — บันทึกไว้ในเครื่อง</span>':'');
+    bar.style.display='flex';
+    // ★ ห้ามโชว์ 2 แถบซ้อนกัน — มื้อค้างเร่งด่วนกว่าการเตือนกรอกโปรไฟล์
+    const pf=document.getElementById('profile-banner');
+    if(pf&&pf.style.display!=='none')pf.style.display='none';
   }catch(_){}
 }
 let _dfqFlushing=false;
@@ -1584,7 +1628,7 @@ async function _flushBackupQueue(){
         if(typeof renderTodayProgress==='function')renderTodayProgress();
       }
     }catch(_){}}
-  }finally{_dfqFlushing=false;}
+  }finally{_dfqFlushing=false;try{_renderPendingBar();}catch(_){}}
 }
 window.addEventListener('online',()=>setTimeout(_flushBackupQueue,1500));
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)setTimeout(_flushBackupQueue,1000);});
@@ -1990,6 +2034,7 @@ function startStudent(){
   initFruitGrid();
   renderProtHint(); // v92: ไม่งั้นกล่องตัวอย่างโปรตีนว่างเปล่าจนกว่าจะกดปุ่มสักครั้ง
   initAiTips();     // v118: ตั้งสถานะพับ/กางตามที่นักเรียนเลือกไว้
+  _renderPendingBar(); // v119: มีมื้อค้างจากรอบก่อนไหม
   updateHandSummary();
   buildDateStrip();
   _bootMenusLocal(); // SPEED: เมนูโปรดขึ้นทันทีจาก snapshot ในเครื่อง
@@ -4247,7 +4292,7 @@ async function submitMeal(){
     //   → มื้อบันทึกสำเร็จ "ไม่มีรูป" เงียบสนิท ไม่มี toast ไม่มีชิป 📸
     //   แล้วกด "บันทึกเพิ่ม" → resetStudent() ล้าง list ทิ้ง = รูปหายถาวร โค้ชได้การ์ดเปล่า
     //   (โมดัลแก้ไขกันไว้แล้วตั้งแต่ v76 ด้วย _editPhotoBusy แต่หน้าบันทึกหลักไม่ได้กันตาม)
-    if(_photoProcessing){showToast('⏳ กำลังย่อรูปอยู่ค่ะ รออีกครู่แล้วกดส่งอีกทีนะคะ',3000);resetBtn();return;}
+    if(_photoProcessing){await askOK('ยังไม่ได้ส่งนะคะ\n\nระบบกำลังย่อรูปอยู่ รออีกครู่แล้วกดส่งอีกทีค่ะ',{icon:'⏳',log:'photo-processing'});resetBtn();return;}
     const _meal=curMeal,_mode=curMode,_date=selectedDate;
     let handData=null,labelData=null,weighData=null;
     if(_mode==='hand'){
@@ -4266,7 +4311,7 @@ async function submitMeal(){
       const menuDesc=document.getElementById('menu-desc-input').value.trim();
       // v94: ลดทุกอย่างเหลือ 0 แล้วเผลอกดส่ง = มื้อ 0 kcal เข้าคิวโค้ชจริง
       //   (โหมดฉลากกับ AI กันไว้แล้วตั้งแต่ v83 โหมดมือตกหล่น)
-      if(C<=0&&P<=0&&F<=0){showToast('ยังไม่ได้เลือกอะไรเลยค่ะ — ปรับคาร์บหรือโปรตีนก่อนนะคะ',3500);resetBtn();return;}
+      if(C<=0&&P<=0&&F<=0){await askOK('ยังไม่ได้ส่งนะคะ\n\nยังไม่ได้เลือกอะไรเลย — ปรับคาร์บหรือโปรตีนก่อนค่ะ',{log:'hand-empty'});resetBtn();return;}
       handData={carbSlots:carbSlots.map(s=>({density:s.density,qty:s.qty})),
         protein:protQty,protType,eggWhole,eggWhite,cookMethod,visibleFat,avo:avoQty,
         fruits:fruitData,fruitLadles,menuName:menuName||null,menuDesc:menuDesc||null,
@@ -4275,12 +4320,12 @@ async function submitMeal(){
       labelData=getLabelData();
       // v83: เดิมแตะแท็บ 🏷️ แล้วกดส่งเลยโดยไม่กรอกอะไร → ได้มื้อ 0 kcal เข้าคิวโค้ชจริง
       // (โหมด AI กับ saveCurrentMenu กันไว้แล้ว โหมดฉลากตกหล่น)
-      if(!labelData.carb&&!labelData.protein&&!labelData.fat&&!labelData.kcal){showToast('กรุณากรอกข้อมูลจากฉลากก่อนค่ะ');resetBtn();return;}
+      if(!labelData.carb&&!labelData.protein&&!labelData.fat&&!labelData.kcal){await askOK('ยังไม่ได้ส่งนะคะ\n\nกรุณากรอกข้อมูลจากฉลากก่อนค่ะ',{log:'label-empty'});resetBtn();return;}
     }else if(_mode==='weigh'){
       weighData=getWeighData();
-      if(!weighData){showToast('กรุณาให้ AI คำนวณก่อนค่ะ');resetBtn();return;}
+      if(!weighData){await askOK('ยังไม่ได้ส่งนะคะ\n\nกรุณากด ✨ ให้ AI คำนวณก่อนค่ะ',{log:'ai-nodata'});resetBtn();return;}
       // v94: ห้ามส่งชื่ออาหารใหม่พร้อมตัวเลขเก่า — โค้ชจะเห็นไก่ทอดอยู่ข้างเลข 136 kcal
-      if(!_aiSrcOk()){_aiStaleSync();showToast('✏️ ข้อความเปลี่ยนหลังคำนวณ — กด ✨ ให้ AI คำนวณอีกครั้งก่อนส่งนะคะ',4500);resetBtn();return;}
+      if(!_aiSrcOk()){_aiStaleSync();await askOK('ยังไม่ได้ส่งนะคะ\n\nข้อความเปลี่ยนหลังกดคำนวณ\nกด ✨ ให้ AI คำนวณอีกครั้งก่อนส่งค่ะ',{icon:'✏️',log:'ai-stale'});resetBtn();return;}
     }
     // D-GUARD v2: ถามเฉพาะเมื่อ "น่าจะซ้ำจริง" — มื้อเดิม+โหมดเดิม+แคลใกล้กัน ภายใน 3 นาที
     // ส่งทีละหมวด (AI แล้วต่อฉลาก) หรือส่งโหมดเดิมแต่คนละเมนู → ผ่านเงียบๆ ไม่มีกล่องถาม
@@ -4311,9 +4356,13 @@ async function submitMeal(){
       const k=getSubMacros(s).kcal||0;
       return _curKcal>0&&Math.abs(k-_curKcal)<=Math.max(15,_curKcal*0.05); // แคลต่างไม่เกิน 5% = เนื้อหาเดิม
     });
-    if(_dupRecent&&!await askConfirm('ดูเหมือนรายการนี้เพิ่งส่งสำเร็จไปเมื่อสักครู่แล้วนะคะ ✅\n(มื้อเดียวกัน เนื้อหาเหมือนกัน)\n\nถ้า Card ไม่เด้ง ไม่ต้องส่งซ้ำ — เช็คได้ที่แท็บ "ประวัติ" เลยค่ะ',{icon:'🤔',okText:'ส่งเพิ่มอีก',cancelText:'ไม่ส่ง'})){resetBtn();return;} // v65
+    // v119: เดิมเขียนว่า "ส่งสำเร็จไปแล้ว ✅" ซึ่งไม่จริง — ระบบรู้แค่ว่า "เพิ่งกดส่ง"
+    //   เพราะ studentSubsCache.unshift ทำงานเสมอ ไม่สนว่าเขียนถึง server หรือไม่
+    //   นักเรียนอ่านคำว่าสำเร็จก็กด "ไม่ส่ง" เป็นธรรมดา → มื้อหายทั้งที่ยังไม่เคยถึงโค้ช
+    //   ★ ส่งซ้ำปลอดภัยอยู่แล้ว (คิว backup ใช้ doc id เดิม) การห้ามจึงเสียมากกว่าได้
+    if(_dupRecent&&!await askConfirm('เพิ่งกดส่งมื้อนี้ไปเมื่อสักครู่ แต่ยังไม่ยืนยันว่าถึงโค้ชหรือยังนะคะ\n(มื้อเดียวกัน เนื้อหาเหมือนกัน)\n\nส่งซ้ำได้ปลอดภัยค่ะ ไม่เกิดรายการซ้ำ',{icon:'🤔',okText:'ส่งอีกครั้ง',cancelText:'ไม่ส่ง'})){try{if(typeof _reportError==='function')_reportError('send-blocked','dup-guard-cancel','','submitMeal');}catch(_){}resetBtn();return;} // v65 · v119
     // v84: ยังโหลดประวัติไม่ได้ = ระบบยืนยันให้ไม่ได้จริงๆ ต้องบอกตรงๆ ไม่ใช่ปล่อยผ่านเงียบ
-    if(studentSubsCache===null&&!_dupRecent&&!await askConfirm('ตอนนี้ยังโหลดประวัติไม่สำเร็จ ระบบเลยเช็คให้ไม่ได้ว่ามื้อนี้เคยส่งไปแล้วหรือยัง\n\nถ้าเพิ่งกดส่งไปเมื่อสักครู่ อาจกลายเป็นรายการซ้ำนะคะ',{icon:'📡',okText:'ส่งเลย',cancelText:'ไม่ส่ง'})){resetBtn();return;}
+    if(studentSubsCache===null&&!_dupRecent&&!await askConfirm('ตอนนี้ยังโหลดประวัติไม่สำเร็จ ระบบเลยเช็คให้ไม่ได้ว่ามื้อนี้เคยส่งไปแล้วหรือยัง\n\nถ้าเพิ่งกดส่งไปเมื่อสักครู่ อาจกลายเป็นรายการซ้ำนะคะ',{icon:'📡',okText:'ส่งเลย',cancelText:'ไม่ส่ง'})){try{if(typeof _reportError==='function')_reportError('send-blocked','nohistory-cancel','','submitMeal');}catch(_){}resetBtn();return;} // v119: log
     // อัปโหลดรูปไป Firebase Storage (สูงสุด 3 รูป, timeout 20s ต่อรูป)
     let photoUrl=null, photoUrls=[], _photoFailed=false;
     // W5: ออฟไลน์ชัดเจน → ข้ามอัปโหลดเลย (ไม่ต้องรอ 20s) รูปจะเข้า backup แล้วอัปโหลดตอนเน็ตกลับมา
@@ -4369,6 +4418,7 @@ async function submitMeal(){
         if(_totalLen<1800000)_bk.__photos=photoBase64List.slice(0,3);
       }
       _queueBackup('submissions/'+docRef.id,_bk);
+      try{_renderPendingBar();}catch(_){} // v119: ขึ้นแถบทันทีที่เข้าคิว
     }else{
       _dropBackup('submissions/'+docRef.id);
       // v67: เซฟสำเร็จแต่รูปอัปไม่ขึ้น → เข้าคิวเติมรูปย้อนหลัง (ใช้กลไก __photos เดิมที่มีอยู่แล้ว)
@@ -4392,7 +4442,8 @@ async function submitMeal(){
     histCache=null; // invalidate history cache (force re-sort)
     // SPEED v49.1: ไม่ล้าง dashCache แล้ว — มื้อใหม่ถูก unshift เข้า studentSubsCache ซึ่ง Dashboard หยิบไปใช้ตอนเปิดอยู่แล้ว
     // (เดิมส่งมื้อ 1 ครั้ง = เปิด Dashboard ครั้งถัดไปต้องยิง 4 query ใหม่หมด รอ 8 วิได้เลยตอนเน็ตช้า)
-    showSuccess(_mode,handData,labelData,weighData,_date,_meal); // v74: ส่งวันที่/มื้อที่ล็อกไว้ ไม่ให้หน้าสำเร็จโชว์ผิด
+    // v119: timeout = ยังไม่ถึง server จริง ต้องบอกตามนั้น (เดิมโชว์เขียว "บันทึกแล้ว" เหมือนกันหมด)
+    showSuccess(_mode,handData,labelData,weighData,_date,_meal,_wres==='timeout'?docRef.id:null); // v74 · v119
     const bss=document.getElementById('btn-save-success');
     if(bss)bss.style.display=(_mode==='restaurant')?'none':'inline-block';
     if(_wres==='timeout'){
@@ -4407,12 +4458,50 @@ async function submitMeal(){
   finally{resetBtn();} // NM1: ย้าย resetBtn มาไว้ finally ที่เดียว
 }
 
-function showSuccess(mode,handData,labelData,weighData,_sDate,_sMeal){ // v74: รับวันที่/มื้อที่ล็อกไว้
+// v119: สลับโทนหน้าสำเร็จ — เขียว = server ยืนยันแล้ว · เหลือง = ยังอยู่ในเครื่อง
+function _setSuccessTone(done){
+  const ic=document.querySelector('#success-screen .success-icon');
+  const h2=document.querySelector('#success-screen h2');
+  const sc=document.getElementById('success-screen');
+  const pb=document.getElementById('succ-pending-bar');
+  if(ic)ic.textContent=done?'✅':'📡';
+  if(h2){h2.textContent=done?'ส่งเรียบร้อยแล้วค่ะ!':'บันทึกไว้ในเครื่องแล้ว';h2.style.color=done?'':'#B45309';}
+  if(sc)sc.style.background=done?'':'#FFFDF5';
+  if(pb)pb.style.display=done?'none':'block';
+}
+// เช็คกับ server ว่ามื้อถึงจริงหรือยัง — ถึงเมื่อไหร่ค่อยเปลี่ยนเป็นเขียว
+//   ★ ไม่ยิงรัวๆ: ลอง 6 ครั้ง ห่างกัน 4 วิ (~24 วิ) แล้วหยุด คิว backup ยังทำงานต่อเองอยู่แล้ว
+let _pendWatch=null;
+function _watchPendingSend(id){
+  if(_pendWatch){clearInterval(_pendWatch);_pendWatch=null;}
+  let n=0;
+  _pendWatch=setInterval(async()=>{
+    n++;
+    if(n>6){clearInterval(_pendWatch);_pendWatch=null;return;}
+    try{
+      const d=await db.doc('submissions/'+id).get({source:'server'}).catch(()=>null);
+      if(d&&d.exists){
+        clearInterval(_pendWatch);_pendWatch=null;
+        _setSuccessTone(true);
+        const smsg=document.getElementById('success-msg');
+        if(smsg)smsg.innerHTML='ส่งถึงโค้ชแล้วค่ะ 💪<br><small style="color:#6B7280">เช็คได้ที่แท็บ "ประวัติ"</small>';
+        if(typeof _renderPendingBar==='function')_renderPendingBar();
+      }
+    }catch(_){}
+  },4000);
+}
+function showSuccess(mode,handData,labelData,weighData,_sDate,_sMeal,_pendId){ // v74 · v119: _pendId = ยังไม่ยืนยันกับ server
   document.getElementById('student-view').style.display='none';
   document.getElementById('success-screen').style.display='flex';
   const _rc=document.getElementById('btn-resend-card');if(_rc)_rc.style.display='none'; // ซ่อนปุ่มค้างจากรอบก่อน
   const smsg=document.getElementById('success-msg');
-  if(smsg)smsg.innerHTML=coachLogMode?'บันทึกสำเร็จค่ะ! ได้ feedback card แล้ว 💪':'โค้ชจะตรวจสอบและให้ feedback เร็วๆ นี้ค่ะ<br><small style="color:#6B7280">ถ้า Card ใน LINE ไม่เด้ง ไม่ต้องส่งซ้ำนะคะ — มื้อถูกบันทึกแล้ว เช็คได้ที่แท็บ "ประวัติ"</small>';
+  // v119: ★ ต้องรีเซ็ตกลับทุกครั้ง — หน้านี้ใช้ซ้ำ ถ้าไม่รีเซ็ตจะค้างสีเหลืองจากรอบก่อน
+  _setSuccessTone(!_pendId);
+  if(_pendId){
+    if(smsg)smsg.innerHTML='<b style="color:#B45309">กำลังส่งให้โค้ช… อย่าเพิ่งปิดแอปนะคะ</b><br><small style="color:#6B7280">ถ้าปิดไปก่อน เปิดใหม่ตอนเน็ตดีระบบจะส่งให้เองค่ะ</small>';
+    _watchPendingSend(_pendId);
+  }
+  else if(smsg)smsg.innerHTML=coachLogMode?'บันทึกสำเร็จค่ะ! ได้ feedback card แล้ว 💪':'โค้ชจะตรวจสอบและให้ feedback เร็วๆ นี้ค่ะ<br><small style="color:#6B7280">ถ้า Card ใน LINE ไม่เด้ง ไม่ต้องส่งซ้ำนะคะ — มื้อถูกบันทึกแล้ว เช็คได้ที่แท็บ "ประวัติ"</small>';
   const DL={veggie:'🟢ผัก',light:'🔵เบา',normal:'🟡ปกติ',dense:'🟠แน่น',heavy:'🔴ตัวตึง'};
   let chips=`<span class="chip">${formatDateTH(_sDate||selectedDate)} · มื้อ${_sMeal||curMeal}</span>`; // v74
   if(mode==='hand'&&handData){
