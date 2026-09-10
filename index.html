@@ -1030,7 +1030,7 @@ function _slowMsg(okText){
 //   (loadSavedMenus ดึงมา .limit(40) อยู่แล้ว 20 จึงยังอยู่ใต้เพดานการอ่าน)
 //   ประกาศไว้บนสุด เพราะถูกใช้ทั้งใน loadStudentData / loadSavedMenus / saveCurrentMenu
 const MENU_CAP=20;
-const APP_VERSION='v120-2026-09-09'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
+const APP_VERSION='v121-2026-09-10'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
 const _errLogged=new Set();let _errCount=0;
 // ═════ v120: บันทึกเหตุการณ์คิวมื้ออาหาร ═════
 // ★ แยกโควตาจาก _reportError โดยตั้งใจ — idb-known/photo-fail ยิงถี่จนกินเพดาน 10 หมด
@@ -1387,6 +1387,10 @@ window.addEventListener('unhandledrejection',e=>{
 // STATE
 let user=null, isCoach=false, curMeal='เช้า', curMode='hand', studentTab='log', testMode=false, coachLogMode=false;
 let photoBase64=null, photoBase64List=[], coachTab='pending', allSubs=[], cState={};
+// ═════ v121: หน้ารอตรวจแบบไล่ทีละคน ═════
+let _revUid=null;      // uid ของนักเรียนที่เปิดตรวจอยู่ · null = อยู่หน้ารายชื่อ
+let _revOrder=null;    // ลำดับรายชื่อที่ "แช่" ไว้ · null = ให้คำนวณใหม่ (ดู ★B)
+let _revSort='count';  // 'count' = ค้างมากสุด | 'wait' = รอนานสุด
 let _coachRendered=false; // v57.1: เคยวาดหน้าโค้ชไปแล้วหรือยัง (ใช้คู่กับ docChanges เพื่อข้ามการวาดซ้ำ)
 // v76: v75 ใช้เวลาตัวเดียวทั้งแอป ซึ่งกว้างเกินไป — โค้ชอนุมัติมื้อแล้วภายใน 10 วิ บันทึก/ลบมื้อของตัวเอง
 // เส้นทางพวกนั้นไม่ได้เรียก renderCoach() เอง แต่โดนบล็อกไปด้วย → หน้าโค้ชค้างไม่รีเฟรช
@@ -5215,6 +5219,23 @@ async function startCoach(){
         if(_allMine&&_coachRendered)_ch.forEach(c=>{try{_syncCard(c.doc.id);}catch(_){}});
       }catch(_){_allMine=false;}
       if(_allMine&&_coachRendered)return;
+      // v121 ★★★ ตัวแก้อาการ "กำลังตรวจอยู่แล้วจอเลื่อน" ตัวจริง (ดู ★A)
+      //   อยู่ในหน้าตรวจของนักเรียนคนเดียว → เอกสารของคนอื่นไม่มีอยู่ในจอนี้อยู่แล้ว
+      //   จึงห้ามวาดใหม่เด็ดขาด แค่ขยับตัวเลขบนป้ายพอ
+      //   ถ้าเป็นของคนที่กำลังตรวจ → ต่อท้าย/อัปเดตทีละใบ ไม่วาดทั้งก้อน
+      if(_revUid&&_coachRendered&&(coachFilter==='pending'||coachTab==='pending')){
+        let _done=true;
+        try{
+          snap.docChanges().forEach(c=>{
+            const d=c.doc.data()||{};
+            if(d.userId!==_revUid)return;                       // คนอื่น = ไม่แตะ DOM
+            if(!document.getElementById('card-'+c.doc.id)){
+              if(!_revAppend(c.doc.id))_done=false;             // ต่อท้ายไม่ได้ → ยอมวาดใหม่
+            }else _syncCard(c.doc.id);
+          });
+        }catch(_){_done=false;}
+        if(_done){_updatePendBadge();return;}
+      }
       _coachRendered=true;
       renderCoach();
       // v91: รอบแรกที่ข้อมูลมาถึง ลองกู้ draft ที่ค้างจากรอบก่อน (หน้าถูกรีเอง)
@@ -5233,10 +5254,69 @@ function selCoachTab(tab){
   tab.classList.add('active');
   coachTab=tab.dataset.tab;
   _doneShown=_DONE_PAGE; // v54.1: เปลี่ยนแท็บแล้วเริ่มนับใหม่
+  _revUid=null;_revOrder=null; // v121: ออกจากหน้าตรวจรายคน + ให้จัดลำดับใหม่ตอนกลับเข้ามา
   // cancel prefetch ถ้าออกจาก students tab ก่อน 800ms
   if(coachTab!=='students')clearTimeout(_prefetchTimer);
   if(coachTab==='mylog'){enterCoachLog();return;}
   renderCoach(); // NB8: renderCoach เรียก loadStudentList เองแล้วเมื่ออยู่ tab นักเรียน
+}
+// v121: จัดกลุ่มมื้อที่รออนุมัติตามนักเรียน แล้วเรียงตามเกณฑ์ที่เลือก
+//   ★ 'count' เรียงตามจำนวนมื้อค้าง เท่ากันตัดสินด้วย "รอนานสุด" (createdAt เก่าสุด)
+//     เดิมใช้ "ส่งล่าสุด" ซึ่งทำให้คนที่ส่งถี่แซงคนที่รอมานาน — เป็นต้นเหตุที่แถวขยับ
+function _pendGroups(){
+  const groups={},order=[];
+  (allSubs||[]).forEach(x=>{
+    if(!x||x.status!=='pending'||!x.userId)return;
+    if(!groups[x.userId]){groups[x.userId]=[];order.push(x.userId);}
+    groups[x.userId].push(x);
+  });
+  const n={},old={};
+  order.forEach(u=>{
+    let mn=Infinity;
+    groups[u].forEach(x=>{const t=(x.createdAt&&x.createdAt.seconds)||0;if(t&&t<mn)mn=t;});
+    n[u]=groups[u].length; old[u]=(mn===Infinity?0:mn);
+  });
+  order.sort((a,b)=> _revSort==='wait' ? (old[a]-old[b]) : ((n[b]-n[a])||(old[a]-old[b])) );
+  return {groups,order,n,old};
+}
+// v121 ★B แช่ลำดับระหว่างที่หน้ารายชื่อเปิดอยู่ — ห้ามสลับตำแหน่งใต้นิ้วโค้ช
+//   คนที่เคลียร์หมดแล้วหลุดออกได้ (ไม่ดันใคร) · คนใหม่ต่อท้ายได้ (ไม่ดันใคร)
+//   แต่การ "สลับที่" ต้องรอโค้ชกดเอง → คืน stale=true ไว้ให้ขึ้นบรรทัดแจ้ง
+function _frozenOrder(G){
+  if(!_revOrder){_revOrder=G.order.slice();return{ord:_revOrder.slice(),stale:false};}
+  const cur={};G.order.forEach(u=>{cur[u]=1;});
+  const kept=_revOrder.filter(u=>cur[u]);
+  const seen={};kept.forEach(u=>{seen[u]=1;});
+  const ord=kept.concat(G.order.filter(u=>!seen[u]));
+  _revOrder=ord.slice();
+  return {ord,stale:ord.join(',')!==G.order.join(',')};
+}
+function setRevSort(k){_revSort=k;_revOrder=null;renderCoach();}
+function refreshRevOrder(){_revOrder=null;renderCoach();}
+function openReview(uid){_revUid=uid||null;_doneShown=_DONE_PAGE;renderCoach();try{window.scrollTo(0,0);}catch(_){}}
+function closeReview(){_revUid=null;_revOrder=null;renderCoach();try{window.scrollTo(0,0);}catch(_){}}
+// v121: อัปเดตป้ายจำนวนรออนุมัติโดยไม่แตะ container (ใช้ตอนไม่ยอมวาดใหม่)
+function _updatePendBadge(){
+  try{
+    const b=document.getElementById('pending-count');if(!b)return;
+    const p=(allSubs||[]).filter(x=>x&&x.status==='pending').length;
+    if(p>0){b.style.display='inline-block';b.textContent=p;}else b.style.display='none';
+  }catch(_){}
+}
+// v121: ต่อการ์ดใหม่ท้ายรายการของคนที่กำลังตรวจ — ห้ามวาดใหม่ทั้งก้อน (จอจะเด้ง)
+function _revAppend(id){
+  try{
+    const box=document.getElementById('cards-container');if(!box)return false;
+    const x=(allSubs||[]).find(y=>y.id===id);
+    if(!x||x.userId!==_revUid||x.status!=='pending')return false;
+    if(document.getElementById('card-'+id))return true;
+    const foot=document.getElementById('rev-foot');
+    const wrap=document.createElement('div');wrap.innerHTML=buildCard(x);
+    const node=wrap.firstElementChild;if(!node)return false;
+    if(foot)box.insertBefore(node,foot);else box.appendChild(node);
+    _mountCardPhotos();
+    return true;
+  }catch(_){return false;}
 }
 function renderCoach(){
   // v95 (M8): cState[id]._sub ถือ submission ทั้งใบไว้ และ allSubs ถูกแทนที่ทั้งชุดทุก snapshot
@@ -5270,42 +5350,108 @@ function renderCoach(){
   if(coachFilter==='pending') list=pending;
   else list=coachTab==='pending'?pending:done;
   if(!list.length){container.innerHTML='<div class="empty-state"><div class="es-icon">'+(coachFilter==='pending'||coachTab==='pending'?'🎉':'📭')+'</div><p>'+(coachFilter==='pending'||coachTab==='pending'?'ไม่มีรายการรอค่ะ':'ยังไม่มีประวัติ')+'</p></div>';_mountCardPhotos();return;} // v95b: ปลด observer
-  // F-G1: หน้ารออนุมัติ — จัดกลุ่มตามนักเรียน ให้โค้ชไล่เคลียร์ทีละคน (ประวัติยังเรียงตามเวลาเหมือนเดิม)
+  // v121: หน้ารออนุมัติ = 2 ชั้น — ชั้นบนรายชื่อ ชั้นล่างการ์ดของคนเดียว
+  //   เดิม (F-G1) วาดการ์ดของทุกคนต่อกันยาวในจอเดียว พอ snapshot เด้งจึงเลื่อนทั้งหน้า
   if(coachFilter==='pending'||coachTab==='pending'){
-    const groups={},order=[];
-    list.forEach(s=>{if(!groups[s.userId]){groups[s.userId]=[];order.push(s.userId);}groups[s.userId].push(s);});
-    // เรียงกลุ่ม: คนที่ส่งล่าสุดอยู่บนสุด
-    // v86: เดิม comparator คำนวณ Math.max(...map()) ใหม่ "ทุกครั้งที่เปรียบเทียบ" → O(g·log g·k)
-    //   ที่ 100 กลุ่ม × 8 มื้อ ≈ 10,600 array ชั่วคราวต่อการกดปุ่ม 1 ครั้ง — คำนวณครั้งเดียวเก็บไว้พอ
-    const _mx={};
-    order.forEach(uid=>{let m=0;groups[uid].forEach(s=>{const t=s.createdAt?.seconds||0;if(t>m)m=t;});_mx[uid]=m;});
-    order.sort((a,b)=>_mx[b]-_mx[a]);
-    // v55: จำกัดจำนวนกลุ่มที่วาดต่อรอบ — โค้ชหายไปหลายวันอาจมีค้างเป็นร้อยรายการ วาดทีเดียวเครื่องค้าง
-    // v95: _doneShown = จำนวน "การ์ด" ไม่ใช่จำนวน "คน"
-    //   เดิมนักเรียน 40 คน × มื้อค้างคนละ 6 ใบ = วาด 240 ใบพร้อมรูปครบ → webview ตาย
-    //   นับทั้งกลุ่มเข้าไปเลย (ไม่ตัดกลางกลุ่ม) เพื่อไม่ให้โค้ชเห็นมื้อของคนเดียวกันไม่ครบ
-    const _ordShown=[];let _cardsUsed=0,_cardsLeft=0,_usersLeft=0;
-    order.forEach(uid=>{
-      const n=groups[uid].length;
-      if(_ordShown.length&&_cardsUsed>=_doneShown){_cardsLeft+=n;_usersLeft++;return;}
-      _ordShown.push(uid);_cardsUsed+=n;
-    });
-    _lastShownCards=_cardsUsed; // v95c
-    container.innerHTML=_ordShown.map(uid=>{
-      // ในกลุ่ม: มื้อเก่าก่อน → อนุมัติตามลำดับที่นักเรียนกินจริง
-      const subs=groups[uid].slice().sort((a,b)=>(a.createdAt?.seconds||0)-(b.createdAt?.seconds||0));
+    const G=_pendGroups();
+    const _tot=list.length;
+    // ── ชั้นล่าง: ตรวจนักเรียนคนเดียว ──────────────────────────────
+    if(_revUid){
+      const subs=(G.groups[_revUid]||[]).slice()
+        .sort((a,b)=>((a.createdAt&&a.createdAt.seconds)||0)-((b.createdAt&&b.createdAt.seconds)||0));
+      const nx=G.order.filter(u=>u!==_revUid)[0]||null;
+      const nxName=nx?((G.groups[nx][0]||{}).displayName||'นักเรียน'):'';
+      const nxN=nx?G.groups[nx].length:0;
+      if(!subs.length){
+        // ★ เคลียร์คนนี้ครบแล้ว — ไม่เด้งกลับเองทันที ให้โค้ชเห็นว่าจบแล้วก่อน
+        container.innerHTML=
+          '<div style="background:#DCFCE7;color:#166534;border-radius:12px;padding:18px 14px;'+
+          'text-align:center;font-size:13.5px;font-weight:600;line-height:1.8;margin-top:8px">'+
+          '🎉 เคลียร์ครบแล้วค่ะ</div>'+
+          (nx?('<button onclick="openReview(\''+safeUidArg(nx)+'\')" style="width:100%;margin-top:10px;'+
+            'padding:12px;background:var(--primary);border:none;border-radius:11px;color:#fff;font-size:13px;'+
+            'font-weight:600;font-family:\'Prompt\',sans-serif;cursor:pointer">ไปคนถัดไป: '+
+            escHtml(nxName)+' ('+nxN+') ›</button>'):'')+
+          '<button onclick="closeReview()" style="width:100%;margin-top:8px;padding:11px;background:var(--card);'+
+          'border:1.5px solid var(--border);border-radius:11px;color:var(--primary-dark);font-size:12.5px;'+
+          'font-weight:600;font-family:\'Prompt\',sans-serif;cursor:pointer">‹ กลับไปรายชื่อ</button>';
+        _lastShownCards=0;_mountCardPhotos();return;
+      }
       const u0=subs[0];
+      // v121b: คนเดียวอาจค้างเยอะถ้าโค้ชหายไปหลายวัน — วาดทีละ _doneShown ใบ
+      //   ★ เพดานเดิมของ v55/v95 หายไปตอน v121 แทนบล็อก ต้องคืนมา ไม่งั้น webview อาจตาย
+      //   ★ _lastShownCards ต้องตรงกับที่วาดจริง ไม่งั้น showMoreDone() กดแล้วหน้าเหมือนเดิม (บั๊ก v95c)
+      const _sShow=subs.slice(0,_doneShown), _sLeft=subs.length-_sShow.length;
       const av=u0.pictureUrl
-        ?`<img src="${safeImg(u0.pictureUrl)}" style="width:28px;height:28px;border-radius:50%;object-fit:cover">` // v76 XSS: pictureUrl มาจากเอกสารที่เครื่องนักเรียนเขียน
-        :`<div style="width:28px;height:28px;border-radius:50%;background:var(--light);display:flex;align-items:center;justify-content:center;font-size:14px">👤</div>`;
-      return`<div class="grp-hd" style="display:flex;align-items:center;gap:8px;margin:16px 2px 8px;padding-bottom:7px;border-bottom:2px solid var(--border)">
-        ${av}
-        <span style="font-size:14px;font-weight:700;font-family:'Prompt',sans-serif;color:var(--text)">${escHtml(u0.displayName||'นักเรียน')}</span>
-        <span class="grp-n" style="background:#FEF3C7;color:#92400E;border-radius:10px;padding:1px 9px;font-size:11px;font-weight:700">${subs.length} รายการ</span>
-      </div>`+subs.map(s=>buildCard(s)).join('');
-    }).join('')
-    +(_usersLeft?`<button onclick="showMoreDone()" style="width:100%;margin:14px 0 8px;padding:12px;background:var(--card);border:1.5px solid var(--border);border-radius:12px;color:var(--primary-dark);font-size:13px;font-weight:600;font-family:'Prompt',sans-serif;cursor:pointer">👥 ดูเพิ่ม (เหลืออีก ${_cardsLeft} รายการ · ${_usersLeft} คน)</button>`:'');
-    _mountCardPhotos(); // v95
+        ?'<img src="'+safeImg(u0.pictureUrl)+'" style="width:34px;height:34px;border-radius:50%;object-fit:cover">'
+        :'<div style="width:34px;height:34px;border-radius:50%;background:var(--light);display:flex;'+
+         'align-items:center;justify-content:center;font-size:16px">👤</div>';
+      _lastShownCards=_sShow.length;
+      container.innerHTML=
+        '<div style="background:var(--card);border:1px solid var(--border);border-radius:13px;padding:10px 12px;'+
+        'margin-bottom:10px;display:flex;align-items:center;gap:10px">'+
+        '<span onclick="closeReview()" style="font-size:20px;color:var(--primary-dark);cursor:pointer;'+
+        'padding:0 4px">‹</span>'+av+
+        '<div style="flex:1;min-width:0">'+
+        '<div style="font-size:14px;font-weight:700;font-family:\'Prompt\',sans-serif">'+
+        escHtml(u0.displayName||'นักเรียน')+'</div>'+
+        '<div style="font-size:11px;color:var(--gray)">เหลือรอตรวจ '+subs.length+' มื้อ</div>'+
+        '</div></div>'+
+        _sShow.map(x=>buildCard(x)).join('')+
+        (_sLeft?('<button onclick="showMoreDone()" style="width:100%;margin:10px 0 4px;padding:11px;'+
+          'background:var(--card);border:1.5px solid var(--border);border-radius:11px;color:var(--primary-dark);'+
+          'font-size:12.5px;font-weight:600;font-family:\'Prompt\',sans-serif;cursor:pointer">'+
+          '📅 ดูเพิ่มอีก '+Math.min(_DONE_PAGE,_sLeft)+' มื้อ (เหลือ '+_sLeft+')</button>'):'')+
+        '<div id="rev-foot"><button onclick="closeReview()" style="width:100%;margin:12px 0 8px;padding:11px;'+
+        'background:var(--card);border:1.5px solid var(--border);border-radius:11px;color:var(--primary-dark);'+
+        'font-size:12.5px;font-weight:600;font-family:\'Prompt\',sans-serif;cursor:pointer">‹ กลับไปรายชื่อ</button></div>';
+      _mountCardPhotos();return;
+    }
+    // ── ชั้นบน: รายชื่อ ────────────────────────────────────────────
+    const F=_frozenOrder(G);
+    const _today=todayStrTZ(tzOfUser(F.ord[0]||''));
+    _lastShownCards=0;
+    const head='<div style="display:flex;align-items:center;gap:6px;margin:2px 2px 10px">'+
+      '<span onclick="setRevSort(\'count\')" style="cursor:pointer;border-radius:999px;padding:4px 11px;'+
+      'font-size:11px;border:1px solid '+(_revSort==='count'?'var(--border);background:var(--light);color:#92400E;font-weight:600':'#E7EAEE;background:#fff;color:var(--gray)')+'">ค้างมากสุด</span>'+
+      '<span onclick="setRevSort(\'wait\')" style="cursor:pointer;border-radius:999px;padding:4px 11px;'+
+      'font-size:11px;border:1px solid '+(_revSort==='wait'?'var(--border);background:var(--light);color:#92400E;font-weight:600':'#E7EAEE;background:#fff;color:var(--gray)')+'">รอนานสุด</span>'+
+      '<span style="margin-left:auto;font-size:11.5px;color:var(--gray)">'+_tot+' มื้อ · '+F.ord.length+' คน</span></div>'+
+      (F.stale?('<div onclick="refreshRevOrder()" style="cursor:pointer;background:#FFFBEB;border:1px solid #FDE68A;'+
+        'border-radius:9px;padding:7px 11px;margin-bottom:9px;font-size:11.5px;color:#92400E">'+
+        '🔄 มีรายการใหม่เข้ามา — แตะเพื่อจัดลำดับใหม่</div>'):'');
+    container.innerHTML=head+F.ord.map(uid=>{
+      const g=G.groups[uid],a0=g[0];
+      const av=a0.pictureUrl
+        ?'<img src="'+safeImg(a0.pictureUrl)+'" style="width:36px;height:36px;border-radius:50%;object-fit:cover">'
+        :'<div style="width:36px;height:36px;border-radius:50%;background:var(--light);display:flex;'+
+         'align-items:center;justify-content:center;font-size:17px">👤</div>';
+      // สรุปว่าค้างมื้อไหนบ้าง — เรียงตามลำดับมื้อจริง ไม่ใช่ตามเวลาที่ส่ง
+      const cnt={};g.forEach(x=>{const m=x.meal||'-';cnt[m]=(cnt[m]||0)+1;});
+      const meals=['เช้า','ว่าง','กลางวัน','เย็น'].filter(m=>cnt[m])
+        .concat(Object.keys(cnt).filter(m=>['เช้า','ว่าง','กลางวัน','เย็น'].indexOf(m)<0))
+        .map(m=>escHtml(m)+(cnt[m]>1?' ×'+cnt[m]:'')).join(' · ');
+      // ★C ค้างข้ามวัน = มื้อเก่าสุดเป็นของวันก่อนหน้า (เทียบตาม timezone ของนักเรียนเอง)
+      let oldest='';g.forEach(x=>{const d=x.mealDate||'';if(d&&(!oldest||d<oldest))oldest=d;});
+      const over=!!(oldest&&_today&&oldest<_today);
+      const hrs=Math.floor((Date.now()/1000-(G.old[uid]||0))/3600);
+      const waited=over?('เก่าสุด '+escHtml(oldest)):(hrs>0?('รอ '+hrs+' ชม.'):'เพิ่งส่ง');
+      return '<div onclick="openReview(\''+safeUidArg(uid)+'\')" style="cursor:pointer;background:var(--card);'+
+        'border:1px solid '+(over?'#FCA5A5':'#E7EAEE')+';border-radius:13px;padding:11px 12px;margin-bottom:8px;'+
+        'display:flex;align-items:center;gap:11px">'+av+
+        '<div style="flex:1;min-width:0">'+
+        '<div style="font-size:13.5px;font-weight:600;font-family:\'Prompt\',sans-serif">'+
+        escHtml(a0.displayName||'นักเรียน')+
+        (over?' <span style="background:#FEE2E2;color:#991B1B;border-radius:5px;padding:1px 5px;font-size:9.5px;font-weight:600">⏰ ค้างข้ามวัน</span>':'')+
+        '</div>'+
+        '<div style="font-size:10.5px;color:var(--gray);margin-top:2px">'+meals+' — '+waited+'</div>'+
+        '</div>'+
+        '<div style="text-align:center;flex:0 0 auto">'+
+        '<div style="font-size:19px;font-weight:700;color:var(--primary-dark);line-height:1">'+g.length+'</div>'+
+        '<div style="font-size:9.5px;color:var(--gray)">มื้อ</div></div>'+
+        '<div style="color:#C2C9D2;font-size:15px;flex:0 0 auto">›</div></div>';
+    }).join('');
+    _mountCardPhotos();
     return;
   }
   // v54.1: วาดทีละหน้า ไม่วาดทั้ง 800 ใบรวดเดียว
@@ -5321,6 +5467,7 @@ function renderCoach(){
 function showMoreDone(){_doneShown=Math.max(_doneShown,_lastShownCards)+_DONE_PAGE;renderCoach();}
 function setCoachFilter(f){
   _doneShown=_DONE_PAGE; // v59: เปลี่ยนตัวกรองแล้วเริ่มนับหน้าใหม่
+  _revUid=null;_revOrder=null; // v121
   coachFilter=f;
   renderCoach();
 }
@@ -7180,6 +7327,8 @@ function _pruneCoachView(){
     const p=allSubs.filter(s=>s.status==='pending').length;
     if(p>0){badge.style.display='inline-block';badge.textContent=p;}else badge.style.display='none';
   }
+  // v121: ในหน้าตรวจรายคน การ์ดหมด = เคลียร์คนนี้ครบ → renderCoach จะวาดหน้า "เคลียร์ครบแล้ว" ให้เอง
+  //   ★ ต้องเช็ค .card จริงๆ ไม่ใช่เช็คว่า container ว่าง — หน้ารายคนมีหัวและปุ่มท้ายอยู่ด้วย
   if(!box.querySelector('.card'))renderCoach(); // หมดแล้ว → ให้ renderCoach วาดหน้าว่าง/หน้าถัดไป
   else _mountCardPhotos();
 }
