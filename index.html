@@ -358,6 +358,13 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
 .est-chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
 .est-chip{background:var(--light);border:1px solid var(--border);border-radius:12px;padding:4px 10px;font-size:12px;color:var(--primary-dark);font-weight:600}
 .est-chip.gram{background:#F0FDF4;border-color:#86EFAC;color:#15803D}
+/* v123: การ์ดโค้ชโหมด AI — ข้อความดิบที่นักเรียนพิมพ์ + ข้อสันนิษฐานของ AI */
+.ai-src{background:#F8FAFC;border:1px dashed #CBD5E1;border-radius:9px;padding:7px 10px;margin-bottom:8px;font-size:11.5px;line-height:1.6;color:#334155;word-break:break-word}
+.ai-src b{color:#0F172A}
+.ai-src .t.clip{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.ai-src .more{background:none;border:none;padding:0;margin-top:2px;font-size:11px;color:#2563EB;font-family:'Prompt',sans-serif;cursor:pointer}
+.ai-asm{background:#FFFBEB;border:1px solid #FDE68A;border-radius:9px;padding:6px 10px;margin-bottom:10px;font-size:11px;line-height:1.6;color:#92400E;word-break:break-word}
+.ai-asm b{color:#78350F}
 .corr-note{background:#FEF3C7;border-radius:8px;padding:8px 10px;font-size:12px;color:#92400E;margin-bottom:10px}
 .macro-summary{display:flex;gap:0;background:#F8F7F4;border:1px solid #E5E7EB;border-radius:10px;padding:7px 12px;margin-bottom:10px;align-items:center;flex-wrap:wrap;gap:8px}
 .macro-summary .ms-item{font-size:12px;font-weight:700;color:#374151}
@@ -1042,7 +1049,7 @@ function _slowMsg(okText){
 //   (loadSavedMenus ดึงมา .limit(40) อยู่แล้ว 20 จึงยังอยู่ใต้เพดานการอ่าน)
 //   ประกาศไว้บนสุด เพราะถูกใช้ทั้งใน loadStudentData / loadSavedMenus / saveCurrentMenu
 const MENU_CAP=20;
-const APP_VERSION='v122-2026-09-11'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
+const APP_VERSION='v123-2026-09-11'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
 const _errLogged=new Set();let _errCount=0;
 // ═════ v120: บันทึกเหตุการณ์คิวมื้ออาหาร ═════
 // ★ แยกโควตาจาก _reportError โดยตั้งใจ — idb-known/photo-fail ยิงถี่จนกินเพดาน 10 หมด
@@ -7100,7 +7107,7 @@ function buildCard(s){
   const cs=cState[s.id]||{},showCorr=cs.open||false;
   const DL={veggie:'🟢ผัก',light:'🔵เบา',normal:'🟡ปกติ',dense:'🟠แน่น',heavy:'🔴ตัวตึง'};
   const modeLabel={hand:'👊 Hand portion',label:'🏷️ ฉลาก',weigh:'✨ AI'}[s.mode]||s.mode;
-  let chips='';
+  let chips='',srcHtml='',asmHtml=''; // v123: 📝 นักเรียนพิมพ์ (เหนือชิป) / 💭 AI สันนิษฐาน (ใต้ชิป) — ว่างสำหรับโหมดอื่น
   if(s.mode==='hand'&&s.handData){
     const hd=s.handData;
     const protL=protLabelOf(hd.protType); // v92
@@ -7128,6 +7135,8 @@ function buildCard(s){
   }else if(s.mode==='weigh'&&s.weighData){
     const wd=s.weighData;
     if(wd.aiItems&&wd.aiItems.length){
+      // v123: โค้ชต้องเห็นว่า "50 กรัม" บนชิปมาจากนักเรียนหรือ AI แปลง → โชว์ข้อความดิบ + ข้อสันนิษฐาน (เฉพาะรออนุมัติ)
+      ({src:srcHtml,asm:asmHtml}=_aiSrcHtml(s,wd));
       // v46: ป้าย 🤖 = ไม่มีในฐานข้อมูล AI ประมาณเอง → โค้ชควรตรวจรายการนี้เป็นพิเศษ
       chips=wd.aiItems.map(it=>`<span class="est-chip gram"${it._src&&it._src!=='db'?' style="background:#FEF3C7;color:#92400E" title="AI ประมาณเอง (ไม่มีในฐานข้อมูล) — ควรตรวจ"':''}>${it._src&&it._src!=='db'?'🤖 ':''}${escHtml(it.name||'')} ${escHtml(it.amount||'')} · C${it.c} P${it.p} F${it.f}${it.a>0?` 🍷${it.a}`:''}</span>`).join(''); // v79
     }else{
@@ -7201,7 +7210,7 @@ function buildCard(s){
   else if(s.status==='approved'||s.status==='corrected')actions=`<div class="card-actions"><button class="btn-correct" onclick="toggleCorr('${s.id}')" style="flex:1">${showCorr?'✕ ยกเลิก':'✏️ แก้ไขการอนุมัติ'}</button>${_delBtn}</div>`;
   const corrPanel=showCorr?buildCorrPanel(s,cs):'';
   const testBadge=s.isTest?'<span style="background:#EDE9FE;color:#7C3AED;border-radius:6px;padding:1px 7px;font-size:11px;margin-left:4px">🧪 ทดสอบ</span>':'';
-  return`<div class="card" id="card-${s.id}"><div class="card-header">${avatarHtml}<div><div class="card-name">${escHtml(s.displayName||'นักเรียน')}<span class="mode-tag ${s.mode}">${modeLabel}</span>${testBadge}</div><div class="card-meta">${dateLabel}มื้อ${s.meal} &nbsp;${statusBadge}</div></div><div class="card-time">${timeStr}</div></div>${photoHtml}<div class="card-body"><div class="est-chips">${chips}</div>${macroBar}${corrNote}${actions}</div>${corrPanel}</div>`;
+  return`<div class="card" id="card-${s.id}"><div class="card-header">${avatarHtml}<div><div class="card-name">${escHtml(s.displayName||'นักเรียน')}<span class="mode-tag ${s.mode}">${modeLabel}</span>${testBadge}</div><div class="card-meta">${dateLabel}มื้อ${s.meal} &nbsp;${statusBadge}</div></div><div class="card-time">${timeStr}</div></div>${photoHtml}<div class="card-body">${srcHtml}<div class="est-chips">${chips}</div>${asmHtml}${macroBar}${corrNote}${actions}</div>${corrPanel}</div>`;
 }
 
 // v82 BUGFIX: โค้ชแก้มื้อโหมด Hand แล้วกลับมาแก้ซ้ำ → ปุ่มทุกตัวเด้งกลับเป็นค่าดั้งเดิมของนักเรียน
@@ -7496,6 +7505,29 @@ function _corrDraftNotify(){
   },350);
 }
 function setCoachCorrMode(id,mode){if(!cState[id])cState[id]={};cState[id].corrMode=mode;delete cState[id].carb;delete cState[id].protein;delete cState[id].fat;_updateCard(id);}
+// v123: กล่อง "📝 นักเรียนพิมพ์" + "💭 AI สันนิษฐาน" บนการ์ดโค้ช (มื้อโหมด AI ที่รออนุมัติ)
+//   ข้อมูลจาก weighData.aiText (v46) / weighData.aiAssumptions (v72) — มีอยู่แล้วทุกมื้อ ไม่ต้องเปลี่ยนการเซฟ
+//   มื้อที่ตรวจแล้วไม่โชว์ (ลดความสูงหน้ารายการ แนวเดียวกับรูป v55) · ยาวเกิน 3 บรรทัด/150 ตัวอักษร → ตัด + "ดูทั้งหมด"
+const _AI_SRC_MAX=1500; // กันข้อความยาวผิดปกติทำ DOM บวม
+function _aiSrcHtml(s,wd){
+  const out={src:'',asm:''};
+  if(!s||s.status!=='pending'||!wd)return out;
+  const txt=String(wd.aiText||'').trim().slice(0,_AI_SRC_MAX);
+  if(txt){
+    const lines=txt.split('\n').length;
+    const long=lines>3||txt.length>150;
+    const open=!!(cState[s.id]&&cState[s.id]._srcOpen);
+    out.src=`<div class="ai-src">📝 <b>นักเรียนพิมพ์:</b><div class="t${long&&!open?' clip':''}">${escHtml(txt).replace(/\n/g,'<br>')}</div>${long?`<button class="more" onclick="toggleAiSrc('${s.id}')">${open?'ย่อ ▲':'ดูทั้งหมด ▼'}</button>`:''}</div>`;
+  }
+  const asm=(Array.isArray(wd.aiAssumptions)?wd.aiAssumptions:[]).filter(x=>typeof x==='string'&&x.trim()).slice(0,4);
+  if(asm.length)out.asm=`<div class="ai-asm">💭 <b>AI สันนิษฐาน:</b> ${asm.map(x=>escHtml(x.trim().slice(0,200))).join(' · ')}</div>`;
+  return out;
+}
+function toggleAiSrc(id){
+  if(!cState[id])cState[id]={};
+  cState[id]._srcOpen=!cState[id]._srcOpen;
+  _updateCard(id);
+}
 function toggleCorr(id){
   if(!cState[id])cState[id]={};
   cState[id].open=!cState[id].open;
