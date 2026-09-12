@@ -365,6 +365,41 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
 .ai-src .more{background:none;border:none;padding:0;margin-top:2px;font-size:11px;color:#2563EB;font-family:'Prompt',sans-serif;cursor:pointer}
 .ai-asm{background:#FFFBEB;border:1px solid #FDE68A;border-radius:9px;padding:6px 10px;margin-bottom:10px;font-size:11px;line-height:1.6;color:#92400E;word-break:break-word}
 .ai-asm b{color:#78350F}
+/* v124: ภารกิจ / ปรับพื้นฐาน / ฉลอง / ทางกลับ */
+#mission-pill{margin-left:0;cursor:pointer;font-family:'Prompt',sans-serif;line-height:1.2}
+#mission-pill.mp-hot{background:#111827;color:#fff;border-color:#111827}
+#mission-page,#basics-page{position:fixed;inset:0;background:#FFFBF3;z-index:9000;overflow-y:auto;display:none;font-family:'Prompt',sans-serif;-webkit-overflow-scrolling:touch}
+.mp-head{position:sticky;top:0;background:#FFFBF3;display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid #F3EBDA;z-index:1}
+.mp-head .mp-back{background:none;border:none;font-size:15px;font-family:'Prompt',sans-serif;color:#374151;padding:4px 6px;cursor:pointer}
+.mp-head b{font-size:15px;flex:1}
+.mp-body{padding:12px 14px 40px}
+.mp-card{background:#fff;border:1px solid #F3EBDA;border-radius:14px;padding:12px 14px;margin-bottom:10px}
+.mp-bar{height:8px;background:#E5E7EB;border-radius:8px;overflow:hidden;margin-top:6px}.mp-bar i{display:block;height:100%;background:#10B981;transition:width .4s}
+.mp-stage{display:flex;align-items:center;gap:8px;margin:14px 0 6px}.mp-stage .pin{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;background:#E5E7EB}.mp-stage .pin.on{background:#FDE68A}.mp-stage .l{font-size:12px;font-weight:700}.mp-stage .l span{font-weight:400;color:#6B7280}
+.mi{display:flex;gap:10px;align-items:center;background:#fff;border:1px solid #F3EBDA;border-radius:12px;padding:9px 12px;margin-bottom:6px}
+.mi .n{width:26px;height:26px;border-radius:50%;background:#E5E7EB;color:#374151;font-weight:800;font-size:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.mi.done{background:#F0FDF4;border-color:#BBF7D0}.mi.done .n{background:#10B981;color:#fff}
+.mi.wait{background:#FFFBEB;border-color:#FDE68A}.mi.wait .n{background:#F59E0B;color:#fff}
+.mi.now{border:2px solid var(--primary)}.mi.now .n{background:var(--primary);color:#fff}
+.mi b{font-size:12.5px;display:block}.mi .d{font-size:10.5px;color:#6B7280;line-height:1.45}
+.mi .go{margin-left:auto;flex-shrink:0;font-size:11px;font-weight:700;color:var(--primary-dark);background:var(--light);border:1px solid var(--border);border-radius:8px;padding:5px 9px;font-family:'Prompt',sans-serif;cursor:pointer;white-space:nowrap}
+.mp-lock{background:#F3F4F6;border:1px dashed #D1D5DB;border-radius:12px;padding:10px 12px;text-align:center;font-size:12px;color:#6B7280;margin-top:12px}
+.mp-btn{display:block;width:100%;text-align:center;padding:11px;border-radius:12px;font-weight:700;font-size:13px;border:none;font-family:'Prompt',sans-serif;cursor:pointer;margin-top:8px}
+.mp-btn.p{background:var(--primary);color:#fff}.mp-btn.g{background:#F3F4F6;color:#374151;font-weight:600}.mp-btn.d{background:#111827;color:#fff}.mp-btn:disabled{opacity:.5;cursor:default}
+.mp-inp{width:100%;box-sizing:border-box;border:1.5px solid #E5E7EB;border-radius:10px;padding:9px 10px;font-size:14px;font-family:'Prompt',sans-serif;margin-top:6px;background:#fff}
+.mp-inp:disabled{background:#F3F4F6;color:#374151;border-style:dashed}
+.bs-card{background:#fff;border:1px solid #F3EBDA;border-radius:14px;padding:16px;margin-bottom:10px}
+.bs-k{font-size:11px;color:#D4891A;font-weight:700}.bs-t{font-size:16px;font-weight:800;margin:4px 0 8px;line-height:1.4}.bs-b{font-size:13.5px;line-height:1.75}
+.bs-ex{background:#F0FDF4;border:1px solid #BBF7D0;border-radius:9px;padding:8px 10px;font-size:12.5px;margin-top:10px;line-height:1.6}.bs-ex b{color:#065F46}
+.bs-opt{border:1.5px solid #E5E7EB;border-radius:10px;padding:9px 11px;font-size:13px;margin-top:7px;cursor:pointer;background:#fff;line-height:1.5}
+.bs-opt.ok{border-color:#10B981;background:#F0FDF4}.bs-opt.bad{border-color:#FCA5A5;background:#FEF2F2}
+.bs-why{font-size:12.5px;color:#374151;background:#FFFBEB;border:1px solid #FDE68A;border-radius:9px;padding:9px 10px;margin-top:9px;line-height:1.65}
+#celebrate-ov{position:fixed;inset:0;background:rgba(17,24,39,.72);z-index:9500;display:none;align-items:center;justify-content:center;padding:22px;font-family:'Prompt',sans-serif}
+#celebrate-ov .cb{background:#fff;border-radius:20px;padding:22px 18px;text-align:center;width:100%;max-width:320px;box-shadow:0 20px 60px rgba(0,0,0,.4);animation:cbpop .35s ease-out}
+@keyframes cbpop{0%{transform:scale(.7);opacity:0}100%{transform:scale(1);opacity:1}}
+#celebrate-ov .ce{font-size:64px;line-height:1}#celebrate-ov .ct{font-size:17px;font-weight:800;margin-top:8px}#celebrate-ov .cs{font-size:12.5px;color:#6B7280;margin-top:4px;line-height:1.5}#celebrate-ov .cn{margin-top:10px;font-size:12px;font-weight:700;color:var(--primary-dark)}
+#comeback-card{display:none;margin:10px 12px 0;background:#fff;border:1px solid #F3EBDA;border-radius:14px;padding:14px;text-align:center;font-family:'Prompt',sans-serif}
+#basics-gate{display:none;background:#FFFBEB;border:1.5px solid #FDE68A;border-radius:12px;padding:12px;margin-bottom:10px;font-family:'Prompt',sans-serif}
 .corr-note{background:#FEF3C7;border-radius:8px;padding:8px 10px;font-size:12px;color:#92400E;margin-bottom:10px}
 .macro-summary{display:flex;gap:0;background:#F8F7F4;border:1px solid #E5E7EB;border-radius:10px;padding:7px 12px;margin-bottom:10px;align-items:center;flex-wrap:wrap;gap:8px}
 .macro-summary .ms-item{font-size:12px;font-weight:700;color:#374151}
@@ -554,10 +589,14 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
     <div class="logo"><span>DO</span></div>
     <h1>Meal Log</h1>
     <span id="streak-pill" class="streak-pill"></span>
+    <!-- v124: ทางเข้าหน้าภารกิจ — ข้อความเปลี่ยนตามสถานะ (🏅 4/9 · อีก 1 ข้อผ่านขั้น · ภารกิจ) -->
+    <button id="mission-pill" class="streak-pill" onclick="openMissionPage()" title="ภารกิจของฉัน">🏅</button>
     <!-- v70: แตะรูปโปรไฟล์ = เปิดฟอร์มข้อมูลของฉัน (ทางเข้าถาวร ไม่ต้องหา) -->
     <img id="user-pic" class="user-pic" src="" alt="" style="cursor:pointer" title="ข้อมูลของฉัน" onclick="openProfileForm(null,studentProfile)">
   </div>
 
+  <!-- v124: ทางกลับ — หายไป 3+ วัน ขึ้นครั้งเดียวต่อรอบ ไม่มีเลข 0 ไม่มีคำว่าพลาด -->
+  <div id="comeback-card"></div>
   <!-- v70: เตือนจนกว่าจะกรอกข้อมูลพื้นฐาน -->
   <div id="profile-banner" style="display:none;align-items:center;gap:8px;background:#FFFBEB;border-bottom:1px solid #FDE68A;padding:9px 14px;font-size:12.5px;color:#92400E;font-family:'Prompt',sans-serif">
     <span style="flex:1;line-height:1.5">🧍 ยังไม่ได้กรอกข้อมูลพื้นฐาน — ช่วยให้โค้ชดูแลได้แม่นขึ้นค่ะ</span>
@@ -813,6 +852,12 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
       <div class="section-card">
         <!-- AI mode -->
         <div id="weigh-ai">
+          <!-- v124: ล็อกช่อง AI จนกว่าจะอ่านปรับพื้นฐาน — เฉพาะนักเรียนที่ยังไม่เคยส่งมื้อเลย -->
+          <div id="basics-gate">
+            <div style="font-size:13px;font-weight:700;color:#92400E">📖 อ่านปรับพื้นฐาน 3 นาทีก่อนนะคะ</div>
+            <div style="font-size:12px;color:#78350F;margin-top:3px;line-height:1.55">5 ใบสั้นๆ + ควิซ 5 ข้อ — จะได้พิมพ์ครั้งแรกแล้ว AI แม่นเลย</div>
+            <button class="mp-btn p" onclick="openBasicsPage()">เริ่มอ่าน →</button>
+          </div>
           <div id="saved-chips-weigh" class="saved-menu-area" style="display:none"></div>
           <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px">
             <div style="flex:1;font-size:12px;color:var(--text);line-height:1.65">
@@ -1049,7 +1094,7 @@ function _slowMsg(okText){
 //   (loadSavedMenus ดึงมา .limit(40) อยู่แล้ว 20 จึงยังอยู่ใต้เพดานการอ่าน)
 //   ประกาศไว้บนสุด เพราะถูกใช้ทั้งใน loadStudentData / loadSavedMenus / saveCurrentMenu
 const MENU_CAP=20;
-const APP_VERSION='v123-2026-09-11'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
+const APP_VERSION='v124-2026-09-12'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
 const _errLogged=new Set();let _errCount=0;
 // ═════ v120: บันทึกเหตุการณ์คิวมื้ออาหาร ═════
 // ★ แยกโควตาจาก _reportError โดยตั้งใจ — idb-known/photo-fail ยิงถี่จนกินเพดาน 10 หมด
@@ -1206,6 +1251,49 @@ function askOK(msg,opt){
 function askText(msg,value,opt){return _dfAsk(Object.assign({msg,input:true,value:value||''},opt||{}));}
 // ---- การ์ดข้อมูลพื้นฐาน (ฝั่งโค้ช) ----
 const _pfCache={},_pfWeight={}; // v70.1 เก็บไว้เรียกตอนกดแก้ไข — ห้ามยัดข้อมูลนักเรียนลง onclick
+// ═════ v124: แถบ "🚀 เริ่มคอร์ส x/9" + สวิตช์รูปหุ่น (ฝั่งโค้ช) ═════
+// สถานะ 8 ข้อมาจาก students/{uid}.onboard.done ที่แอปนักเรียนเขียน · โค้ชเขียนได้แค่ bodyPhotoAt
+const _ONB_META=[
+  ['profile','👤','กรอกโปรไฟล์'],['baseline','📏','บันทึกจุดเริ่มต้น'],['bodyPhoto','📸','รูปหุ่นเริ่มต้น (ในไลน์)'],
+  ['targets','🎯','รับทราบเป้าหมาย'],['basics','📖','ปรับพื้นฐาน + ควิซ'],['firstMeal','🍽','ส่งมื้อแรก'],
+  ['health','😴','บันทึกสุขภาพวันแรก'],['savedMenu','💾','บันทึกเมนูโปรด'],['scale','🍚','ชั่งข้าว 1 ทัพพี = 80g']
+];
+function _onbDoneMap(ob){
+  const d=(ob&&ob.done)||{};
+  const m={};_ONB_META.forEach(([k])=>m[k]=!!d[k]);
+  m.bodyPhoto=!!(ob&&ob.bodyPhotoAt);
+  return m;
+}
+function buildOnboardSection(uid,ob){
+  const m=_onbDoneMap(ob);
+  const n=_ONB_META.filter(([k])=>m[k]).length;
+  const uidA=escHtml(String(uid)).replace(/'/g,'');
+  const rows=_ONB_META.map(([k,e,t])=>`<span style="background:${m[k]?'#F0FDF4':'var(--light)'};border:1px solid ${m[k]?'#BBF7D0':'var(--border)'};border-radius:8px;padding:3px 9px;font-size:11.5px;color:${m[k]?'#065F46':'var(--gray)'}">${m[k]?'✓ ':''}${e} ${t}</span>`).join('');
+  const photoOn=!!(ob&&ob.bodyPhotoAt);
+  return `<div class="sd-section" id="onb-view-${uidA}">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div class="sd-section-title" style="margin-bottom:0">🚀 เริ่มคอร์ส</div>
+      <span class="streak-pill" style="display:flex;margin-left:0">${n} / 9</span>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:5px">${rows}</div>
+    <label style="display:flex;align-items:center;gap:8px;margin-top:10px;padding:9px 10px;background:${photoOn?'#F0FDF4':'#FFFBEB'};border:1.5px solid ${photoOn?'#BBF7D0':'#FDE68A'};border-radius:10px;font-size:12.5px;cursor:pointer">
+      <input type="checkbox" ${photoOn?'checked':''} onchange="toggleBodyPhoto('${uidA}',this.checked)" style="width:18px;height:18px">
+      <span>📸 ได้รับรูปหุ่นเริ่มต้นในไลน์แล้ว</span>
+    </label>
+  </div>`;
+}
+async function toggleBodyPhoto(uid,on){
+  try{
+    const _v=on?firebase.firestore.FieldValue.serverTimestamp():firebase.firestore.FieldValue.delete();
+    const _r=await _fsWrite(db.collection('students').doc(uid).set({onboard:{bodyPhotoAt:_v}},{merge:true}));
+    if(_sdCache&&_sdCache[uid]&&_sdCache[uid].targets){
+      const t=_sdCache[uid].targets;t.onboard=Object.assign({},t.onboard||{});
+      if(on)t.onboard.bodyPhotoAt={seconds:Math.floor(Date.now()/1000)};else delete t.onboard.bodyPhotoAt;
+      const el=document.getElementById('onb-view-'+uid);if(el)el.outerHTML=buildOnboardSection(uid,t.onboard);
+    }
+    showToast(_r==='timeout'?_slowMsg('📡 เน็ตช้า — บันทึกไว้แล้ว'):(on?'✓ บันทึกแล้ว นักเรียนจะเห็น ✓ ทันที':'ยกเลิกแล้ว'));
+  }catch(e){showToast('⚠️ ไม่สำเร็จ: '+e.message,4000);}
+}
 function buildProfileSection(uid,pf,latestWeight){
   _pfCache[uid]=pf||{};
   if(latestWeight!=null)_pfWeight[uid]=latestWeight; else latestWeight=_pfWeight[uid];
@@ -1679,7 +1767,7 @@ async function _flushBackupQueue(){
           if(!loading&&!noData)break;
           await new Promise(r=>setTimeout(r,500));
         }
-        if(liff.isInClient()&&!_flushedSub.isTest)sendFeedbackCard({mode:_flushedSub.mode,handData:_flushedSub.handData,labelData:_flushedSub.labelData,weighData:_flushedSub.weighData,photoUrl:_flushedSub.photoUrl||null});
+        if(liff.isInClient()&&!_flushedSub.isTest&&_flushedSub.mode!=='mission')sendFeedbackCard({mode:_flushedSub.mode,handData:_flushedSub.handData,labelData:_flushedSub.labelData,weighData:_flushedSub.weighData,photoUrl:_flushedSub.photoUrl||null});
       }catch(_){}})();
     }
     // F-WC: card ผลการวัดย้อนหลังหลัง sync สำเร็จ
@@ -2185,6 +2273,8 @@ async function loadStudentData(){
     applyTargets(td);
     if(td&&td.exists){const d=td.data();studentProgramData={programStart:d.programStart||'',programEnd:d.programEnd||'',programWeeks:d.programWeeks||12,pausedDays:d.pausedDays||0,isPaused:d.isPaused||false,discountCode:d.discountCode||'',discountPercent:d.discountPercent||0};
       studentProfile=d.profile||null; // v70
+      studentOnboard=d.onboard||null; // v124: สถานะภารกิจเริ่มคอร์ส (เขียนโดยแอปนักเรียน + สวิตช์รูปหุ่นของโค้ช)
+      studentHasTargets=!!(d.targets&&d.targets.kcal!=null); // v124: ข้อ 4 รับทราบเป้าหมาย ต้องมีเป้าก่อน
       maybeAskProfile(); // v70: ยังไม่เคยกรอก → ชวนกรอก (ข้ามได้)
     }
     // NW1: ถ้าผลมาจาก offline cache แล้วว่างเปล่า → อย่าทับ ปล่อย null ให้ loadSavedMenus retry ได้
@@ -2198,6 +2288,7 @@ async function loadStudentData(){
     renderTodayProgress();
     refreshAllChips();
     renderProgramBar();
+    try{_onbRefresh();_renderComeback();_applyBasicsGate();}catch(e){console.log('[v124]',e&&e.message);} // v124
     checkNearEnd();
     checkCoachComments();
   }catch(e){console.log('loadStudentData err',e);_lsdNote('all','throw',e);}
@@ -2223,6 +2314,10 @@ function _applySubsSnap(snap){
   _stuSubsTruncated=snap.docs.length>=_STU_LIMIT; // v53.1: ชนเพดาน = มีข้อมูลเก่ากว่านี้อีก เลข 🔥 อาจต่ำกว่าจริง
   // sort client-side + ลบ photoBase64 ออกจาก RAM (ยังใช้ photoUrl แทนได้)
   studentSubsCache=snap.docs.map(d=>{const dat=d.data();delete dat.photoBase64;return{id:d.id,...dat};}).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
+  // v124: ภารกิจ (mode:'mission') อยู่ใน collection เดียวกับมื้อ แต่ไม่ใช่มื้อ — แยกออกที่ต้นทางจุดเดียว
+  //   ประวัติ / วันนี้ / streak / Dashboard / checkCoachComments ที่อ่าน studentSubsCache จึงไม่เห็นภารกิจเลย
+  studentMissionsCache=studentSubsCache.filter(x=>x.mode==='mission');
+  studentSubsCache=studentSubsCache.filter(x=>x.mode!=='mission');
   // W7: มื้อที่ค้างคิว backup (ยังไม่ถึง server) ต้องโชว์ในประวัติ/วันนี้ด้วย
   // เคสจริง: นักเรียนออฟไลน์ → รีเฟรช → มื้อหายจากประวัติ → คิดว่าไม่สำเร็จ → ส่งซ้ำ
   try{
@@ -2234,6 +2329,7 @@ function _applySubsSnap(snap){
       if(studentSubsCache.some(x=>x.id===_pid))return; // ถึง server แล้ว
       const dd={...it.d};delete dd.__photos;delete dd.__ph;delete dd.createdAt;
       const ms=(it.d.createdAt&&it.d.createdAt.__ts)||it.at||Date.now();
+      if(dd.mode==='mission'){if(!studentMissionsCache.some(x=>x.id===_pid))studentMissionsCache.push({id:_pid,...dd,__pending:true,createdAt:{seconds:Math.floor(ms/1000),nanoseconds:0,toDate:()=>new Date(ms)}});return;} // v124
       studentSubsCache.push({id:_pid,...dd,__pending:true,createdAt:{seconds:Math.floor(ms/1000),nanoseconds:0,toDate:()=>new Date(ms)}});
     });
     studentSubsCache.sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
@@ -2330,7 +2426,7 @@ function applyTargets(doc){
 // v47.1: ตัวกรองกลาง — มื้อที่ถูกบันทึกตอน "โหมดทดสอบ" ต้องไม่ถูกนับรวมในแคลจริงของนักเรียน
 // BUGFIX: เดิม isTest ถูกเขียนลงฐานข้อมูลแต่ไม่เคยถูกกรองออกจากยอดรวมที่ไหนเลย (ใช้แค่โชว์ป้ายในการ์ดโค้ช)
 // ผลคือมื้อทดสอบไปโป่งอยู่ในแคลรวมของนักเรียน ทั้งในแอปและใน LINE card
-function realSubs(list){return (list||[]).filter(s=>!s.isTest||testMode);}
+function realSubs(list){return (list||[]).filter(s=>(!s.isTest||testMode)&&s.mode!=='mission');} // v124: ภารกิจไม่ใช่มื้อ ห้ามเข้าแคล/streak/missedDays
 function renderTodayProgress(){
   const today=todayStr();
   studentTodaySubs=realSubs(studentSubsCache).filter(s=>subDate(s)===today);
@@ -3646,6 +3742,7 @@ async function _callGeminiAI(){
 6. ถ้าไม่ระบุวิธีปรุง ให้ใช้ค่ากลาง — ไก่ไม่ระบุ=ย่าง/นึ่ง (ไม่ใช่ทอด), ปลาไม่ระบุ=นึ่ง (ไม่ใช่ทอด), หมูไม่ระบุ=ย่าง/ต้ม (ไม่ใช่สามชั้น)
 7. น้ำมันจากการปรุง — ตั้งต้น "ผัด" = น้ำมัน 10g (2 ช้อนชา) ต่อจาน เพราะอาหารตามสั่งใช้น้ำมันมาก · ถ้าผู้ใช้บอก "ผัดเอง" "ทำเอง" "ทำกินเอง" "ทำเองที่บ้าน" "ทำที่บ้าน" "น้ำมันน้อย" "กระทะเปล่า" ใช้ 5g · "ทอดน้ำมันท่วม" ใช้ 20g · "ไม่ใช้น้ำมัน" "ต้ม" "นึ่ง" "ลวก" "ย่าง" "อบ" ใช้ 0g (ค่าตั้งต้น 10g ตรงกับโหมด Hand portion เพื่อให้สองโหมดไม่ขัดกัน)
    ★ ถ้ามีหลายคำขัดกันในประโยคเดียว คำที่เจาะจงกว่าชนะ — "ทำเอง" + "ทอดน้ำมันท่วม" ใช้ 20g ไม่ใช่ 5g
+   ★★ ถ้าผู้ใช้ระบุน้ำมัน/เนย/น้ำตาล/เครื่องปรุงเป็นรายการเอง (เช่น "น้ำมัน 1 ช้อนชา" ในวงเล็บหรือในบรรทัด) ให้ใช้ค่าที่ผู้ใช้บอกเป็น item ของมันเอง และ "ห้ามบวกค่าตั้งต้นของข้อนี้ทับอีก" — นับน้ำมันรอบเดียวเสมอ
 8. ถ้าผู้ใช้บอก "ไม่มี X" หรือ "ไม่ใส่ X" ให้คำนวณโดยตัด X ออก อย่าใช้ค่า DB ที่รวม X อยู่ด้วย
 9.0 วงเล็บนับเป็น "รายการส่วนประกอบ" เฉพาะเมื่อข้างในมีของตั้งแต่ 2 อย่างคั่นด้วยจุลภาค หรือมีของที่ระบุปริมาณ เช่น (สันในหมู 70g, ลูกชิ้น 2 ลูก) — เฉพาะกรณีนี้เท่านั้นที่ใช้ข้อ 9 และ 9.1
    ★ วงเล็บแบบอื่นเป็นแค่คำขยายชื่ออาหาร ห้ามใช้ข้อ 9/9.1 ให้คิดทั้งจานตามปกติ:
@@ -5774,6 +5871,7 @@ async function _prefetchRun(userId){
       targets.pausedDays=d.pausedDays||0;targets.isPaused=d.isPaused||false;
       targets.discountCode=d.discountCode||'';targets.discountPercent=d.discountPercent||0;
       targets.profile=d.profile||null; // v70.1 ลืมก๊อปมา → การ์ดข้อมูลพื้นฐานว่างตลอด
+      targets.onboard=d.onboard||null; // v124: แถบเริ่มคอร์ส x/9 + สวิตช์รูปหุ่น (targets ไม่ใช่เอกสารดิบ ต้องก๊อปมาเหมือน profile)
     }
     // NB7: prefetch ล้มบางส่วน (เน็ตช้า) → อย่า cache — ไม่งั้นหน้านักเรียนจะโชว์ "ไม่มีข้อมูล" ทั้งที่มี
     if(tdSnap&&hsSnap&&wsSnap&&wcSnap){
@@ -5841,6 +5939,7 @@ async function openStudentDetail(userId){
     targets.discountCode=d.discountCode||'';
     targets.discountPercent=d.discountPercent||0;
     targets.profile=d.profile||null; // v70.1 ลืมก๊อปมา → การ์ดข้อมูลพื้นฐานว่างตลอด
+    targets.onboard=d.onboard||null; // v124: แถบเริ่มคอร์ส x/9 + สวิตช์รูปหุ่น (targets ไม่ใช่เอกสารดิบ ต้องก๊อปมาเหมือน profile)
   }
   // v74 BUGFIX: Phase 2 (ล่างลงไป) มีการ์ดนี้อยู่แล้ว แต่ Phase 1 ลืมใส่
   // โค้ชกดดู A (เน็ตช้า) แล้วกด B ต่อ → ข้อมูล A มาถึงทีหลังแล้ววาดทับ แต่หัวข้อยังเป็นชื่อ B
@@ -6916,6 +7015,7 @@ function renderStudentDetail(u, targets, healthLogs, weeklySummaries={}, weeklyC
   // v70: ข้อมูลพื้นฐาน (เพศ/อายุ/ส่วนสูง/โรคประจำตัว/แพ้อาหาร) — วางไว้บนสุดเพราะโค้ชต้องเห็นก่อนให้คำแนะนำ
   const _latestW=(weeklyChecks&&weeklyChecks.length)?weeklyChecks[weeklyChecks.length-1].weight_kg:null;
   const profileHtml=buildProfileSection(uid,targets.profile||null,_latestW);
+  const onboardHtml=buildOnboardSection(uid,targets.onboard||null); // v124
 
   // --- COACH NOTES ---
   const notesHtml=`<div class="sd-section">
@@ -6985,7 +7085,7 @@ function renderStudentDetail(u, targets, healthLogs, weeklySummaries={}, weeklyC
     style="width:100%;padding:11px;background:var(--light);border:1.5px solid var(--border);border-radius:10px;font-size:13px;font-weight:600;font-family:'Prompt',sans-serif;color:var(--primary-dark);cursor:pointer;margin-top:4px">
     📅 ดูย้อนหลังเพิ่มเติม
   </button>`:'';
-  document.getElementById('sd-content').innerHTML=profileHtml+planSectionHtml+progHtml+notesHtml+targHtml+macro7Html+`<div id="sd-progress-${uid}">${progressHtml}</div>`+zigzagHtml+`<div id="sd-lifestyle-${uid}">${lifestyleHtml}</div>`+`<div id="sd-weekly-${uid}">${weeklyHtml}</div>`+loadMoreBtn;
+  document.getElementById('sd-content').innerHTML=profileHtml+onboardHtml+planSectionHtml+progHtml+notesHtml+targHtml+macro7Html+`<div id="sd-progress-${uid}">${progressHtml}</div>`+zigzagHtml+`<div id="sd-lifestyle-${uid}">${lifestyleHtml}</div>`+`<div id="sd-weekly-${uid}">${weeklyHtml}</div>`+loadMoreBtn;
 }
 
 // ===== LIFESTYLE 7 วัน (bar charts) =====
@@ -7106,8 +7206,17 @@ function buildLifestyleSection(MON, TH_SHORT, healthLogs){
 function buildCard(s){
   const cs=cState[s.id]||{},showCorr=cs.open||false;
   const DL={veggie:'🟢ผัก',light:'🔵เบา',normal:'🟡ปกติ',dense:'🟠แน่น',heavy:'🔴ตัวตึง'};
-  const modeLabel={hand:'👊 Hand portion',label:'🏷️ ฉลาก',weigh:'✨ AI'}[s.mode]||s.mode;
-  let chips='',srcHtml='',asmHtml=''; // v123: 📝 นักเรียนพิมพ์ (เหนือชิป) / 💭 AI สันนิษฐาน (ใต้ชิป) — ว่างสำหรับโหมดอื่น
+  const modeLabel={hand:'👊 Hand portion',label:'🏷️ ฉลาก',weigh:'✨ AI',mission:'⚖️ ภารกิจ'}[s.mode]||s.mode; // v124: mission
+  let chips='',srcHtml='',asmHtml='';
+  if(s.mode==='mission'){ // v124: การ์ดภารกิจ — ชิปบอกข้อ/ชื่อ/กรัม ไม่มี macro
+    const md=s.missionData||{};
+    const _g=+md.grams||0;
+    chips+=`<span class="est-chip" style="background:#EDE9FE;color:#5B21B6;border-color:#DDD6FE">⚖️ ตาชั่งมนุษย์${md.idx?' ข้อ '+md.idx+'/5':''}${md.idx===1?' · บังคับ':''}</span>`;
+    chips+=`<span class="est-chip" style="background:#EDE9FE;color:#5B21B6;border-color:#DDD6FE">${escHtml(md.name||'')}</span>`;
+    chips+=`<span class="est-chip gram">ชั่งได้ ${_g} กรัม</span>`;
+    if(md.guess!=null)chips+=`<span class="est-chip">ทายไว้ ${+md.guess||0}</span>`;
+    if(md.idx===1)chips+=(_g>=75&&_g<=85)?`<span class="est-chip gram" style="background:#D1FAE5;border-color:#A7F3D0">อยู่ในช่วง 75–85 ✓</span>`:`<span class="est-chip" style="background:#FEF3C7;color:#92400E;border-color:#FDE68A">นอกช่วง 75–85</span>`;
+  } // v123: 📝 นักเรียนพิมพ์ (เหนือชิป) / 💭 AI สันนิษฐาน (ใต้ชิป) — ว่างสำหรับโหมดอื่น
   if(s.mode==='hand'&&s.handData){
     const hd=s.handData;
     const protL=protLabelOf(hd.protType); // v92
@@ -7148,7 +7257,7 @@ function buildCard(s){
   }
   const m=getSubMacros(s);
   const macroBar=`<div class="macro-summary"><div class="ms-item">${m.c}g<span>คาร์บ</span></div><div class="ms-item">${m.p}g<span>โปรตีน</span></div><div class="ms-item">${m.f}g<span>ไขมัน</span></div><div class="ms-kcal">⚡ ${m.kcal} kcal</div></div>`;
-  const statusBadge={pending:'<span class="status-badge pending">รออนุมัติ</span>',approved:'<span class="status-badge approved">✓ อนุมัติ</span>',corrected:'<span class="status-badge corrected">✏️ แก้ไข</span>'}[s.status]||'';
+  const statusBadge={pending:'<span class="status-badge pending">รออนุมัติ</span>',approved:'<span class="status-badge approved">✓ อนุมัติ</span>',corrected:'<span class="status-badge corrected">✏️ แก้ไข</span>',rejected:'<span class="status-badge" style="background:#FEE2E2;color:#991B1B">✗ ขอใหม่</span>'}[s.status]||''; // v124: rejected
   // v83: มื้อที่เกิน 24 ชม. formatTime จะคืน "วันที่" ซึ่งเรนเดอร์ตาม tz ของโค้ช
   //   → การ์ดใบเดียวโชว์ 2 วันขัดกัน (มุมซ้าย "อา 14 ก.ย." มุมขวา "15 ก.ย.")
   //   ถ้ามี mealDate อยู่แล้ว (มุมซ้ายบอกวันถูกต้อง) มุมขวาโชว์แค่เวลาก็พอ
@@ -7208,9 +7317,15 @@ function buildCard(s){
   if(s.status==='pending')actions=`<div class="card-actions"><button class="btn-approve" onclick="doApproveQuiet('${s.id}')">✅ อนุมัติ</button><button class="btn-approve" style="background:#ECFDF5;color:#065F46;border:1px solid #A7F3D0" onclick="approveCard('${s.id}')">${showApprove?'✕ ปิด':'💬 อนุมัติ + ข้อความ'}</button><button class="btn-correct" onclick="toggleCorr('${s.id}')">${showCorr?'✕ ยกเลิก':'✏️ แก้ไข'}</button>${_delBtn}</div>`;
   // F1: การ์ดที่อนุมัติ/แก้ไปแล้ว → โค้ชกลับมาแก้ใหม่ได้ (บันทึกแล้วส่ง Card อัปเดตให้นักเรียน)
   else if(s.status==='approved'||s.status==='corrected')actions=`<div class="card-actions"><button class="btn-correct" onclick="toggleCorr('${s.id}')" style="flex:1">${showCorr?'✕ ยกเลิก':'✏️ แก้ไขการอนุมัติ'}</button>${_delBtn}</div>`;
-  const corrPanel=showCorr?buildCorrPanel(s,cs):'';
+  // v124: ภารกิจ — ปุ่มแค่ ✓ รับรอง / ✗ ขอใหม่ (ไม่มี Card ไม่มีแก้ค่า ไม่มีลบ)
+  if(s.mode==='mission'){
+    actions=s.status==='pending'
+      ?`<div class="card-actions"><button class="btn-approve" onclick="doApproveQuiet('${s.id}')">✓ รับรอง</button><button class="btn-correct" style="background:#FEF2F2;color:#B91C1C;border:1px solid #FECACA" onclick="doRejectMission('${s.id}')">✗ ขอใหม่</button></div>`
+      :`<div style="font-size:11.5px;color:var(--gray);padding:4px 0">${s.status==='rejected'?'✗ ขอให้ส่งใหม่แล้ว':'✓ รับรองแล้ว'}</div>`;
+  }
+  const corrPanel=(showCorr&&s.mode!=='mission')?buildCorrPanel(s,cs):'';
   const testBadge=s.isTest?'<span style="background:#EDE9FE;color:#7C3AED;border-radius:6px;padding:1px 7px;font-size:11px;margin-left:4px">🧪 ทดสอบ</span>':'';
-  return`<div class="card" id="card-${s.id}"><div class="card-header">${avatarHtml}<div><div class="card-name">${escHtml(s.displayName||'นักเรียน')}<span class="mode-tag ${s.mode}">${modeLabel}</span>${testBadge}</div><div class="card-meta">${dateLabel}มื้อ${s.meal} &nbsp;${statusBadge}</div></div><div class="card-time">${timeStr}</div></div>${photoHtml}<div class="card-body">${srcHtml}<div class="est-chips">${chips}</div>${asmHtml}${macroBar}${corrNote}${actions}</div>${corrPanel}</div>`;
+  return`<div class="card" id="card-${s.id}"><div class="card-header">${avatarHtml}<div><div class="card-name">${escHtml(s.displayName||'นักเรียน')}<span class="mode-tag ${s.mode}">${modeLabel}</span>${testBadge}</div><div class="card-meta">${dateLabel}${s.mode==='mission'?'ภารกิจ':'มื้อ'+s.meal} &nbsp;${statusBadge}</div></div><div class="card-time">${timeStr}</div></div>${photoHtml}<div class="card-body">${srcHtml}<div class="est-chips">${chips}</div>${asmHtml}${s.mode==='mission'?'':macroBar}${corrNote}${actions}</div>${corrPanel}</div>`; // v124: ภารกิจไม่มี macro bar
 }
 
 // v82 BUGFIX: โค้ชแก้มื้อโหมด Hand แล้วกลับมาแก้ซ้ำ → ปุ่มทุกตัวเด้งกลับเป็นค่าดั้งเดิมของนักเรียน
@@ -7709,6 +7824,20 @@ async function doApproveQuiet(id){
     showToast(_r==='timeout'?_slowMsg('📡 เน็ตช้า — อนุมัติไว้ในเครื่องแล้ว จะซิงค์อัตโนมัติค่ะ'):'✅ อนุมัติแล้วค่ะ',_r==='timeout'?4500:2500);
   }catch(e){showToast('⚠️ ไม่สำเร็จ: '+e.message,4000);} // v65: alert ถูก LINE บล็อกได้ = โค้ชไม่รู้ว่าพลาด
   finally{_approveInProgress.delete(id);} // M1
+}
+// v124: ขอให้ส่งภารกิจใหม่ — สถานะ rejected · นักเรียนเห็นข้อนั้นกลับมาเป็น "ทำได้เลย" ไม่มีโทษ
+async function doRejectMission(id){
+  _markCoachSelfWrite(id);
+  _justActedIds.add(id);
+  if(_approveInProgress.has(id))return;
+  _approveInProgress.add(id);
+  if(cState[id])delete cState[id];
+  try{
+    const _r=await _fsWrite(db.collection('submissions').doc(id).update({status:'rejected',coachComment:'',coachCommentSent:true}));
+    _syncCard(id);
+    showToast(_r==='timeout'?_slowMsg('📡 เน็ตช้า — บันทึกไว้แล้ว จะซิงค์อัตโนมัติค่ะ'):'✗ ขอให้ส่งใหม่แล้วค่ะ');
+  }catch(e){showToast('⚠️ ไม่สำเร็จ: '+e.message,4000);}
+  finally{_approveInProgress.delete(id);}
 }
 async function doApprove(id){
   _markCoachSelfWrite(id); // v76 + v95: ฟังก์ชันนี้เรียก _syncCard() เองด้านล่าง (เดิม renderCoach ทั้งหน้า)
@@ -9583,7 +9712,352 @@ function _doSelMode(tab){
   document.getElementById('panel-label').style.display=curMode==='label'?'block':'none';
   document.getElementById('panel-weigh').style.display=curMode==='weigh'?'block':'none';
 }
+
+// ═══════════════════════ v124: ภารกิจ (เริ่มคอร์ส 9 ข้อ) ═══════════════════════
+// ตรวจจากข้อมูลที่แอปโหลดไว้แล้ว: profile / targets / submissions / savedMenus (0 คิวรี)
+// weeklyChecks / healthLogs อ่านแค่ 1 รายการ เฉพาะตอนยังไม่ผ่าน แล้วบันทึกลง onboard.done ไม่อ่านซ้ำอีก
+let studentOnboard=null, studentHasTargets=false, studentMissionsCache=[];
+let _onbFetched={baseline:false,health:false}, _onbSeen={baseline:false,health:false,targets:false,basics:false}, _onbBusy=false, _onbAgain=false;
+const _ONB=[
+  {k:'profile',  e:'👤',t:'กรอกโปรไฟล์',        d:'เพศ · ส่วนสูง · วันเกิด · แพ้อาหาร', go:'openProfileForm(null,studentProfile)', gl:'กรอก'},
+  {k:'baseline', e:'📏',t:'บันทึกจุดเริ่มต้น',   d:'น้ำหนัก · เอว · สะโพก (แท็บ Health log → 📏 วัดสัดส่วน)', go:"_onbGoTab('health')", gl:'ไปวัด'},
+  {k:'bodyPhoto',e:'📸',t:'ส่งรูปหุ่นเริ่มต้นในไลน์', d:'หน้า · ข้าง · หลัง ส่งในไลน์กลุ่ม แล้วรอโค้ชยืนยัน', go:'', gl:''},
+  {k:'targets',  e:'🎯',t:'รับทราบเป้าหมายจากโค้ช', d:'แคล/มาโครที่ต้องกินต่อวัน', go:'_onbAckTargets()', gl:'รับทราบ'},
+  {k:'basics',   e:'📖',t:'ปรับพื้นฐาน 5 ใบ + ควิซ', d:'อ่าน 3 นาที · ตอบ 5 ข้อ ผิดได้', go:'openBasicsPage()', gl:'เริ่ม'},
+  {k:'firstMeal',e:'🍽',t:'ส่งมื้อแรก',           d:'จดมื้อไหนก็ได้ 1 มื้อ', go:"_onbGoTab('log')", gl:'ไปจด'},
+  {k:'health',   e:'😴',t:'บันทึกสุขภาพวันแรก',  d:'นอน · ก้าวเดิน · คาร์ดิโอ (แท็บ Health log)', go:"_onbGoTab('health')", gl:'ไปบันทึก'},
+  {k:'savedMenu',e:'💾',t:'บันทึกเมนูโปรด 1 เมนู', d:'กด ⭐ เมนูโปรด หลังคำนวณ — ครั้งถัดไปจดได้ใน 1 แตะ', go:"_onbGoTab('log')", gl:'ไปทำ'},
+  {k:'scale',    e:'🍚',t:'ชั่งข้าวสวย 1 ทัพพี = 80g', d:'ทายก่อน แล้วชั่งจริง ถ่ายรูปส่งโค้ช', go:'openScaleMission()', gl:'ทำเลย'},
+];
+const _ONB_STAGES=[{n:'รู้จักกันแล้ว',e:'👋',upto:3},{n:'เริ่มจดจริง',e:'🍽',upto:6},{n:'พร้อมลุย',e:'🚀',upto:9}];
+function _onbGoTab(t){closeMissionPage();const i={log:0,health:1,history:2,dashboard:3,plan:4}[t];const els=document.querySelectorAll('.nav-tab');selStudentTab(t,els[i]||null);}
+function _onbDone(){return (studentOnboard&&studentOnboard.done)||{};}
+// สถานะภารกิจชั่งข้าว จากเอกสาร mission ของตัวเอง (อยู่ใน query submissions เดิม)
+function _scaleState(){
+  const ms=(studentMissionsCache||[]).filter(m=>m.missionData&&m.missionData.kind==='scale'&&m.missionData.idx===1);
+  if(ms.some(m=>m.status==='approved'))return 'done';
+  if(ms.some(m=>m.status==='pending'))return 'wait';
+  if(ms.some(m=>m.status==='rejected'))return 'redo';
+  return 'todo';
+}
+// คำนวณ 9 ข้อ — คืน {k:true/false}
+function _onbCompute(){
+  const done=_onbDone();
+  const subs=realSubs(studentSubsCache||[]);
+  return {
+    profile:  !!(studentProfile&&studentProfile.gender&&studentProfile.heightCm)||!!done.profile,
+    baseline: !!done.baseline||_onbSeen.baseline,
+    bodyPhoto:!!(studentOnboard&&studentOnboard.bodyPhotoAt),
+    targets:  !!done.targets||_onbSeen.targets,
+    basics:   !!done.basics||_onbSeen.basics,
+    firstMeal:subs.length>0||!!done.firstMeal,
+    health:   !!done.health||_onbSeen.health,
+    savedMenu:(savedMenusCache||[]).length>0||!!done.savedMenu,
+    scale:    _scaleState()==='done'||!!done.scale,
+  };
+}
+function _onbCount(m){return _ONB.filter(x=>m[x.k]).length;}
+function _onbStageOf(m){ // ขั้นที่ผ่านแล้ว (0–3) นับจากข้อที่ผ่านทั้งหมดเรียงตามลำดับ
+  let st=0;_ONB_STAGES.forEach((sg,i)=>{if(_ONB.slice(0,sg.upto).every(x=>m[x.k]))st=i+1;});return st;
+}
+// ★ หัวใจ: เทียบของเดิมกับของใหม่ → เขียนลง Firestore เฉพาะที่เปลี่ยน → ฉลองเฉพาะที่ "เพิ่งผ่านจริง"
+//   นักเรียนเก่าที่ไม่มี onboard มาก่อน = backfill เงียบ (ไม่ฉลอง ไม่โชว์วันที่)
+async function _onbRefresh(){
+  if(!user||isCoach||studentSubsCache===null)return;
+  if(_onbBusy){_onbAgain=true;return;}_onbBusy=true;_onbAgain=false;
+  try{
+    const done=_onbDone();
+    // อ่าน 1 รายการเฉพาะข้อที่ยังไม่ผ่านและยังไม่เคยเช็คในรอบนี้
+    if(!done.baseline&&!_onbFetched.baseline){_onbFetched.baseline=true;
+      try{const q=await Promise.race([db.collection('weeklyChecks').doc(user.userId).collection('entries').limit(1).get(),new Promise(r=>setTimeout(()=>r(null),5000))]);
+        if(q&&!q.empty)_onbSeen.baseline=true;}catch(_){}
+    }
+    if(!done.health&&!_onbFetched.health){_onbFetched.health=true;
+      try{const q=await Promise.race([db.collection('healthLogs').doc(user.userId).collection('days').limit(1).get(),new Promise(r=>setTimeout(()=>r(null),5000))]);
+        if(q&&!q.empty)_onbSeen.health=true;}catch(_){}
+    }
+    const m=_onbCompute();
+    // firstTime = ยังไม่เคยตั้งต้น onboard เลย → รอบนี้คือ backfill เงียบ (เขียน init ไว้ รอบต่อไปถึงจะฉลอง)
+    const firstTime=!(studentOnboard&&studentOnboard.init);
+    const newly=_ONB.filter(x=>m[x.k]&&!done[x.k]&&x.k!=='bodyPhoto').map(x=>x.k);
+    const storedStage=(studentOnboard&&studentOnboard.stage)||0; // ขั้นที่เคยบันทึก — ผ่านขั้นเพราะโค้ชกดยืนยันรูปก็ต้องฉลอง (bodyPhoto ไม่อยู่ใน newly)
+    const nowStage=_onbStageOf(m);
+    if(newly.length||firstTime||nowStage>storedStage){
+      // set+merge (ไม่ใช่ update) — นักเรียนใหม่ยังไม่มีเอกสาร students/{uid} ก็เขียนได้
+      const ob={done:{},doneAt:{}};newly.forEach(k=>{ob.done[k]=true;ob.doneAt[k]=firstTime?'backfill':firebase.firestore.FieldValue.serverTimestamp();});
+      if(firstTime)ob.init=true;
+      if(nowStage>storedStage)ob.stage=nowStage;
+      studentOnboard=studentOnboard||{};studentOnboard.init=true;studentOnboard.done=Object.assign({},done);newly.forEach(k=>studentOnboard.done[k]=true);
+      studentOnboard.doneAt=Object.assign({},studentOnboard.doneAt||{});newly.forEach(k=>studentOnboard.doneAt[k]=firstTime?'backfill':{seconds:Math.floor(Date.now()/1000)});
+      studentOnboard.stage=Math.max(studentOnboard.stage||0,nowStage);
+      try{_fsWrite(db.collection('students').doc(user.userId).set({onboard:ob},{merge:true})).catch(()=>{});}catch(_){}
+      // ฉลอง: ข้ามถ้าเป็น backfill (นักเรียนเก่า) — ขั้นสำคัญกว่าข้อ
+      if(!firstTime){
+        if(nowStage>storedStage){const sg=_ONB_STAGES[nowStage-1];
+          _celebrate(sg.e,'ผ่านขั้น '+nowStage+': '+sg.n+'!',nowStage>=3?'เริ่มคอร์สครบ 9 ข้อ — พร้อมลุยแล้ว':'อีก '+(9-_onbCount(m))+' ข้อถึงขั้นต่อไป',nowStage>=3?'🚀 Badge เริ่มคอร์ส ได้แล้ว':'🚀 เริ่มคอร์ส '+_onbCount(m)+'/9');
+        }else if(newly.length){const it=_ONB.find(x=>x.k===newly[newly.length-1]);
+          _celebrate(it.e,'ผ่านแล้ว: '+it.t,'',_onbNextLine(m));
+        }
+      }
+    }
+  }finally{_onbBusy=false;}
+  _renderMissionPill();
+  const _mp=document.getElementById('mission-page');if(_mp&&_mp.style.display==='block')renderMissionPage();
+  if(_onbAgain){_onbAgain=false;_onbRefresh();} // มีคนเรียกซ้อนตอนกำลังยุ่ง → วนอีกรอบให้
+}
+function _onbNextLine(m){
+  const n=_onbCount(m);if(n>=9)return'🚀 เริ่มคอร์สครบแล้ว';
+  const st=_onbStageOf(m);const sg=_ONB_STAGES[st];const left=sg.upto-_ONB.slice(0,sg.upto).filter(x=>m[x.k]).length;
+  return left===1?'อีก 1 ข้อ ผ่านขั้น '+sg.e+' '+sg.n:'🚀 เริ่มคอร์ส '+n+'/9';
+}
+function _renderMissionPill(){
+  const el=document.getElementById('mission-pill');if(!el||!user||isCoach)return;
+  const m=_onbCompute();const n=_onbCount(m);
+  el.style.display='flex';el.classList.remove('mp-hot');
+  if(n>=9){el.textContent='🏅 ภารกิจ';return;}
+  const st=_onbStageOf(m);const sg=_ONB_STAGES[st];const left=sg.upto-_ONB.slice(0,sg.upto).filter(x=>m[x.k]).length;
+  if(left===1){el.textContent='🏅 อีก 1 ข้อผ่านขั้น';el.classList.add('mp-hot');}
+  else el.textContent='🏅 '+n+'/9';
+}
+function openMissionPage(){renderMissionPage();document.getElementById('mission-page').style.display='block';window.scrollTo(0,0);}
+function closeMissionPage(){document.getElementById('mission-page').style.display='none';}
+function renderMissionPage(){
+  const body=document.getElementById('mp-body');if(!body)return;
+  const m=_onbCompute();const n=_onbCount(m);const st=_onbStageOf(m);const sc=_scaleState();
+  document.getElementById('mp-count').textContent=n+' / 9';
+  let h='';
+  // ชั้น 1: เริ่มคอร์ส
+  if(n>=9){
+    h+=`<div class="mi done"><div class="n">🚀</div><div><b>เริ่มคอร์ส ครบ 9/9</b><div class="d">Badge 🚀 ได้แล้ว — ชั้นต่อไปกำลังมา</div></div></div>`;
+  }else{
+    h+=`<div class="mp-card"><div style="display:flex;justify-content:space-between;align-items:center"><b style="font-size:13px">🚀 เริ่มคอร์ส · 7 วันแรก</b><span class="streak-pill" style="display:flex;margin-left:0">${n} / 9</span></div>
+      <div class="mp-bar"><i style="width:${Math.round(n/9*100)}%"></i></div>
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:#6B7280;margin-top:4px">${_ONB_STAGES.map((sg,i)=>`<span style="${st>i?'color:#065F46;font-weight:700':''}">${sg.e} ${sg.n}${st>i?' ✓':''}</span>`).join('')}</div></div>`;
+    let nextShown=false;
+    _ONB_STAGES.forEach((sg,i)=>{
+      const from=i?_ONB_STAGES[i-1].upto:0;
+      const items=_ONB.slice(from,sg.upto);
+      const passed=st>i;
+      h+=`<div class="mp-stage"><div class="pin ${passed?'on':''}">${sg.e}</div><div class="l">ขั้น ${i+1} · ${sg.n} <span>· ${passed?'ผ่านแล้ว':'อีก '+items.filter(x=>!m[x.k]).length+' ข้อ'}</span></div></div>`;
+      items.forEach((it,j)=>{
+        const idx=from+j+1;
+        if(m[it.k]){h+=`<div class="mi done"><div class="n">✓</div><div><b>${it.e} ${it.t}</b></div></div>`;return;}
+        // สถานะพิเศษ
+        let tag='',cls='',go=it.go,gl=it.gl,d=it.d;
+        if(it.k==='bodyPhoto'){cls='';d='ส่งในไลน์กลุ่มแล้วโค้ชจะกดยืนยันให้ · ถึงตอนนั้นข้อนี้ขึ้น ✓ เอง';tag='<span style="font-size:10px;background:#EDE9FE;color:#5B21B6;border-radius:8px;padding:1px 6px;margin-left:4px">รอโค้ช</span>';}
+        if(it.k==='targets'&&!studentHasTargets){d='โค้ชยังไม่ได้ตั้งเป้าให้ — ขึ้น ✓ เองเมื่อโค้ชตั้งแล้วคุณกดรับทราบ';go='';gl='';tag='<span style="font-size:10px;background:#EDE9FE;color:#5B21B6;border-radius:8px;padding:1px 6px;margin-left:4px">รอโค้ช</span>';}
+        if(it.k==='scale'){
+          if(sc==='wait'){cls='wait';d='ส่งแล้ว รอโค้ชรับรอง';go='';gl='';}
+          else if(sc==='redo'){d='โค้ชขอให้ส่งใหม่ — ลองปรับให้ใกล้ 80 กรัมอีกนิด';gl='ส่งใหม่';}
+        }
+        if(!nextShown&&go){cls=cls||'now';nextShown=true;}
+        h+=`<div class="mi ${cls}"><div class="n">${cls==='wait'?'⏳':idx}</div><div style="flex:1;min-width:0"><b>${it.e} ${it.t}${tag}</b><div class="d">${d}</div></div>${go?`<button class="go" onclick="${go.replace(/"/g,'&quot;')}">${gl} →</button>`:''}</div>`;
+      });
+    });
+  }
+  h+=`<div class="mp-lock">🔒 <b>🏅 Practice 7 ดวง</b> และ <b>🎯 ทายก่อนชั่ง</b><br>กำลังมาในรุ่นถัดไป — ${n>=9?'คุณพร้อมแล้ว':'ปลดล็อกเมื่อเริ่มคอร์สครบ 9 ข้อ'}</div>`;
+  body.innerHTML=h;
+}
+// ข้อ 4: รับทราบเป้าหมาย — โชว์เป้าจริงก่อนกด
+async function _onbAckTargets(){
+  if(!studentHasTargets){await askOK('โค้ชยังไม่ได้ตั้งเป้าหมายให้ค่ะ รอสักครู่นะคะ',{icon:'🎯'});return;}
+  const ok=await askConfirm(`เป้าหมายของคุณวันนี้\n\n⚡ ${TARGETS.kcal} kcal\nคาร์บ ${TARGETS.c} g · โปรตีน ${TARGETS.p} g · ไขมัน ${TARGETS.f} g\n\nดูได้ตลอดที่แถบ "วันนี้" ในหน้าจดค่ะ`,{icon:'🎯',okText:'รับทราบ ✓',cancelText:'ปิด'});
+  if(!ok)return;
+  _onbSeen.targets=true; // ให้ _onbRefresh เป็นคนเขียน done + ฉลอง (ถ้าตั้ง done ก่อน มันจะไม่รู้ว่า "เพิ่งผ่าน")
+  _onbRefresh();
+}
+// ───────── ฉลองเต็มจอ ─────────
+let _cbTimer=null;
+function _celebrate(e,t,sub,next){
+  const ov=document.getElementById('celebrate-ov');if(!ov)return;
+  document.getElementById('cb-e').textContent=e||'🎉';document.getElementById('cb-t').textContent=t||'';
+  document.getElementById('cb-s').textContent=sub||'';document.getElementById('cb-n').textContent=next||'';
+  ov.style.display='flex';
+  try{if(navigator.vibrate&&localStorage.getItem('_dfCelebQuiet')!=='1')navigator.vibrate([40,60,40]);}catch(_){}
+  try{if(localStorage.getItem('_dfCelebQuiet')!=='1'){const AC=window.AudioContext||window.webkitAudioContext;if(AC){const ac=new AC();const o=ac.createOscillator(),g=ac.createGain();o.connect(g);g.connect(ac.destination);o.frequency.value=880;g.gain.value=.08;o.start();o.frequency.setValueAtTime(1320,ac.currentTime+.12);g.gain.exponentialRampToValueAtTime(.0001,ac.currentTime+.4);o.stop(ac.currentTime+.42);}}}catch(_){}
+  clearTimeout(_cbTimer);_cbTimer=setTimeout(closeCelebrate,4000);
+}
+function closeCelebrate(){const ov=document.getElementById('celebrate-ov');if(ov)ov.style.display='none';clearTimeout(_cbTimer);}
+// ───────── ทางกลับ: หายไป 3+ วัน ─────────
+// ตรวจจากมื้อล่าสุดใน cache (0 คิวรี) · ขึ้นครั้งเดียวต่อรอบการหาย (จำวันที่มื้อล่าสุดที่เคยเตือน)
+function _comebackGapDays(){
+  const subs=realSubs(studentSubsCache||[]);if(!subs.length)return 0;
+  const last=subs.map(s=>subDate(s)).filter(Boolean).sort().pop();if(!last)return 0;
+  const ms=Date.now()-new Date(last+'T00:00:00').getTime();
+  return Math.floor(ms/86400000);
+}
+function _renderComeback(){
+  const el=document.getElementById('comeback-card');if(!el||!user||isCoach)return;
+  const gap=_comebackGapDays();
+  const subs=realSubs(studentSubsCache||[]);const last=subs.length?subs.map(s=>subDate(s)).filter(Boolean).sort().pop():'';
+  let seen='';try{seen=localStorage.getItem('_dfComeback')||'';}catch(_){}
+  if(gap<3||!last||seen===last){el.style.display='none';return;}
+  el.innerHTML=`<div style="font-size:40px">👋</div><div style="font-size:14px;font-weight:800;margin-top:6px">กลับมาแล้ว ดีใจที่เห็นนะ</div>
+    <div style="font-size:12px;color:#6B7280;margin-top:4px;line-height:1.5">หายไป ${gap} วันไม่ได้ทำให้อะไรหายไป<br>วันนี้ส่งมื้อเดียวก็พอ</div>
+    <button class="mp-btn p" onclick="_dismissComeback('${last}');document.getElementById('ai-food-input')&&document.getElementById('ai-food-input').focus()">จดมื้อนี้เลย →</button>
+    <button class="mp-btn g" onclick="_dismissComeback('${last}');openMissionPage()">ขอดูภารกิจก่อน</button>`;
+  el.style.display='block';
+}
+function _dismissComeback(last){try{localStorage.setItem('_dfComeback',last);}catch(_){}const el=document.getElementById('comeback-card');if(el)el.style.display='none';}
+// ───────── ประตูปรับพื้นฐาน (ล็อกช่อง AI เฉพาะคนที่ยังไม่เคยส่งมื้อ) ─────────
+function _basicsGateOn(){
+  if(!user||isCoach||studentSubsCache===null)return false; // โหลดประวัติไม่ได้ → ไม่ล็อก (กันขังคนเก่า)
+  if(realSubs(studentSubsCache).length>0)return false;
+  return !(_onbDone().basics||_onbSeen.basics);
+}
+function _applyBasicsGate(){
+  const gate=document.getElementById('basics-gate');if(!gate)return;
+  const on=_basicsGateOn();
+  gate.style.display=on?'block':'none';
+  const ta=document.getElementById('ai-food-input'),btn=document.getElementById('ai-calc-btn');
+  if(ta){ta.disabled=on;if(on)ta.placeholder='อ่านปรับพื้นฐานก่อน แล้วช่องนี้จะเปิดค่ะ';else if(ta.placeholder.indexOf('ปรับพื้นฐาน')>=0)ta.placeholder='ข้าวกล้อง 2 ทัพพี\nไข่ดาว 1 ฟอง\nผัดผักบุ้งครึ่งจาน\nนมจืด 1 กล่อง';}
+  if(btn)btn.disabled=on;
+}
+// ───────── ปรับพื้นฐาน 5 ใบ + ควิซ 5 ข้อ ─────────
+const _BS_CARDS=[
+  {k:'ใบ 1 / 5 · บอกปริมาณ',t:'⚖️ ชั่งได้ใส่กรัม · ไม่ได้ชั่งใช้มือ',b:'จำสูตรเดียว: <b>ชื่ออาหาร + ปริมาณ</b> แล้วคั่นแต่ละอย่างด้วยลูกน้ำ<br><br>⚖️ ชั่งได้ → ใส่กรัมเลย แม่นที่สุด<br>👀 ไม่ได้ชั่ง → กะด้วยสายตาได้<br>&nbsp;&nbsp;คาร์บ/เส้น = <b>ทัพพี</b> · เนื้อสัตว์ = <b>ฝ่ามือ</b> (สันมือ ไม่รวมนิ้ว) · น้ำมัน เนย = <b>ช้อนชา</b><br>&nbsp;&nbsp;ของนับได้ = ชิ้น ลูก แผ่น ฟอง',ex:'<b>✅</b> ข้าวสวย 2 ทัพพี, อกไก่ย่าง 1 ฝ่ามือ, ไข่ดาว 1 ฟอง<br><b>❌</b> ข้าวสวย 2 ทัพพี ไข่ดาว 1 ฟอง (ไม่มีลูกน้ำ = อ่านเป็นชื่อเดียว)'},
+  {k:'ใบ 2 / 5 · ขี้เกียจ หรือกะยาก',t:'🍽 บอกชื่อเมนู + จาน/ชาม/ถ้วย ก็ได้',b:'เมนูจานเดียว บอกตามภาชนะได้เลย ระบบดึง<b>ค่ากลาง</b>ของเมนูนั้นมาให้<br><br>ถ้ากะได้ แยกเป็น ข้าว x ทัพพี, ไก่ x ฝ่ามือ จะแม่นกว่า — จานคือทางง่าย ไม่ใช่ทางที่ดีที่สุด',ex:'<b>✅</b> ก๋วยเตี๋ยว 1 ชาม · ข้าวมันไก่ 1 จาน · ผัดผัก 1 ถ้วย<br><b>⚠️</b> ข้าวมันไก่ (ไม่บอกปริมาณ) — ระบบจะเตือนก่อนส่ง'},
+  {k:'ใบ 3 / 5 · อยากให้ละเอียดขึ้น',t:'( ) วงเล็บใช้ได้ 2 แบบเท่านั้น',b:'① ไม่ได้กินอะไร → <b>(ไม่ใส่ X)</b><br>② รู้บางอย่าง → เขียนที่รู้ แล้วปิดท้ายว่า <b>"ที่เหลือตามปกติ"</b> ทุกครั้ง<br><br>⚠️ ถ้าลืมคำว่า "ที่เหลือตามปกติ" ระบบจะนับ<b>เฉพาะในวงเล็บ</b> ข้าวกับน้ำราดจะหายไป',ex:'<b>✅</b> ข้าวมันไก่ 1 จาน (ไม่เอาหนัง, ไม่ใส่น้ำจิ้ม)<br><b>✅</b> ข้าวมันไก่ 1 จาน (ไก่ 1 ฝ่ามือ, ที่เหลือตามปกติ)<br><b>❌</b> ข้าวมันไก่ 1 จาน (ไก่ 1 ฝ่ามือ)'},
+  {k:'ใบ 4 / 5 · ทำกินเอง',t:'🍳 เขียนว่า "ทำเอง" แล้วใส่วัตถุดิบในวงเล็บ',b:'ระบบจะคิดน้ำมันแบบทำเอง (น้อยกว่าร้านครึ่งนึง) แล้วแยกให้เห็นเป็นรายการ<br>ต้ม นึ่ง ย่าง ลวก บอกได้เลย ระบบจะไม่คิดน้ำมัน<br>ถ้ารู้น้ำมัน ใส่ xx กรัม หรือ xx ช้อนชา ได้เลย<br><br>ชั่งของดิบก่อนทำ → พิมพ์ <b>"ดิบ"</b> ด้วย (ซื้อมากินไม่ต้องพิมพ์ ระบบถือว่าสุกอยู่แล้ว)',ex:'<b>✅</b> ผัดกะเพรา ทำเอง (หมูสับดิบ 100 กรัม, น้ำมัน 1 ช้อนชา, น้ำปลา 1 ช้อนโต๊ะ, น้ำตาล 1 ช้อนชา)'},
+  {k:'ใบ 5 / 5 · หลังกด ✨',t:'🧠 อ่านกล่อง "AI สมมติแบบนี้ให้" ทุกครั้ง',b:'AI จะบอกว่ามันเดาอะไร เช่น "ถือว่าข้าวสุก" "คิดน้ำมันแบบร้าน"<br>ข้อไหนไม่ตรง <b>แก้ตัวเลขตรงรายการนั้นได้เลย</b> ระบบคำนวณใหม่ให้<br><br><b>กล่องว่าง = แม่นที่สุดแล้ว</b>',ex:'<b>รู้ไว้เพิ่ม:</b> ชื่อเจาะจงยิ่งแม่น ("ลูกชิ้นหมู" มีในฐาน "ลูกชิ้น" ไม่มี) · ของมีซอง → โหมดฉลาก · เหล้า เบียร์ ไวน์ พิมพ์ได้ตรงๆ'},
+];
+const _BS_QUIZ=[
+  {q:'พิมพ์แบบไหนที่ระบบอ่านถูกทุกรายการ?',o:['"ข้าวสวย 2 ทัพพี ไข่ดาว 1 ฟอง อกไก่"','"ข้าวสวย 2 ทัพพี, ไข่ดาว 1 ฟอง, อกไก่ย่าง 1 ฝ่ามือ"','"ข้าวสวย ไข่ดาว อกไก่"'],a:1,w:'คั่นด้วยลูกน้ำ (หรือขึ้นบรรทัดใหม่) ไม่งั้นของสองอย่างที่ติดกันจะถูกอ่านเป็นชื่อเดียวแล้วหาไม่เจอ · ทุกอย่างต้องมีปริมาณ'},
+  {q:'กินข้าวมันไก่ที่ร้าน กะไม่ถูกว่ามีอะไรเท่าไหร่ พิมพ์แบบไหนดี?',o:['"ข้าวมันไก่ 1 จาน"','"ข้าวมันไก่" เฉยๆ','"ข้าวมันไก่ 1 กำมือ"'],a:0,w:'กะไม่ถูก → ชื่อเมนู + จาน/ชาม/ถ้วย ระบบดึงค่ากลางมาให้ · ถ้ากะได้ แยกเป็น ข้าว x ทัพพี, ไก่ x ฝ่ามือ จะแม่นกว่า'},
+  {q:'ข้าวมันไก่ 1 จาน แต่รู้แน่ว่าไก่มี 1 ฝ่ามือ อย่างอื่นไม่รู้ พิมพ์แบบไหน?',o:['"ข้าวมันไก่ 1 จาน (ไก่ 1 ฝ่ามือ)"','"ข้าวมันไก่ 1 จาน (ไก่ 1 ฝ่ามือ, ที่เหลือตามปกติ)"','"ข้าวมันไก่ 1 จาน, ไก่ 1 ฝ่ามือ"'],a:1,w:'วงเล็บ = ระบบนับเฉพาะที่เขียน ตัวเลือกแรกข้าวกับน้ำราดหาย · ต้องปิดท้ายว่า "ที่เหลือตามปกติ" ระบบถึงจะเติมส่วนที่เหลือให้ · ตัวเลือกสามจะนับไก่ซ้ำ 2 รอบ'},
+  {q:'ผัดกะเพราเองที่บ้าน ชั่งหมูสับดิบได้ 100 กรัม ใส่น้ำมัน 1 ช้อนชา น้ำปลา 1 ช้อนโต๊ะ น้ำตาล 1 ช้อนชา พิมพ์แบบไหนแม่นสุด?',o:['"ผัดกะเพรา 1 จาน"','"ผัดกะเพรา ทำเอง (หมูสับ 100 กรัม)"','"ผัดกะเพรา ทำเอง (หมูสับดิบ 100 กรัม, น้ำมัน 1 ช้อนชา, น้ำปลา 1 ช้อนโต๊ะ, น้ำตาล 1 ช้อนชา)"'],a:2,w:'ทำเองให้ใส่วัตถุดิบและเครื่องปรุงในวงเล็บพร้อมปริมาณทุกอย่าง — น้ำมัน น้ำตาล มีแคลที่มองไม่เห็น · ชั่งของดิบพิมพ์ "ดิบ" ไม่งั้นระบบถือว่าสุก · ตัวเลือกแรกคิดปริมาณและน้ำมันแบบร้าน'},
+  {q:'กด ✨ แล้วกล่อง "🧠 AI สมมติแบบนี้ให้" ขึ้นว่า "ถือว่าข้าวเป็นข้าวสุก" แต่จริงๆ ตวงข้าวสารมาหุง ทำยังไง?',o:['ส่งไปเลย โค้ชแก้ให้','แก้ตัวเลขตรงรายการข้าวได้เลย หรือพิมพ์เติม "ดิบ" แล้วกด ✨ ใหม่','ลบรายการข้าวออก'],a:1,w:'กล่องนี้บอกทุกอย่างที่ AI เดา ข้อไหนไม่ตรงแก้ได้ทันที · กล่องว่าง = แม่นที่สุดแล้ว'},
+];
+let _bsStep=0,_bsScore=0,_bsAnswered=false;
+function openBasicsPage(){_bsStep=0;_bsScore=0;closeMissionPage();renderBasics();document.getElementById('basics-page').style.display='block';window.scrollTo(0,0);}
+function closeBasicsPage(){document.getElementById('basics-page').style.display='none';}
+function renderBasics(){
+  const body=document.getElementById('bs-body');if(!body)return;
+  const total=_BS_CARDS.length+_BS_QUIZ.length;
+  document.getElementById('bs-step').textContent=Math.min(_bsStep+1,total)+' / '+total;
+  if(_bsStep<_BS_CARDS.length){
+    const c=_BS_CARDS[_bsStep];
+    body.innerHTML=`<div class="bs-card"><div class="bs-k">${c.k}</div><div class="bs-t">${c.t}</div><div class="bs-b">${c.b}</div><div class="bs-ex">${c.ex}</div></div>
+      <button class="mp-btn p" onclick="_bsStep++;renderBasics();window.scrollTo(0,0)">${_bsStep===_BS_CARDS.length-1?'ไปควิซ 5 ข้อ →':'ใบถัดไป →'}</button>
+      ${_bsStep>0?'<button class="mp-btn g" onclick="_bsStep--;renderBasics()">‹ ใบก่อนหน้า</button>':''}`;
+    return;
+  }
+  const qi=_bsStep-_BS_CARDS.length;
+  if(qi<_BS_QUIZ.length){
+    const q=_BS_QUIZ[qi];_bsAnswered=false;
+    body.innerHTML=`<div class="bs-card"><div class="bs-k">ข้อ ${qi+1} / ${_BS_QUIZ.length} · แบบนี้ AI แม่นไหม?</div><div class="bs-t" style="font-size:15px">${escHtml(q.q)}</div>
+      ${q.o.map((o,i)=>`<div class="bs-opt" id="bs-opt-${i}" onclick="_bsAnswer(${qi},${i})">${escHtml(o)}</div>`).join('')}
+      <div class="bs-why" id="bs-why" style="display:none"></div></div>
+      <button class="mp-btn p" id="bs-next" style="display:none" onclick="_bsStep++;renderBasics();window.scrollTo(0,0)">${qi===_BS_QUIZ.length-1?'เสร็จแล้ว ✓':'ข้อถัดไป →'}</button>`;
+    return;
+  }
+  // จบ
+  const prev=_onbDone().basics;
+  body.innerHTML=`<div class="bs-card" style="text-align:center"><div style="font-size:48px">📖</div><div class="bs-t">อ่านครบแล้ว</div>
+    <div class="bs-b">ตอบถูก ${_bsScore} / ${_BS_QUIZ.length} ข้อ${_bsScore<_BS_QUIZ.length?' — ข้อที่ผิดมีเฉลยให้แล้ว ไม่ต้องทำใหม่':' — เก่งมาก'}<br><br>จำ 3 อย่างพอ: <b>ชื่อ + ปริมาณ คั่นลูกน้ำ</b> · <b>วงเล็บต้องมี "ที่เหลือตามปกติ"</b> · <b>อ่านกล่อง 🧠</b></div></div>
+    <button class="mp-btn p" onclick="_bsFinish()">${prev?'ปิด':'เริ่มจดมื้อแรกเลย →'}</button>`;
+}
+function _bsAnswer(qi,i){
+  if(_bsAnswered)return;_bsAnswered=true;
+  const q=_BS_QUIZ[qi];
+  q.o.forEach((_,j)=>{const el=document.getElementById('bs-opt-'+j);if(!el)return;if(j===q.a)el.classList.add('ok');else if(j===i)el.classList.add('bad');});
+  if(i===q.a)_bsScore++;
+  const w=document.getElementById('bs-why');if(w){w.style.display='block';w.innerHTML=(i===q.a?'<b>ถูกต้อง!</b> ':'<b>ยังไม่ใช่ —</b> ')+escHtml(q.w);}
+  const nb=document.getElementById('bs-next');if(nb)nb.style.display='block';
+}
+function _bsFinish(){
+  closeBasicsPage();
+  const was=_onbDone().basics;
+  if(!was){
+    _onbSeen.basics=true; // done/doneAt/ฉลอง ให้ _onbRefresh จัดการ — ตรงนี้เก็บแค่คะแนน
+    try{_fsWrite(db.collection('students').doc(user.userId).set({onboard:{quizScore:_bsScore}},{merge:true})).catch(()=>{});}catch(_){}
+    _applyBasicsGate();
+    _onbRefresh();
+    if(_basicsGateOn()===false&&realSubs(studentSubsCache||[]).length===0){ // คนใหม่ → พาไปแท็บ AI
+      _onbGoTab('log');try{selMode('weigh');}catch(_){}
+    }
+  }
+}
+// ───────── ภารกิจข้อ 9: ชั่งข้าวสวย 1 ทัพพี = 80g (ทายก่อน → ล็อก → ชั่ง → ส่ง) ─────────
+let _msGuess=null,_msPhoto=null,_msBusy=false;
+function openScaleMission(){
+  _msGuess=null;_msPhoto=null;
+  const body=document.getElementById('mp-body');if(!body)return;
+  document.getElementById('mission-page').style.display='block';
+  const _mc=document.getElementById('mp-count');if(_mc)_mc.textContent='ข้อ 9'; // หัวหน้าไม่ว่างตอนเปิดตรงจากปุ่ม
+  const st=_scaleState();
+  body.innerHTML=`<div class="mp-card"><div style="font-size:11px;color:#D4891A;font-weight:700">🚀 เริ่มคอร์ส ข้อ 9 · ⚖️ ตาชั่งมนุษย์ ข้อ 1/5 · บังคับ</div>
+    <div style="font-size:15px;font-weight:800;margin:4px 0 6px">🍚 ข้าวสวย 1 ทัพพี = 80 กรัม</div>
+    <div style="font-size:12.5px;line-height:1.6;color:#374151">ตักด้วย<b>ทัพพีที่ใช้ประจำ</b> วางบนตาชั่ง แล้วปรับปริมาณจนได้ <b>75–85 กรัม</b> ถ่ายรูปให้เห็นทั้งทัพพีและตัวเลข</div>
+    <div style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;padding:8px 10px;font-size:11.5px;color:#92400E;line-height:1.55;margin-top:8px">★ นี่คือ "1 ทัพพี" มาตรฐานของคอร์ส — จำปริมาตรนี้ไว้ ต่อจากนี้พิมพ์ "2 ทัพพี" ระบบจะคิด 160 กรัม ตรงกับที่คุณตักจริง</div>
+    ${st==='redo'?'<div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:10px;padding:8px 10px;font-size:11.5px;color:#991B1B;margin-top:8px">โค้ชขอให้ส่งใหม่ — ไม่มีโทษ ลองอีกทีได้เลย</div>':''}
+  </div>
+  <div class="mp-card"><div style="font-size:12px;font-weight:700;color:#374151">1 · ตักมาแล้ว? ทายก่อนวางบนตาชั่ง</div>
+    <input class="mp-inp" id="ms-guess" type="number" inputmode="numeric" placeholder="ทายว่ากี่กรัม" min="1" max="999">
+    <button class="mp-btn d" id="ms-lock" onclick="_msLock()">🔒 ล็อกคำทาย → ไปชั่ง</button></div>
+  <div class="mp-card" id="ms-step2" style="opacity:.45">
+    <div style="font-size:12px;font-weight:700;color:#374151">2 · ชั่งจริง แล้วถ่ายรูป</div>
+    <input class="mp-inp" id="ms-actual" type="number" inputmode="numeric" placeholder="ชั่งได้กี่กรัม" min="1" max="999" disabled>
+    <label class="mp-btn g" style="display:block" id="ms-photo-lbl">📷 ถ่ายรูปบนตาชั่ง ให้เห็นตัวเลข<input type="file" accept="image/*" capture="environment" id="ms-photo" style="display:none" onchange="_msPickPhoto(this)" disabled></label>
+    <div id="ms-photo-ok" style="font-size:11.5px;color:#065F46;display:none;margin-top:4px">✓ แนบรูปแล้ว</div>
+    <button class="mp-btn p" id="ms-send" onclick="submitScaleMission()" disabled>ส่งให้โค้ชรับรอง</button></div>
+  <button class="mp-btn g" onclick="renderMissionPage()">‹ กลับหน้าภารกิจ</button>`;
+  window.scrollTo(0,0);
+}
+function _msLock(){
+  const g=+(document.getElementById('ms-guess')||{}).value;
+  if(!(g>0)){showToast('พิมพ์ตัวเลขที่ทายก่อนนะคะ');return;}
+  _msGuess=g;
+  const gi=document.getElementById('ms-guess');gi.disabled=true;
+  const lb=document.getElementById('ms-lock');lb.textContent='🔒 ล็อกแล้ว: ทาย '+g+' กรัม';lb.disabled=true;
+  const s2=document.getElementById('ms-step2');s2.style.opacity='1';
+  document.getElementById('ms-actual').disabled=false;document.getElementById('ms-photo').disabled=false;
+  document.getElementById('ms-send').disabled=false;
+}
+async function _msPickPhoto(inp){
+  const f=inp.files&&inp.files[0];if(!f)return;
+  try{_msPhoto=await compressPhoto(f);const ok=document.getElementById('ms-photo-ok');if(ok)ok.style.display='block';}
+  catch(e){_msPhoto=null;showToast('รูปนี้ใช้ไม่ได้ ลองถ่ายใหม่นะคะ');}
+}
+async function submitScaleMission(){
+  if(_msBusy)return;
+  const actual=+(document.getElementById('ms-actual')||{}).value;
+  if(_msGuess==null){showToast('ล็อกคำทายก่อนนะคะ');return;}
+  if(!(actual>0)){showToast('กรอกน้ำหนักที่ชั่งได้ก่อนนะคะ');return;}
+  if(!_msPhoto){showToast('ถ่ายรูปบนตาชั่งก่อนนะคะ โค้ชต้องเห็นตัวเลข');return;}
+  if(actual<75||actual>85){if(!await askConfirm(`ชั่งได้ ${actual} กรัม — นอกช่วง 75–85 นิดหน่อย\n\nลองปรับให้ใกล้ 80 อีกนิด หรือส่งแบบนี้ให้โค้ชดูก็ได้ค่ะ`,{icon:'⚖️',okText:'ส่งแบบนี้',cancelText:'ปรับก่อน'}))return;}
+  _msBusy=true;const btn=document.getElementById('ms-send');if(btn){btn.disabled=true;btn.textContent='📷 กำลังส่ง...';}
+  try{
+    try{await Promise.race([_authReady,new Promise(r=>setTimeout(r,5000))]);}catch(_){}
+    let photoUrl=null;
+    if(navigator.onLine!==false){
+      try{const ref=storage.ref(`photos/${user.userId}/${Date.now()}_m.jpg`);
+        photoUrl=await Promise.race([ref.putString(_msPhoto,'data_url').then(()=>ref.getDownloadURL()),new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),20000))]);
+      }catch(e){photoUrl=null;if(typeof _reportError==='function')_reportError('photo-fail',(e&&e.code?e.code+' | ':'')+(e&&e.message||String(e)),'','mission');}
+    }
+    const docRef=db.collection('submissions').doc();
+    const payload={userId:user.userId,displayName:user.displayName,pictureUrl:user.pictureUrl||null,
+      meal:'ภารกิจ',mode:'mission',mealDate:todayStr(),
+      missionData:{kind:'scale',idx:1,name:'ข้าวสวย 1 ทัพพี',grams:actual,guess:_msGuess,target:80},
+      handData:null,labelData:null,weighData:null,photoUrl:photoUrl,photoUrls:photoUrl?[photoUrl]:null,
+      status:'pending',correction:null,tz:LOCAL_TZ||null,isTest:testMode||false};
+    const _wres=await _fsWrite(docRef.set({...payload,createdAt:firebase.firestore.FieldValue.serverTimestamp()}));
+    if(_wres==='timeout'){
+      const _bk={...payload,createdAt:{__ts:Date.now()}};
+      if(!photoUrl&&_msPhoto&&_msPhoto.length<1800000)_bk.__photos=[_msPhoto];
+      _queueBackup('submissions/'+docRef.id,_bk);
+      try{_renderPendingBar();}catch(_){}
+    }else _dropBackup('submissions/'+docRef.id);
+    studentMissionsCache.unshift({id:docRef.id,...payload,createdAt:{seconds:Math.floor(Date.now()/1000)}});
+    const diff=actual-_msGuess;const pct=Math.round(Math.abs(diff)/actual*100);
+    const line=pct<=3?'คุณคือตาชั่ง':pct<10?'แม่นจนตาชั่งอิจฉา':pct<=30?'ใกล้แล้วๆ อีกนิด':'ตาชั่งร้องไห้อยู่นะ';
+    _celebrate(pct<10?'🎯':'⚖️','ทาย '+_msGuess+' · ชั่งได้ '+actual+' กรัม',(diff===0?'ตรงเป๊ะ':'คลาด '+Math.abs(diff)+' กรัม ('+pct+'%) — '+line),'ส่งให้โค้ชรับรองแล้ว รอ ✓');
+    renderMissionPage();_renderMissionPill();
+  }catch(e){showToast('⚠️ ส่งไม่สำเร็จ: '+(e&&e.message||e),4000);}
+  finally{_msBusy=false;if(btn){btn.disabled=false;btn.textContent='ส่งให้โค้ชรับรอง';}}
+}
 function selMode(tab){
+  try{_applyBasicsGate();}catch(_){} // v124
   if(curMode===tab.dataset.mode)return;
   if(hasUnsavedData(curMode)){_pendingTab=tab;showTabWarn(curMode);return;}
   _doSelMode(tab);
@@ -9632,6 +10106,18 @@ function tabWarnSwitch(){document.getElementById('modal-tab-warn').style.display
     </div>
   </div>
 </div>
+<!-- ═══ v124: หน้าภารกิจ (เต็มจอ เปิดจากปุ่ม 🏅) ═══ -->
+<div id="mission-page">
+  <div class="mp-head"><button class="mp-back" onclick="closeMissionPage()">‹ กลับ</button><b>🏅 ภารกิจของฉัน</b><span id="mp-count" class="streak-pill" style="display:flex;margin-left:0"></span></div>
+  <div class="mp-body" id="mp-body"></div>
+</div>
+<!-- ═══ v124: ปรับพื้นฐาน 5 ใบ + ควิซ 5 ข้อ ═══ -->
+<div id="basics-page">
+  <div class="mp-head"><button class="mp-back" onclick="closeBasicsPage()">‹ กลับ</button><b>📖 ปรับพื้นฐาน</b><span id="bs-step" class="streak-pill" style="display:flex;margin-left:0"></span></div>
+  <div class="mp-body" id="bs-body"></div>
+</div>
+<!-- ═══ v124: ฉลองเต็มจอ ═══ -->
+<div id="celebrate-ov" onclick="closeCelebrate()"><div class="cb" onclick="event.stopPropagation()"><div class="ce" id="cb-e"></div><div class="ct" id="cb-t"></div><div class="cs" id="cb-s"></div><div class="cn" id="cb-n"></div><button class="mp-btn p" onclick="closeCelebrate()" style="margin-top:12px">เยี่ยม!</button></div></div>
 <div id="modal-tab-warn" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;align-items:center;justify-content:center;"><div style="background:#fff;border-radius:16px;padding:24px 20px;max-width:320px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,.2);text-align:center;"><div style="font-size:2rem;margin-bottom:8px;">⚠️</div><div style="font-weight:700;font-size:1.05rem;color:#1F2937;margin-bottom:6px;"><span id="tab-warn-mode"></span></div><div style="color:#6B7280;font-size:.9rem;margin-bottom:20px;">ยังไม่ได้ส่ง กดส่งก่อนเปลี่ยน mode ไหม?</div><div style="display:flex;gap:10px;"><button onclick="tabWarnSubmit()" style="flex:1;padding:12px;background:#10B981;color:#fff;border:none;border-radius:10px;font-size:.95rem;font-weight:600;cursor:pointer;">ส่งตอนนี้ ✓</button><button onclick="tabWarnSwitch()" style="flex:1;padding:12px;background:#F3F4F6;color:#374151;border:none;border-radius:10px;font-size:.95rem;cursor:pointer;">เปลี่ยนเลย</button></div></div></div>
 </body>
 </html>
