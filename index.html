@@ -1094,7 +1094,7 @@ function _slowMsg(okText){
 //   (loadSavedMenus ดึงมา .limit(40) อยู่แล้ว 20 จึงยังอยู่ใต้เพดานการอ่าน)
 //   ประกาศไว้บนสุด เพราะถูกใช้ทั้งใน loadStudentData / loadSavedMenus / saveCurrentMenu
 const MENU_CAP=20;
-const APP_VERSION='v124-2026-09-12'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
+const APP_VERSION='v125-2026-09-12'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
 const _errLogged=new Set();let _errCount=0;
 // ═════ v120: บันทึกเหตุการณ์คิวมื้ออาหาร ═════
 // ★ แยกโควตาจาก _reportError โดยตั้งใจ — idb-known/photo-fail ยิงถี่จนกินเพดาน 10 หมด
@@ -1576,9 +1576,56 @@ function _setGeminiKey(k){
 }
 // W1: รอ Firestore write สูงสุด ms — คืน 'timeout' = write ถูกคิวไว้ในเครื่องแล้ว (offline persistence)
 // จะซิงค์อัตโนมัติเมื่อเน็ตกลับมา — ถือเป็นสำเร็จ ห้ามโชว์ error (กันผู้ใช้กดซ้ำ → ข้อมูลซ้ำ)
+// ═════ v125: สายค้าง (stuck stream) ═════
+// Firestore ใช้สายเปิดค้าง — ขาดเงียบได้ตอนสลับ WiFi/4G หรือกลับจากเบื้องหลังใน LINE
+// write ทุกตัวต่อคิวรอตัวแรก → ทุกปุ่มรอ 6 วิแล้ว "เน็ตช้า" ซ้ำๆ (เคสจอย 12 ก.ย.)
+// แก้ 3 ชั้น: ① timeout ครั้งแรกขณะ online → ตัดสายต่อใหม่เอง (disableNetwork→enableNetwork)
+//            ② ระหว่างรู้ว่าตัน write ถัดไปตอบใน 1.5 วิ (ไม่ต้องรอ 6 วิทุกปุ่ม) ข้อมูลเข้าคิวเหมือนเดิม
+//            ③ ต่อติดเมื่อไหร่ → ส่งคิวค้างทันที (คิวสำรองบอกนักเรียนเองว่าส่งแล้วกี่รายการ)
+let _fsStuckSince=0, _fsReconAt=0, _fsReconBusy=false, _fsHiddenAt=0;
+const _FS_RECON_COOLDOWN=20000, _FS_STUCK_LIMIT=1500;
+function _fsIsStuck(){return _fsStuckSince>0;}
+function _fsMarkOk(){
+  if(!_fsStuckSince)return;
+  _fsStuckSince=0;
+  // ไม่ toast ตรงนี้ — คิวสำรองมี toast ของตัวเองอยู่แล้ว ("✅ ส่งข้อมูลที่ค้างไว้ N รายการเรียบร้อยแล้วค่ะ") ซึ่งคือคำยืนยันที่มีความหมายจริง
+  try{if(typeof _flushBackupQueue==='function')setTimeout(_flushBackupQueue,300);}catch(_){}
+  try{if(typeof _renderPendingBar==='function')_renderPendingBar();}catch(_){}
+}
+function _fsMarkTimeout(){
+  if(!_fsStuckSince)_fsStuckSince=Date.now();
+  if(navigator.onLine!==false)_fsReconnect('write-timeout');
+}
+async function _fsReconnect(reason){
+  if(_fsReconBusy||Date.now()-_fsReconAt<_FS_RECON_COOLDOWN)return false;
+  _fsReconBusy=true;_fsReconAt=Date.now();
+  const wait=ms=>new Promise(r=>setTimeout(r,ms));
+  try{
+    await Promise.race([db.disableNetwork().catch(()=>{}),wait(3000)]);
+    await Promise.race([db.enableNetwork().catch(()=>{}),wait(3000)]);
+    // probe: อ่านจากเซิร์ฟเวอร์จริง 1 ครั้ง — ผ่าน = สายใหม่ใช้ได้
+    const alive=await Promise.race([
+      db.collection('config').doc('app').get({source:'server'}).then(()=>true).catch(()=>false),
+      wait(6000).then(()=>false)]);
+    if(alive){_fsMarkOk();return true;}
+    _fsStuckSince=_fsStuckSince||Date.now();
+    setTimeout(()=>{try{showToast('📡 ยังต่อเน็ตไม่ติด — เก็บไว้ในเครื่องแล้ว จะลองใหม่ให้เองค่ะ',3500);}catch(_){}},2000);
+    return false;
+  }catch(e){return false;}
+  finally{_fsReconBusy=false;}
+}
+// กลับจากเบื้องหลังนานเกิน 30 วิ → ต่อใหม่เชิงรุก (ไม่รอให้นักเรียนกดแล้วค้างก่อน)
+document.addEventListener('visibilitychange',()=>{
+  try{
+    if(document.hidden){_fsHiddenAt=Date.now();return;}
+    if(_fsHiddenAt&&Date.now()-_fsHiddenAt>30000){_fsHiddenAt=0;_fsReconnect('resume');}
+  }catch(_){}
+});
 function _fsWrite(p,ms){
   p.catch(()=>{});
-  return Promise.race([p.then(()=>'ok'),new Promise(r=>setTimeout(()=>r('timeout'),ms||6000))]);
+  const lim=_fsIsStuck()?Math.min(ms||6000,_FS_STUCK_LIMIT):(ms||6000); // v125: รู้ว่าตัน → ตอบเร็ว
+  return Promise.race([p.then(()=>{_fsMarkOk();return 'ok';}),new Promise(r=>setTimeout(()=>r('timeout'),lim))])
+    .then(r=>{if(r==='timeout')_fsMarkTimeout();return r;});
 }
 
 // ===== W3: BACKUP QUEUE ใน localStorage =====
@@ -2267,6 +2314,7 @@ async function loadStudentData(){
       const _f=_lsdFail||{};
       // v85: ใส่สถานะ auth ไปด้วย — แยก "อ่านช้า" ออกจาก "ยังไม่ได้ token เลย" ได้ทันทีจาก errorLogs
       _reportError('student-load-fail',(_f.code||'unknown')+' @'+(_f.tag||'?')+'/'+(_f.where||'?')+' auth='+(_authOk?'1':'0')+' net='+(navigator.onLine?'1':'0'),_f.msg||'','loadStudentData');
+      if(navigator.onLine!==false&&(_f.where==='timeout'||_f.code==='unavailable'||_f.code==='timeout'))_fsReconnect('read-fail'); // v125
       _scheduleStudentRetry();
       showToast(_lsdRetry>=_LSD_MAX?'📡 โหลดข้อมูลไม่สำเร็จ — แตะปุ่มลองใหม่ในแท็บประวัติได้ค่ะ':'📡 โหลดข้อมูลไม่สำเร็จ — กำลังลองใหม่ให้ค่ะ',3500);
     }
@@ -2825,7 +2873,7 @@ async function saveHealthLog(){
     // แล้วนักเรียนกดบันทึก ข้อมูลจริงของวันนั้นจะถูกแทนที่ด้วยค่าเริ่มต้นทั้งชุด
     const _p=db.doc(_hlPath).set({..._hlBase,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
     _p.catch(()=>{});
-    const _r=await Promise.race([_p.then(()=>'ok'),new Promise(r=>setTimeout(()=>r('timeout'),6000))]);
+    const _r=await _fsWrite(_p); // v125: ผ่านตัวกลางเดียว → รู้สถานะสายตัน/ต่อใหม่เอง
     if(_r==='timeout')_queueBackup(_hlPath,{..._hlBase,updatedAt:{__ts:Date.now()}}); // W3
     else _dropBackup(_hlPath);
     // Update local cache so switching tabs & dates shows the latest saved values
@@ -2955,7 +3003,7 @@ async function saveWeeklyCheck(){
     const _wcPath=`weeklyChecks/${user.userId}/entries/${_wcDate}`;
     const _p=db.doc(_wcPath).set(entry,{merge:true});
     _p.catch(()=>{});
-    const _r=await Promise.race([_p.then(()=>'ok'),new Promise(r=>setTimeout(()=>r('timeout'),6000))]);
+    const _r=await _fsWrite(_p); // v125: ผ่านตัวกลางเดียว → รู้สถานะสายตัน/ต่อใหม่เอง
     if(_r==='timeout')_queueBackup(_wcPath,{...entry,submittedAt:{__ts:Date.now()}}); // W3
     else _dropBackup(_wcPath);
     showToast(_r==='timeout'?'📡 เน็ตช้า — บันทึกไว้ในเครื่องแล้ว จะซิงค์อัตโนมัติค่ะ':'✅ บันทึกผลการวัดแล้วค่ะ',_r==='timeout'?4000:2500);
@@ -4464,7 +4512,7 @@ async function _saveCurrentMenu(){
     const _ref=db.collection('users').doc(user.userId).collection('savedMenus').doc();
     const _p=_ref.set(data);
     _p.catch(()=>{});
-    const _r=await Promise.race([_p.then(()=>'ok'),new Promise(r=>setTimeout(()=>r('timeout'),6000))]);
+    const _r=await _fsWrite(_p); // v125: ผ่านตัวกลางเดียว → รู้สถานะสายตัน/ต่อใหม่เอง
     const _smPath=`users/${user.userId}/savedMenus/${_ref.id}`;
     if(_r==='timeout')_queueBackup(_smPath,{...data,createdAt:{__ts:Date.now()}}); // W3
     else _dropBackup(_smPath);
@@ -4685,7 +4733,7 @@ async function submitMeal(){
     };
     const _setP=docRef.set({..._basePayload,createdAt:firebase.firestore.FieldValue.serverTimestamp()});
     _setP.catch(()=>{}); // กัน unhandled rejection กรณี timeout ชนะ race
-    const _wres=await Promise.race([_setP.then(()=>'ok'),new Promise(r=>setTimeout(()=>r('timeout'),6000))]);
+    const _wres=await _fsWrite(_setP); // v125: ผ่านตัวกลางเดียว → รู้สถานะสายตัน/ต่อใหม่เอง
     // W3: timeout → เก็บสำรองใน localStorage (Firestore queue อย่างเดียวหายได้) | สำเร็จ → ล้าง backup path นี้
     if(_wres==='timeout'){
       const _bk={..._basePayload,createdAt:{__ts:Date.now()}};
