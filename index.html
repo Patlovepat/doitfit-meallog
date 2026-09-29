@@ -1094,7 +1094,7 @@ function _slowMsg(okText){
 //   (loadSavedMenus ดึงมา .limit(40) อยู่แล้ว 20 จึงยังอยู่ใต้เพดานการอ่าน)
 //   ประกาศไว้บนสุด เพราะถูกใช้ทั้งใน loadStudentData / loadSavedMenus / saveCurrentMenu
 const MENU_CAP=20;
-const APP_VERSION='v125-2026-09-12'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
+const APP_VERSION='v128-2026-09-29'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
 const _errLogged=new Set();let _errCount=0;
 // ═════ v120: บันทึกเหตุการณ์คิวมื้ออาหาร ═════
 // ★ แยกโควตาจาก _reportError โดยตั้งใจ — idb-known/photo-fail ยิงถี่จนกินเพดาน 10 หมด
@@ -2089,6 +2089,25 @@ function ymdTZ(date,tz){
 }
 function todayStrTZ(tz){return ymdTZ(new Date(),tz);}
 // บวก/ลบวันจากสตริง YYYY-MM-DD — ยึดเที่ยงวัน UTC เพื่อไม่ให้ DST ทำให้ข้ามวันผิด
+// v127: บวกเดือนตามปฏิทิน — วันเดิมของเดือนถัดไป ถ้าเดือนนั้นสั้นกว่าให้ปัดลงเป็นวันสุดท้าย (31 ม.ค.+1 = 28 ก.พ.)
+function shiftYmdMonths(ymd,months){
+  const a=String(ymd).split('-').map(Number);
+  const last=new Date(Date.UTC(a[0],a[1]-1+months+1,0,12,0,0)).getUTCDate(); // วันสุดท้ายของเดือนปลายทาง
+  const t=new Date(Date.UTC(a[0],a[1]-1+months,Math.min(a[2],last),12,0,0));
+  const p=n=>String(n).padStart(2,'0');
+  return `${t.getUTCFullYear()}-${p(t.getUTCMonth()+1)}-${p(t.getUTCDate())}`;
+}
+// ตัวเลือกระยะเวลาคอร์ส (v127): value ใช้ในการ์ดโค้ช · ถ้าช่วงวันที่ตรงกับตัวไหน dropdown จะเลือกให้เอง
+const PROG_PRESETS=[
+  {v:'d3',label:'3 วัน',      end:s=>shiftYmd(s,3)},
+  {v:'d7',label:'7 วัน',      end:s=>shiftYmd(s,7)},
+  {v:'m1',label:'1 เดือน',    end:s=>shiftYmdMonths(s,1)},
+  {v:'m3',label:'3 เดือน',    end:s=>shiftYmdMonths(s,3)},
+];
+function progPresetMatch(startYmd,endYmd){ // คืน value ของ preset ที่ให้วันจบตรงเป๊ะ หรือ ''
+  if(!startYmd||!endYmd)return '';
+  const hit=PROG_PRESETS.find(p=>p.end(startYmd)===endYmd);return hit?hit.v:'';
+}
 function shiftYmd(ymd,days){
   const a=String(ymd).split('-').map(Number);
   const t=new Date(Date.UTC(a[0],a[1]-1,a[2],12,0,0));
@@ -5117,6 +5136,15 @@ async function loadDashboard(forceRefresh=false,silent=false){ // v51: silent = 
     <div class="df-skel" style="height:130px"></div>
   </div>`;
   try{
+    // v128: วาดก่อนด้วยของที่มีในเครื่อง (มื้อ + เป้า) = 0 คำขอ — นักเรียนเห็นแคลวันนี้/7 วัน/streak ทันที
+    //   ส่วนน้ำหนัก·สุขภาพ·สรุปสัปดาห์ยังว่างชั่วคราว มีแถบบอกว่ากำลังโหลด แล้ว 4 คำขอข้างล่างจะวาดทับเต็ม
+    //   เดิม: รอครบ 4 คำขอ (ตัวที่ช้าสุดกำหนดทุกอย่าง สูงสุด 8 วิ) ทั้งที่ 11 ms ก็วาดได้
+    if(!silent&&studentSubsCache&&studentSubsCache.length){
+      try{
+        renderStudentDashboard(studentSubsCache,{kcal:TARGETS.kcal,c:TARGETS.c,p:TARGETS.p,f:TARGETS.f},'',{},[],{});
+        content.insertAdjacentHTML('afterbegin','<div id="dash-partial" style="display:flex;align-items:center;gap:8px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:10px;padding:8px 12px;margin:10px 16px 0;font-size:12px;color:#1D4ED8;font-family:\'Prompt\',sans-serif"><div class="df-spin sm" style="margin:0"></div>กำลังโหลดน้ำหนัก · สุขภาพ · สรุปสัปดาห์...</div>');
+      }catch(_){}
+    }
     // Task #9: ยิง 4 queries พร้อมกัน + timeout 8s → fallback อ่าน offline cache (NW1)
     const _qt=ms=>new Promise(r=>setTimeout(()=>r(null),ms));
     const _dqf=q=>Promise.race([q.get().catch(()=>null),_qt(8000)]).then(r=>r||q.get({source:'cache'}).catch(()=>null));
@@ -5419,6 +5447,27 @@ function _kickCoach(){
 }
 window.addEventListener('online',()=>setTimeout(_kickCoach,1200));
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)setTimeout(_kickCoach,600);});
+// v128: คอขวดที่วัดได้ — listener หลักต้องรอ 800 เอกสาร (≈15 เท่าของที่หน้าแรกใช้) กว่าจะวาดคิวได้
+//   ทางแก้ที่ไม่แตะ listener เดิมเลย: ยิง get() เฉพาะ status=='pending' (≈50 ใบ) คู่ขนานกัน
+//   ถ้ามาก่อน → ใส่ allSubs ชั่วคราวแล้ว renderCoach() · ไม่ตั้ง _coachRendered → snapshot แรกของ listener ยังวาดเต็มทับตามเดิม
+//   ต้องมี composite index: submissions (status ASC, createdAt DESC) — ถ้ายังไม่มี query จะ error → ข้ามเงียบ ไม่กระทบอะไร
+//   ★ ห้ามใช้เป็นแหล่งข้อมูลถาวร: มีแค่ pending → แท็บอนุมัติแล้ว/นักเรียนยังต้องรอ listener
+let _coachPrefetchDone=false;
+async function _coachPrefetchPending(){
+  if(_coachPrefetchDone||_coachRendered)return;
+  _coachPrefetchDone=true;
+  try{
+    const q=db.collection('submissions').where('status','==','pending').orderBy('createdAt','desc').limit(300).get();
+    const snap=await Promise.race([q,new Promise(r=>setTimeout(()=>r(null),5000))]);
+    if(!snap||_coachRendered||(allSubs&&allSubs.length))return; // listener มาก่อน / มีข้อมูลแล้ว → ไม่ทับ
+    allSubs=snap.docs.map(d=>{const dat=d.data();delete dat.photoBase64;return{id:d.id,...dat};});
+    _coachPrefetched=true;
+    renderCoach();
+  }catch(e){ // failed-precondition = ยังไม่ได้สร้าง index → ทำงานแบบเดิม
+    try{if(typeof _reportError==='function'&&e&&e.code!=='failed-precondition')_reportError('coach-prefetch',(e.code||'')+' '+(e.message||''),'','startCoach');}catch(_){}
+  }
+}
+let _coachPrefetched=false;
 async function startCoach(){
   if(_coachStarting)return; // กันยิงซ้อนตอนกดปุ่มลองใหม่รัวๆ
   _coachStarting=true;
@@ -5452,6 +5501,7 @@ async function startCoach(){
   // ยิ่งดึงได้เยอะ เลข 🔥 วันติด และสถิติ Dashboard ยิ่งแม่น (ซึ่งเป็นสิ่งที่อยากเก็บไว้จริงๆ)
   const _COACH_WIN=90, _COACH_LIMIT=800;
   const cutoff=firebase.firestore.Timestamp.fromDate(new Date(Date.now()-_COACH_WIN*24*60*60*1000));
+  _coachPrefetchPending(); // v128: วาดคิวรออนุมัติก่อนจาก query เล็ก — ยิงคู่ขนานกับ listener ข้างล่าง ใครมาก่อนได้ก่อน
   _coachUnsub=db.collection('submissions').where('createdAt','>=',cutoff).orderBy('createdAt','desc').limit(_COACH_LIMIT)
     .onSnapshot(snap=>{
       // v95c: ได้ snapshot = ต่อติดแล้ว — ต้องล้างแถบเตือนก่อน early return ทุกอัน
@@ -5506,7 +5556,7 @@ async function startCoach(){
         }catch(_){_done=false;}
         if(_done){_updatePendBadge();return;}
       }
-      _coachRendered=true;
+      _coachRendered=true;_coachPrefetched=false; // v128: ข้อมูลเต็มมาแล้ว
       renderCoach();
       // v91: รอบแรกที่ข้อมูลมาถึง ลองกู้ draft ที่ค้างจากรอบก่อน (หน้าถูกรีเอง)
       if(!_cdRestored){
@@ -5594,6 +5644,13 @@ function renderCoach(){
   //   ปล่อยเฉพาะใบที่ไม่ได้เปิดอยู่ — ใบที่เปิดอยู่ buildCorrPanel เซ็ตให้ใหม่ทุกครั้งที่วาด
   try{Object.keys(cState).forEach(k=>{const c=cState[k];if(c&&c._sub&&!c.open&&!c.approveOpen)delete c._sub;});}catch(_){}
   const pending=allSubs.filter(s=>s.status==='pending'),done=allSubs.filter(s=>s.status!=='pending');
+  // v128: ระหว่างมีแค่ pending จาก prefetch — แท็บ "อนุมัติแล้ว"/"นักเรียน" ยังไม่มีข้อมูลจริง ให้ขึ้นกำลังโหลด ไม่ใช่ว่าง
+  if(_coachPrefetched&&!_coachRendered&&coachTab!=='pending'){
+    const _c=document.getElementById('cards-container');
+    if(_c)_c.innerHTML='<div class="empty-state"><div class="es-icon">⏳</div><p>กำลังโหลดข้อมูลทั้งหมด...</p></div>';
+    const _b=document.getElementById('pending-count');if(_b){if(pending.length>0){_b.style.display='inline-block';_b.textContent=pending.length;}else _b.style.display='none';}
+    return;
+  }
   // v57: คำนวณจาก allSubs (เรียงใหม่→เก่า) ไม่ใช่จากรายการที่กำลังวาด — ไม่งั้นพอโค้ชกดอนุมัติจากแท็บ "รออนุมัติ"
   // การ์ดจะวาดใหม่ทันทีโดยที่ชุดนี้ยังว่าง แล้วรูปที่เพิ่งตรวจจะหายวับไปต่อหน้า
   // v59: รวม "รายการที่โค้ชเพิ่งอนุมัติใน session นี้" เข้าไปด้วย
@@ -6802,6 +6859,12 @@ function renderProgramBar(){
 // ตอนนี้เก็บสถานะที่ localStorage ผูกกับ userId + วันจบคอร์ส
 // -> คอร์สหนึ่งได้การ์ดใบเดียว · พอต่อคอร์สใหม่ (วันจบเลื่อน) ระบบเตือนใหม่เองอัตโนมัติ
 const NEAREND_TRIGGER_DAYS=7;
+// v126: คอร์ส 7 วันถ้าใช้เกณฑ์ 7 จะเด้ง "ใกล้จบคอร์ส" ตั้งแต่วันแรก → คอร์สยาวไม่เกิน 14 วัน เตือนเมื่อเหลือ 2 วัน
+function nearEndTriggerDays(prog){
+  // v127: 3 วัน→1 · 7 วัน→2 · 14→4 · 1 เดือน/3 เดือน→7 (เพดานเดิม)
+  try{const t=progTotalDays(prog);if(t>0)return Math.min(NEAREND_TRIGGER_DAYS,Math.max(1,Math.floor(t/3)));}catch(_){}
+  return NEAREND_TRIGGER_DAYS;
+}
 function nearEndKey(end){
   const pad=n=>String(n).padStart(2,'0');
   const uid=(typeof user!=='undefined'&&user&&user.userId)||'anon';
@@ -6816,7 +6879,7 @@ async function checkNearEnd(){
   if(prog.isPaused)return;
   if(nearEndSentThisSession)return;
   const left=getProgramDaysLeft(prog);
-  if(left===null||left>NEAREND_TRIGGER_DAYS||left<=0)return;
+  if(left===null||left>nearEndTriggerDays(prog)||left<=0)return; // v126: คอร์สสั้นใช้เกณฑ์สั้น
   if(!liff.isInClient())return;          // เช็คก่อน mark เสมอ ไม่งั้นจะ mark ว่าส่งแล้วทั้งที่ส่งไม่ได้
   const end=calcProgramEndDate(prog);
   if(!end)return;
@@ -6881,10 +6944,10 @@ function buildProgramSection(uid, prog){
   const _baseDays=hasProgram?daysBetweenYmd(prog.programStart,baseEndVal):0;
   // ★ ถ้าจำนวนสัปดาห์ไม่ตรง preset ไหนเลย (เช่นโค้ชกรอกวันจบเอง) ต้องมีตัวเลือก "กำหนดเอง"
   //   ไม่งั้น <select> จะเด้งไปตัวแรก (4 สัปดาห์) แล้วถ้ากดบันทึกจะกลายเป็น 4 สัปดาห์จริงๆ
-  const _PRESETS=[4,8,12,16,20,24];
-  const _matched=_baseDays>0&&_baseDays%7===0&&_PRESETS.indexOf(_baseDays/7)>=0;
-  const _weekOpts=(_matched?'':`<option value="" selected>${_baseDays>0?`กำหนดเอง (${_baseDays} วัน)`:'— เลือกระยะเวลา —'}</option>`)
-    +_PRESETS.map(w=>`<option value="${w}"${_matched&&_baseDays/7===w?' selected':''}>${w} สัปดาห์ (${w*7} วัน)</option>`).join('');
+  // v127: 3 วัน · 7 วัน · 1 เดือน · 3 เดือน (เดือนตามปฏิทิน) — คอร์สเก่าที่ไม่ตรง (เช่น 12 สัปดาห์) ขึ้น "กำหนดเอง (84 วัน)"
+  const _pm=hasProgram?progPresetMatch(prog.programStart,baseEndVal):'';
+  const _weekOpts=(_pm?'':`<option value="" selected>${_baseDays>0?`กำหนดเอง (${_baseDays} วัน)`:'— เลือกระยะเวลา —'}</option>`)
+    +PROG_PRESETS.map(p=>`<option value="${p.v}"${_pm===p.v?' selected':''}>${p.label}</option>`).join('');
   const _previewInner=_progPreviewHtml(baseEndVal,prog.pausedDays||0,prog.programStart||'');
   return`<div class="sd-prog-section">
     <div class="sd-prog-title">📅 ข้อมูลคอร์ส</div>
@@ -6922,7 +6985,9 @@ function _progPreviewHtml(baseEnd,pausedDays,startYmd){
   if(!isValidYmd(baseEnd))return '📅 วันจบคอร์ส: <strong>—</strong>';
   const days=startYmd?daysBetweenYmd(startYmd,baseEnd):0;
   const wk=Math.floor(days/7),rd=days%7;
-  const dur=days>0?` <span style="font-size:10px;color:var(--gray)">· รวม ${days} วัน${wk?` (${wk} สัปดาห์${rd?` ${rd} วัน`:''})`:''}</span>`:'';
+  const _pmv=startYmd?progPresetMatch(startYmd,baseEnd):''; // v127: ตรง 1/3 เดือน → บอกเป็นเดือน
+  const _lbl=_pmv==='m1'?'1 เดือน':_pmv==='m3'?'3 เดือน':(wk?`${wk} สัปดาห์${rd?` ${rd} วัน`:''}`:'');
+  const dur=days>0?` <span style="font-size:10px;color:var(--gray)">· รวม ${days} วัน${_lbl?` (${_lbl})`:''}</span>`:'';
   if(pausedDays>0){
     const real=shiftYmd(baseEnd,pausedDays);
     return `📅 วันจบคอร์ส: <strong>${formatDateLong(real)}</strong>${dur}`
@@ -6938,9 +7003,9 @@ function applyWeeksPreset(uid){
   const weeksEl=document.getElementById(`prog-weeks-${uid}`);
   const endEl=document.getElementById(`prog-end-${uid}`);
   if(!startEl||!weeksEl||!endEl)return;
-  const w=parseInt(weeksEl.value);
-  if(!w||!isValidYmd(startEl.value||'')){updateProgEndPreview(uid);return;}
-  endEl.value=shiftYmd(startEl.value,w*7); // v83: ใช้ shiftYmd (เที่ยงวัน UTC) ไม่ใช่ Date+setDate
+  const pr=PROG_PRESETS.find(p=>p.v===weeksEl.value); // v127
+  if(!pr||!isValidYmd(startEl.value||'')){updateProgEndPreview(uid);return;}
+  endEl.value=pr.end(startEl.value); // v127: 3/7 วัน = บวกวัน · 1/3 เดือน = เดือนตามปฏิทิน
   updateProgEndPreview(uid);
   debounceSaveProg(uid);
 }
