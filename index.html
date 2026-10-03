@@ -1094,7 +1094,7 @@ function _slowMsg(okText){
 //   (loadSavedMenus ดึงมา .limit(40) อยู่แล้ว 20 จึงยังอยู่ใต้เพดานการอ่าน)
 //   ประกาศไว้บนสุด เพราะถูกใช้ทั้งใน loadStudentData / loadSavedMenus / saveCurrentMenu
 const MENU_CAP=20;
-const APP_VERSION='v128-2026-09-29'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
+const APP_VERSION='v129-2026-10-03'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
 const _errLogged=new Set();let _errCount=0;
 // ═════ v120: บันทึกเหตุการณ์คิวมื้ออาหาร ═════
 // ★ แยกโควตาจาก _reportError โดยตั้งใจ — idb-known/photo-fail ยิงถี่จนกินเพดาน 10 หมด
@@ -1933,6 +1933,7 @@ let hlMuscles=[];
 //   (_typing ดูจาก activeElement ซึ่งจับการกดปุ่มไม่ได้เลย)
 let _hlTouched=false;
 const MUSCLE_SOLO=['full','none'];             // เลือกแล้วล้างตัวอื่นทิ้ง
+const MUSCLE_INDEP=['pilates'];                // v129: อิสระ — อยู่ร่วมกับ "เต็มตัว" ได้ ไม่ถูกล้างและไม่ล้างใคร
 function _mgFromEntry(e){
   if(!e)return [];
   if(Array.isArray(e.muscleGroups))return e.muscleGroups.filter(k=>k&&k!=='none');
@@ -1940,7 +1941,7 @@ function _mgFromEntry(e){
   return (e.muscleGroup&&e.muscleGroup!=='none')?[e.muscleGroup]:[];
 }
 function mgLabels(list){
-  const L={full:'เต็มตัว',legs:'ขา',chest:'อก',back:'หลัง',shoulder:'บ่า',arms:'แขน',core:'Core'};
+  const L={full:'เต็มตัว',legs:'ขา',chest:'อก',back:'หลัง',shoulder:'บ่า',arms:'แขน',core:'Core',pilates:'พิลาทิส/โยคะ'}; // v129
   return (list||[]).map(k=>L[k]||k).join(' + ');
 }
 
@@ -2574,6 +2575,7 @@ const MUSCLE_OPTIONS=[
   {key:'shoulder',icon:'🦾',label:'บ่า'},
   {key:'arms',   icon:'💪', label:'แขน'},
   {key:'core',   icon:'🔥', label:'Core'},
+  {key:'pilates',icon:'🧘', label:'พิลาทิส/โยคะ'}, // v129: ใช้ช่องนาทีเดิม · เลือกคู่กับส่วนอื่น/เต็มตัวได้
   {key:'none',   icon:'🚫', label:'ไม่ได้เล่น'},
 ];
 
@@ -2713,7 +2715,7 @@ function renderHealthLog(){
 
     <!-- WEIGHT TRAINING -->
     <div class="hl-card">
-      <div class="hl-title">🏋️ เวทเทรนนิ่ง</div>
+      <div class="hl-title">🏋️ เวทเทรนนิ่ง / 🧘 พิลาทิส</div>
       <div class="muscle-grid-hl">
         ${MUSCLE_OPTIONS.map(m=>{
           const _on=m.key==='none'?hlMuscles.length===0:hlMuscles.indexOf(m.key)>=0;
@@ -2843,7 +2845,13 @@ function setMuscle(key){
   if(key==='none'){ hlMuscles=[]; }
   else if(MUSCLE_SOLO.indexOf(key)>=0){
     // แตะซ้ำ = เอาออก (ให้ตรงกับคำอธิบายใต้ปุ่ม) ไม่งั้นกดพลาดแล้วปลดไม่ได้
-    hlMuscles=(hlMuscles.length===1&&hlMuscles[0]===key)?[]:[key];
+    // v129: เก็บตัวอิสระ (พิลาทิส) ไว้ — เวทเต็มตัว + พิลาทิสวันเดียวกันเกิดได้จริง
+    const _keep=hlMuscles.filter(k=>MUSCLE_INDEP.indexOf(k)>=0);
+    hlMuscles=hlMuscles.indexOf(key)>=0?_keep:_keep.concat([key]);
+  }
+  else if(MUSCLE_INDEP.indexOf(key)>=0){ // v129: สลับเฉพาะตัวเอง ไม่แตะตัวอื่น
+    const i=hlMuscles.indexOf(key);
+    if(i>=0)hlMuscles.splice(i,1); else hlMuscles.push(key);
   }
   else {
     hlMuscles=hlMuscles.filter(k=>MUSCLE_SOLO.indexOf(k)<0); // เลิกเป็นเต็มตัวทันทีที่เลือกส่วนย่อย
@@ -2965,7 +2973,7 @@ async function sendHealthLogCard(hl,dateStr){
     if(_h.steps>0)row('👟','ก้าวเดิน',Number(_h.steps).toLocaleString()+' ก้าว');
     if(_h.cardio>0)row('🏃','คาร์ดิโอ',_h.cardio+' นาที');
     // v93: โชว์ทุกส่วนที่เลือก ไม่ใช่แค่ตัวแรก
-    if(_mg.length)row('🏋️','เวทเทรนนิ่ง',mgLabels(_mg)+(_h.weightMin>0?` ${_h.weightMin} นาที`:''));
+    if(_mg.length){const _onlyP=_mg.every(k=>k==='pilates');row(_onlyP?'🧘':'🏋️',_onlyP?'พิลาทิส/โยคะ':'เวทเทรนนิ่ง',(_onlyP?'':mgLabels(_mg))+(_h.weightMin>0?` ${_h.weightMin} นาที`:''));} // v129
     if(!rows.length)return; // ไม่กรอกอะไรเลย → ไม่ส่ง card
     const dateLabel=formatDateTH(dateStr||selectedDate);
     if(!await _ensureSendPermission(false))return; // v52.1: ยังไม่อนุญาต → ข้ามไปเลย ไม่ยิงให้ error (ข้อมูลบันทึกแล้ว)
@@ -4997,7 +5005,7 @@ function buildHistCard(s){
   const editHistHtml=(s.editHistory&&s.editHistory.length)?`<div class="hist-edit-log">
     ${s.editHistory.map(h=>`
     <div style="font-size:10px;font-weight:700;color:${h.by==='student'?'#1D4ED8':'#92400E'};margin-bottom:4px">${h.by==='student'?'✏️ นักเรียนแก้ไขเอง':'✏️ โค้ชแก้ไข'}</div>
-    ${h.fields.map(f=>`<div class="hist-edit-row"><span style="color:#6B7280;min-width:48px">${f.k}</span><span class="hist-edit-from">${f.from}g</span><span style="color:#9CA3AF">→</span><span class="hist-edit-to">${f.to}g</span></div>`).join('')}`).join('')}
+    ${h.fields.map(f=>{const _d=f.k==='วันที่';const _v=v=>_d?(/^\d{4}-\d{2}-\d{2}$/.test(String(v))?formatDateTH(v):escHtml(String(v))):v+'g';return`<div class="hist-edit-row"><span style="color:#6B7280;min-width:48px">${_d?'📅 วันที่':f.k}</span><span class="hist-edit-from">${_v(f.from)}</span><span style="color:#9CA3AF">→</span><span class="hist-edit-to">${_v(f.to)}</span></div>`;}).join('')}`).join('')}
   </div>`:'';
   const coachCommentHtml=s.coachComment?`<div class="hist-coach-comment">💬 ${escHtml(s.coachComment)}</div>`:'';
   let corrHtml='';
@@ -7205,7 +7213,7 @@ function renderStudentDetail(u, targets, healthLogs, weeklySummaries={}, weeklyC
 function buildLifestyleSection(MON, TH_SHORT, healthLogs){
   const BAR_H=120;
   const STRESS_COLORS=['','#22C55E','#86EFAC','#FCD34D','#F97316','#EF4444'];
-  const MUSCLE_EMOJI={full:'🏋️',legs:'🦵',chest:'💪',back:'🔙',shoulder:'🦾',arms:'💪',core:'🔥',none:''};
+  const MUSCLE_EMOJI={full:'🏋️',legs:'🦵',chest:'💪',back:'🔙',shoulder:'🦾',arms:'💪',core:'🔥',pilates:'🧘',none:''}; // v129
 
   // gather data arrays for each metric (null = no data)
   const sleepArr=MON.map(d=>healthLogs[d]?.sleep??null);
@@ -7300,9 +7308,9 @@ function buildLifestyleSection(MON, TH_SHORT, healthLogs){
     </div>
 
     <div class="ls-chart-card">
-      <div class="ls-ch"><span class="ls-ctitle">🏋️ เวทเทรนนิ่ง</span><span class="ls-cavg">สเกล 0–60 นาที</span></div>
+      <div class="ls-ch"><span class="ls-ctitle">🏋️ เวทเทรนนิ่ง / 🧘 พิลาทิส</span><span class="ls-cavg">สเกล 0–60 นาที</span></div>
       <div class="ls-bars">${weightBars}</div>
-      <div style="font-size:9px;color:#9CA3AF;margin-top:7px">🦵 ขา · 💪 อก/แขน · 🔙 หลัง · 🦾 บ่า · 🔥 Core · 🏋️ เต็มตัว</div>
+      <div style="font-size:9px;color:#9CA3AF;margin-top:7px">🦵 ขา · 💪 อก/แขน · 🔙 หลัง · 🦾 บ่า · 🔥 Core · 🏋️ เต็มตัว · 🧘 พิลาทิส/โยคะ</div>
     </div>
 
     <div style="background:var(--light);border:1.5px solid var(--border);border-radius:12px;padding:11px 13px">
@@ -7504,7 +7512,9 @@ function buildCorrPanel(s,cs){
   const activeMode=cs.corrMode||s.mode;
   const _orig=getSubOrigMacros(s);
   const _mBtn=(m,e,l)=>{const a=m===activeMode;return`<button onclick="setCoachCorrMode('${s.id}','${m}')" style="flex:1;padding:6px 4px;border-radius:8px;border:1.5px solid ${a?'var(--primary)':'#E5E7EB'};font-size:11px;font-weight:${a?'700':'500'};background:${a?'var(--primary)':'white'};color:${a?'#fff':'var(--gray)'};cursor:pointer;font-family:'Prompt',sans-serif">${e} ${l}</button>`;};
-  const _modeSwitchRow=`<div style="margin-bottom:12px"><div style="font-size:11px;font-weight:600;color:var(--gray);margin-bottom:6px">📂 โหมดการบันทึก</div><div style="display:flex;gap:6px">${_mBtn('hand','👊','Hand')}${_mBtn('label','🏷️','ฉลาก')}${_mBtn('weigh','✨','AI')}</div></div>`;
+  // v129: โค้ชย้ายวันที่มื้อได้ตรงนี้ — ไม่จำกัด 24 ชม. เหมือนฝั่งนักเรียน · บันทึกแยกจากปุ่มบันทึกค่า macro (ไม่แตะสถานะ)
+  const _dateRow=`<div style="margin-bottom:12px"><div style="font-size:11px;font-weight:600;color:var(--gray);margin-bottom:6px">📅 วันที่มื้อ</div><div style="display:flex;gap:6px;align-items:center"><input type="date" id="cd-date-${s.id}" value="${s.mealDate||''}" max="${todayStrTZ(tzOfUser(s.userId))}" style="flex:1;min-width:0;padding:7px 8px;border:1.5px solid #E5E7EB;border-radius:8px;font-size:12px;font-family:'Prompt',sans-serif;background:white"><button id="cd-date-btn-${s.id}" onclick="coachMoveDate('${s.id}')" style="padding:7px 12px;border-radius:8px;border:1.5px solid var(--primary);background:white;color:var(--primary-dark);font-size:11px;font-weight:600;cursor:pointer;font-family:'Prompt',sans-serif;white-space:nowrap">ย้ายวัน</button></div><div style="font-size:10px;color:var(--gray);margin-top:4px">ย้ายได้ทุกเมื่อ สถานะคงเดิม · ยอดรวมของทั้งสองวันเปลี่ยนตาม</div></div>`;
+  const _modeSwitchRow=_dateRow+`<div style="margin-bottom:12px"><div style="font-size:11px;font-weight:600;color:var(--gray);margin-bottom:6px">📂 โหมดการบันทึก</div><div style="display:flex;gap:6px">${_mBtn('hand','👊','Hand')}${_mBtn('label','🏷️','ฉลาก')}${_mBtn('weigh','✨','AI')}</div></div>`;
   // === HAND PORTION MODE ===
   if(activeMode==='hand'){
     if(!cState[s.id])cState[s.id]={};
@@ -7731,6 +7741,38 @@ function _corrDraftNotify(){
     if(el)el.scrollIntoView({behavior:'smooth',block:'center'});
     showToast('↩️ กู้ค่าที่แก้ค้างไว้กลับมาให้แล้วค่ะ — เช็คแล้วกดบันทึกได้เลย',5000);
   },350);
+}
+// v129: โค้ชย้ายวันที่มื้อ — เขียนแค่ mealDate (+ธง edited + editHistory) · status/correction/coachComment ไม่แตะ
+//   ยอดรวมรายวันทุกที่คิดจาก mealDate ตอนวาด (การ์ดโค้ช · หน้ารายละเอียดนักเรียน · Dashboard/ประวัติของนักเรียน)
+//   → ฝั่งโค้ชเห็นทันทีจาก snapshot · ฝั่งนักเรียนเห็นตอนเปิดแอปครั้งถัดไป (studentSubsCache โหลดใหม่ตอนเปิด)
+async function coachMoveDate(id){
+  const s=allSubs.find(x=>x.id===id);
+  if(!s){showToast('ไม่พบรายการนี้ค่ะ',3000);return;}
+  const el=document.getElementById('cd-date-'+id),btn=document.getElementById('cd-date-btn-'+id);
+  const to=el?String(el.value||'').trim():'',from=s.mealDate||'';
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(to)||!isValidYmd(to)){showToast('วันที่ไม่ถูกต้องค่ะ',3000);return;}
+  if(to===from){showToast('เป็นวันเดิมอยู่แล้วค่ะ',2500);return;}
+  const _max=todayStrTZ(tzOfUser(s.userId)); // วันนี้ตามเวลาของนักเรียน — ย้ายไปอนาคตไม่ได้
+  if(to>_max){showToast('ย้ายไปวันในอนาคตไม่ได้ค่ะ',3000);return;}
+  const _gap=from?Math.abs(daysBetweenYmd(from,to)):0;
+  if(_gap>14&&!confirm(`ย้ายมื้อนี้จาก ${formatDateTH(from)} ไป ${formatDateTH(to)} (ห่าง ${_gap} วัน) ใช่ไหมคะ?`))return;
+  if(btn){btn.disabled=true;btn.textContent='กำลังย้าย...';}
+  const hist={at:new Date().toISOString(),by:'coach',fields:[{k:'วันที่',from:from||'-',to}]};
+  try{
+    _markCoachSelfWrite(id); // ให้ listener อัปเดตเฉพาะใบนี้ ไม่วาดทั้งหน้า
+    const _r=await _fsWrite(db.collection('submissions').doc(id).update({
+      mealDate:to,edited:true,editedAt:firebase.firestore.FieldValue.serverTimestamp(),
+      editHistory:firebase.firestore.FieldValue.arrayUnion(hist)
+    }));
+    // อัปเดตในเครื่องทันที (snapshot จะทับด้วยค่าจริงอีกที)
+    s.mealDate=to;s.edited=true;s.editHistory=[...(s.editHistory||[]),hist];
+    _syncCard(id);
+    showToast(_r==='timeout'?_slowMsg('📡 เน็ตช้า — ย้ายวันไว้ในเครื่องแล้ว จะซิงค์อัตโนมัติค่ะ'):`✅ ย้ายไป ${formatDateTH(to)} แล้วค่ะ`,_r==='timeout'?4000:3000);
+  }catch(e){
+    if(btn){btn.disabled=false;btn.textContent='ย้ายวัน';}
+    showToast('❌ ย้ายวันไม่สำเร็จ: '+(e.message||e),4000);
+    try{if(typeof _reportError==='function')_reportError('coach-move-date',(e.code||'')+' '+(e.message||''),'','coachMoveDate');}catch(_){}
+  }
 }
 function setCoachCorrMode(id,mode){if(!cState[id])cState[id]={};cState[id].corrMode=mode;delete cState[id].carb;delete cState[id].protein;delete cState[id].fat;_updateCard(id);}
 // v123: กล่อง "📝 นักเรียนพิมพ์" + "💭 AI สันนิษฐาน" บนการ์ดโค้ช (มื้อโหมด AI ที่รออนุมัติ)
