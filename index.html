@@ -1109,7 +1109,7 @@ function _slowMsg(okText){
 //   (loadSavedMenus ดึงมา .limit(40) อยู่แล้ว 20 จึงยังอยู่ใต้เพดานการอ่าน)
 //   ประกาศไว้บนสุด เพราะถูกใช้ทั้งใน loadStudentData / loadSavedMenus / saveCurrentMenu
 const MENU_CAP=20;
-const APP_VERSION='v130-2026-10-04'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
+const APP_VERSION='v131-2026-10-05'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
 const _errLogged=new Set();let _errCount=0;
 // ═════ v120: บันทึกเหตุการณ์คิวมื้ออาหาร ═════
 // ★ แยกโควตาจาก _reportError โดยตั้งใจ — idb-known/photo-fail ยิงถี่จนกินเพดาน 10 หมด
@@ -2607,11 +2607,24 @@ async function _baUpload(path,data,ms){
   const url=await _baWait(p.then(()=>ref.getDownloadURL()),ms||30000,'timeout');
   return {url,path};
 }
+// v130.1: มือถือจริงเจอ "timeout" ทั้งที่คอลเลกชันว่าง — อาการเดียวกับ v125 (สาย Firestore ค้าง) → หมดเวลาแล้วต่อสายใหม่ + ลองอีกรอบ
+//   ยังไม่ได้ → อ่านจาก cache ในเครื่อง (ถ้าเคยโหลดมาก่อน) → ไม่ได้จริงๆ ค่อยบอกชัดว่าเซิร์ฟเวอร์ไม่ตอบ
 async function _baLoadPhotos(uid,force){
   if(_baPhotos[uid]&&!force)return _baPhotos[uid];
-  const snap=await _baWait(db.collection('progressPhotos').doc(uid).collection('photos').orderBy('date','asc').get(),8000,'timeout');
-  _baPhotos[uid]=snap.docs.map(d=>({id:d.id,...d.data()}));
-  return _baPhotos[uid];
+  const q=db.collection('progressPhotos').doc(uid).collection('photos').orderBy('date','asc');
+  const fin=snap=>{_baPhotos[uid]=snap.docs.map(d=>({id:d.id,...d.data()}));try{_fsMarkOk();}catch(_){}return _baPhotos[uid];};
+  try{return fin(await _baWait(q.get(),8000,'timeout'));} // 8 วิ เท่าที่อื่นในแอป
+  catch(e1){
+    if(e1.message!=='timeout')throw e1; // permission-denied ฯลฯ → โยนตามจริง
+    try{_fsMarkTimeout();}catch(_){}
+    try{if(typeof _fsReconnect==='function')await _fsReconnect('ba-load');}catch(_){}
+    try{return fin(await _baWait(q.get(),8000,'timeout'));} // 8 วิ เท่าที่อื่นในแอป
+    catch(e2){
+      try{const c=await _baWait(q.get({source:'cache'}),3000,'timeout');if(c&&c.docs.length)return fin(c);}catch(_){}
+      try{_reportError('ba-load','timeout x2 '+(e2.message||''),'','_baLoadPhotos');}catch(_){}
+      throw new Error('เซิร์ฟเวอร์ไม่ตอบ (เน็ตช้าหรือสายค้าง) — ปิดแล้วเปิดแอปใหม่ หรือกดลองใหม่อีกครั้ง');
+    }
+  }
 }
 // เพิ่มรูป 1 ใบ (ใช้ร่วมนักเรียน/โค้ช): ย่อ → อัป → เอกสาร → ตัวนับ
 async function _baAddPhoto(uid,file,angle,date,from,meta){
