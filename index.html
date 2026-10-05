@@ -481,6 +481,20 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
 .stat-box.highlight{background:var(--light);border:1.5px solid var(--border)}
 
 /* STUDENT DETAIL OVERLAY */
+/* v130: Before/After */
+.ba-chips{display:flex;gap:6px}.ba-chip{flex:1;text-align:center;border:1.5px solid #E5E7EB;border-radius:10px;padding:7px 4px;font-size:11.5px;background:#fff;cursor:pointer;font-family:'Prompt',sans-serif}.ba-chip.on{border-color:var(--primary);background:var(--light);color:#92400E;font-weight:600}
+.ba-btn{display:block;width:100%;border:none;border-radius:11px;padding:11px;font-family:'Prompt',sans-serif;font-size:13px;font-weight:600;background:var(--primary);color:#fff;text-align:center;cursor:pointer;text-decoration:none;box-sizing:border-box}.ba-btn.o{background:#fff;border:1.5px solid var(--border);color:var(--primary-dark)}.ba-btn.sm{padding:8px;font-size:11.5px;border-radius:9px}.ba-btn:disabled{opacity:.45;cursor:default}
+.ba-grid{display:grid;grid-template-columns:56px repeat(3,1fr);gap:6px;align-items:center}.ba-gh{text-align:center;font-size:10.5px;font-weight:600;color:var(--gray)}.ba-gd{font-size:10.5px;font-weight:600;color:var(--gray);line-height:1.3}
+.ba-ph{position:relative;aspect-ratio:3/4;border-radius:10px;overflow:hidden;background:#ddd;cursor:pointer}.ba-ph img{width:100%;height:100%;object-fit:cover;display:block}.ba-ph.sel{outline:3px solid var(--primary);outline-offset:-3px}
+.ba-tag{position:absolute;top:5px;left:5px;font-size:9.5px;font-weight:700;color:#fff;background:rgba(45,45,45,.85);padding:2px 6px;border-radius:999px;white-space:nowrap}.ba-tag.g{background:#16A34A}.ba-n{position:absolute;right:5px;bottom:5px;font-size:9px;background:rgba(0,0,0,.6);color:#fff;border-radius:999px;padding:1px 5px}
+.ba-empty{aspect-ratio:3/4;border:1.5px dashed #D1D5DB;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#C4C8CF;font-size:16px;cursor:pointer}
+.ba-home-card{background:linear-gradient(135deg,#FFF4D6,#FFE4B3);border:1.5px solid var(--border);border-radius:14px;padding:14px;margin:10px 12px 0;font-family:'Prompt',sans-serif}
+.ba-new{background:var(--red);color:#fff;border-radius:999px;padding:0 6px;font-size:9.5px;font-weight:700;margin-left:5px;vertical-align:middle}
+#ba-panel{display:none;position:fixed;inset:0;background:#F9FAFB;z-index:26;overflow-y:auto;padding-bottom:40px;font-family:'Prompt',sans-serif}
+.ba-pane{position:relative;aspect-ratio:3/4;border-radius:10px;overflow:hidden;background:#222;touch-action:none;user-select:none;-webkit-user-select:none}.ba-pane img{position:absolute;left:0;top:0;width:100%;height:100%;object-fit:cover;pointer-events:none;will-change:transform}
+.ba-stat{flex:1;min-width:0;background:var(--light);border:1px solid var(--border);border-radius:10px;padding:6px 4px;text-align:center;font-size:9.5px;color:var(--gray);cursor:pointer;line-height:1.35}.ba-stat b{display:block;font-size:12.5px;color:#92400E}.ba-stat.off{opacity:.4;text-decoration:line-through}
+.ba-range{width:100%;accent-color:var(--primary);margin:6px 0 0}
+#ba-viewer{display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:40;flex-direction:column;align-items:center;justify-content:center;padding:16px;font-family:'Prompt',sans-serif}
 #student-detail{display:none;position:fixed;inset:0;background:#F9FAFB;z-index:20;overflow-y:auto;padding-bottom:40px}
 .sd-header{background:white;padding:12px 16px;border-bottom:1px solid #E5E7EB;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:5}
 .sd-back{color:var(--primary);font-size:22px;font-weight:700;cursor:pointer;background:none;border:none;padding:0;line-height:1}
@@ -615,6 +629,7 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
 
   <!-- LOG PANELS -->
   <div id="log-panels">
+    <div id="ba-home" style="display:none"></div><!-- v130: การ์ด Before/After จากโค้ช -->
     <div class="meal-bar">
       <p>มื้ออาหาร</p>
       <div class="meal-btns">
@@ -1094,7 +1109,7 @@ function _slowMsg(okText){
 //   (loadSavedMenus ดึงมา .limit(40) อยู่แล้ว 20 จึงยังอยู่ใต้เพดานการอ่าน)
 //   ประกาศไว้บนสุด เพราะถูกใช้ทั้งใน loadStudentData / loadSavedMenus / saveCurrentMenu
 const MENU_CAP=20;
-const APP_VERSION='v129-2026-10-03'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
+const APP_VERSION='v130-2026-10-04'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
 const _errLogged=new Set();let _errCount=0;
 // ═════ v120: บันทึกเหตุการณ์คิวมื้ออาหาร ═════
 // ★ แยกโควตาจาก _reportError โดยตั้งใจ — idb-known/photo-fail ยิงถี่จนกินเพดาน 10 หมด
@@ -2342,6 +2357,7 @@ async function loadStudentData(){
     if(td&&td.exists){const d=td.data();studentProgramData={programStart:d.programStart||'',programEnd:d.programEnd||'',programWeeks:d.programWeeks||12,pausedDays:d.pausedDays||0,isPaused:d.isPaused||false,discountCode:d.discountCode||'',discountPercent:d.discountPercent||0};
       studentProfile=d.profile||null; // v70
       studentOnboard=d.onboard||null; // v124: สถานะภารกิจเริ่มคอร์ส (เขียนโดยแอปนักเรียน + สวิตช์รูปหุ่นของโค้ช)
+      studentBaCard=d.baCard||null;studentConsent=d.consentStatus||'';studentPhotoMeta=d.progressPhotoMeta||null; // v130
       studentHasTargets=!!(d.targets&&d.targets.kcal!=null); // v124: ข้อ 4 รับทราบเป้าหมาย ต้องมีเป้าก่อน
       maybeAskProfile(); // v70: ยังไม่เคยกรอก → ชวนกรอก (ข้ามได้)
     }
@@ -2356,6 +2372,7 @@ async function loadStudentData(){
     renderTodayProgress();
     refreshAllChips();
     renderProgramBar();
+    try{_baRenderHome();}catch(e){console.log('[v130]',e&&e.message);} // v130: การ์ดจากโค้ช + ส่งเข้า LINE 1 ครั้ง
     try{_onbRefresh();_renderComeback();_applyBasicsGate();}catch(e){console.log('[v124]',e&&e.message);} // v124
     checkNearEnd();
     checkCoachComments();
@@ -2566,6 +2583,456 @@ function selStudentTab(tab, el){
   if(tab==='health')renderHealthLog();
 }
 
+// ===== v130: BEFORE/AFTER — รูปความคืบหน้า (นักเรียนอัป · โค้ชเทียบ+ส่ง · นักเรียนได้การ์ด) =====
+// สเปกข้อมูลร่วมกับเครื่องมือ Before/After ไฟล์แยก (ดู brief_ba_tool_v1.md):
+//   progressPhotos/{uid}/photos/{id} = {date,angle:'front'|'side'|'back',url,path,from:'student'|'coach'|'tool',createdAt}
+//   students/{uid}.progressPhotoMeta = {count,lastDate,lastAt,unseenByCoach}   ← นับไว้ให้หน้าโค้ชไม่ต้อง query เพิ่ม
+//   students/{uid}.baCard = {url,path,note,beforeDate,afterDate,angle,stats,at,from:'app'|'tool',seen,dismissed}
+//   students/{uid}/baCards/{id} = ประวัติการ์ด (ก้อนเดียวกัน)
+// คอขวด: นักเรียน 0 คำขอเพิ่มตอนเปิดแอป (baCard/meta มากับเอกสาร students ที่อ่านอยู่แล้ว) · โหลดคลังรูป 1 คำขอเฉพาะตอนเปิดแท็บ Health
+//   โค้ช 0 คำขอเพิ่มในหน้ารายละเอียด · 1 คำขอตอนเปิดแผงรูป (cache ต่อคน) · ส่งการ์ด = 1 อัป + 2 เขียน
+const BA_ANGLES=[{k:'front',icon:'🧍',th:'หน้า'},{k:'side',icon:'↔️',th:'ข้าง'},{k:'back',icon:'🔙',th:'หลัง'}];
+const BA_TOOL_URL=''; // ★ ใส่ URL ของเครื่องมือ Before/After (ไฟล์แยก) เช่น 'https://…/before-after.html' — ว่าง = ซ่อนปุ่ม "เปิดเครื่องมือเต็ม"
+const BA_PHOTO_MAX=1600, BA_CARD_MAX=1600, BA_CARD_MAX_BYTES=500*1024, BA_NOTE_MAX=300;
+const BA_TH=k=>(BA_ANGLES.find(a=>a.k===k)||{}).th||k;
+let studentBaCard=null, studentConsent='', studentPhotoMeta=null;
+const _baPhotos={}; // uid → [{id,date,angle,url,path,from}] (cache ต่อ session)
+function _baYmdCompact(d){return String(d||'').replace(/-/g,'');}
+function _baWait(p,ms,label){return Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error(label||'timeout')),ms))]);}
+// อัปขึ้น Storage — รอ auth ก่อน (กฎ Storage เช็ค request.auth) · หมดเวลา = โยน error ไม่เขียน Firestore ต่อ
+async function _baUpload(path,data,ms){
+  try{await Promise.race([_authReady,new Promise(r=>setTimeout(r,5000))]);}catch(_){}
+  const ref=storage.ref(path);
+  const p=(typeof data==='string')?ref.putString(data,'data_url'):ref.put(data,{contentType:'image/jpeg'});
+  const url=await _baWait(p.then(()=>ref.getDownloadURL()),ms||30000,'timeout');
+  return {url,path};
+}
+async function _baLoadPhotos(uid,force){
+  if(_baPhotos[uid]&&!force)return _baPhotos[uid];
+  const snap=await _baWait(db.collection('progressPhotos').doc(uid).collection('photos').orderBy('date','asc').get(),8000,'timeout');
+  _baPhotos[uid]=snap.docs.map(d=>({id:d.id,...d.data()}));
+  return _baPhotos[uid];
+}
+// เพิ่มรูป 1 ใบ (ใช้ร่วมนักเรียน/โค้ช): ย่อ → อัป → เอกสาร → ตัวนับ
+async function _baAddPhoto(uid,file,angle,date,from,meta){
+  if(!BA_ANGLES.some(a=>a.k===angle))throw new Error('มุมไม่ถูกต้อง');
+  if(!isValidYmd(date)||date>todayStr())throw new Error('วันที่ไม่ถูกต้อง');
+  const b64=await compressPhoto(file,BA_PHOTO_MAX,0.85);
+  const path=`progressPhotos/${uid}/${angle}/${_baYmdCompact(date)}_${Date.now()}.jpg`;
+  const {url}=await _baUpload(path,b64,30000);
+  const ref=db.collection('progressPhotos').doc(uid).collection('photos').doc();
+  const doc={date,angle,url,path,from,createdAt:firebase.firestore.FieldValue.serverTimestamp()};
+  const r1=await _fsWrite(ref.set(doc),8000);
+  const m={count:firebase.firestore.FieldValue.increment(1),lastAt:firebase.firestore.FieldValue.serverTimestamp()};
+  if(!meta||!meta.lastDate||date>meta.lastDate)m.lastDate=date;
+  if(from==='student')m.unseenByCoach=firebase.firestore.FieldValue.increment(1);
+  await _fsWrite(db.collection('students').doc(uid).set({progressPhotoMeta:m},{merge:true}),8000);
+  const rec={id:ref.id,date,angle,url,path,from};
+  if(_baPhotos[uid])_baPhotos[uid].push(rec);
+  return Object.assign(rec,{bytes:Math.round(b64.length*0.75),slow:r1==='timeout'});
+}
+async function _baDeletePhoto(uid,p){
+  await _fsWrite(db.collection('progressPhotos').doc(uid).collection('photos').doc(p.id).delete(),8000);
+  try{if(p.path)await _baWait(storage.ref(p.path).delete(),8000);}catch(_){} // ไฟล์ค้างไม่เป็นไร เอกสารหายคือจบ
+  await _fsWrite(db.collection('students').doc(uid).set({progressPhotoMeta:{count:firebase.firestore.FieldValue.increment(-1)}},{merge:true}),8000);
+  if(_baPhotos[uid])_baPhotos[uid]=_baPhotos[uid].filter(x=>x.id!==p.id);
+}
+// ตารางวันที่ × มุม (ใช้ร่วมทั้งสองฝั่ง) — o:{tap,emptyTap,sel:{B,A},empty}
+function _baGridHtml(photos,o){
+  o=o||{};
+  const dates=Array.from(new Set((photos||[]).map(p=>p.date).filter(Boolean))).sort().reverse();
+  if(!dates.length)return `<div style="font-size:12px;color:var(--gray);text-align:center;padding:10px">${o.empty||'ยังไม่มีรูป'}</div>`;
+  let h=`<div class="ba-grid"><div></div>${BA_ANGLES.map(a=>`<div class="ba-gh">${a.icon} ${a.th}</div>`).join('')}`;
+  dates.forEach(d=>{
+    h+=`<div class="ba-gd">${formatDateTH(d)}</div>`;
+    BA_ANGLES.forEach(a=>{
+      const ps=photos.filter(p=>p.date===d&&p.angle===a.k);
+      if(!ps.length){h+=`<div class="ba-empty"${o.emptyTap?` onclick="${o.emptyTap}('${a.k}','${d}')"`:''}>${o.emptyTap?'+':'—'}</div>`;return;}
+      const p=ps[ps.length-1];
+      const tag=(o.sel&&o.sel.B===p.id)?'<span class="ba-tag">Before</span>':(o.sel&&o.sel.A===p.id)?'<span class="ba-tag g">After</span>':'';
+      h+=`<div class="ba-ph${tag?' sel':''}"${o.tap?` onclick="${o.tap}('${p.id}')"`:''}><img src="${safeImg(p.url)}" loading="lazy" alt="">${tag}${ps.length>1?`<span class="ba-n">${ps.length}</span>`:''}</div>`;
+    });
+  });
+  return h+'</div>';
+}
+function _baViewer(html){
+  let v=document.getElementById('ba-viewer');
+  if(!v){v=document.createElement('div');v.id='ba-viewer';document.body.appendChild(v);}
+  v.innerHTML=html;v.style.display='flex';
+}
+function baCloseViewer(){const v=document.getElementById('ba-viewer');if(v){v.style.display='none';v.innerHTML='';}}
+
+// ---------- ฝั่งนักเรียน: การ์ดอัปรูปในแท็บ Health ----------
+let bpAngle='front', bpFile=null, bpPreview='', bpBusy=false, _bpLoaded=false, _bpLoadErr=false;
+function _bpRenderCard(){
+  const box=document.getElementById('bp-card');if(!box)return;
+  const dateEl=document.getElementById('bp-date');
+  const keepDate=dateEl&&dateEl.value?dateEl.value:(selectedDate>todayStr()?todayStr():selectedDate);
+  const consentEl=document.getElementById('bp-consent');
+  const consentOn=consentEl?consentEl.checked:(studentConsent==='given');
+  const uid=user&&user.userId;
+  box.innerHTML=`<div class="hl-card">
+    <div class="hl-title" style="margin-bottom:6px">📸 รูปความคืบหน้า</div>
+    <div class="hl-hint" style="text-align:left;margin-bottom:8px">ถ่ายทุก 2 สัปดาห์ ที่เดิม แสงเดิม ยืนตรง ห่างกล้องเท่าเดิม · โค้ชจะเทียบ Before/After ให้</div>
+    <div class="ba-chips">${BA_ANGLES.map(a=>`<div class="ba-chip${bpAngle===a.k?' on':''}" onclick="bpSetAngle('${a.k}')">${a.icon} ${a.th}</div>`).join('')}</div>
+    <div style="display:flex;gap:8px;align-items:center;margin:8px 0"><span style="font-size:11.5px;color:var(--gray)">📅 วันที่</span><input type="date" id="bp-date" value="${keepDate}" max="${todayStr()}" style="flex:1;min-width:0;padding:7px 8px;border:1.5px solid #E5E7EB;border-radius:9px;font-size:12px;font-family:'Prompt',sans-serif;background:#fff"></div>
+    <label for="bp-file" class="ba-btn o">📷 ${bpPreview?'เปลี่ยนรูป':'ถ่าย / เลือกรูป'}</label>
+    <input type="file" id="bp-file" accept="image/*" style="position:absolute;width:1px;height:1px;opacity:0;left:0;top:0" onchange="bpOnFile(this)">
+    ${bpPreview?`<img src="${bpPreview}" alt="" style="width:100%;max-height:260px;object-fit:contain;border-radius:10px;background:#111;margin-top:8px;display:block">`:''}
+    <label style="display:flex;gap:7px;align-items:flex-start;font-size:11px;color:var(--gray);margin:10px 0;line-height:1.5"><input type="checkbox" id="bp-consent"${consentOn?' checked':''} style="margin-top:2px;accent-color:var(--primary)">ยินยอมให้โค้ชใช้รูปนี้เทียบ Before/After และส่งผลกลับให้ฉันในแอป/LINE (โค้ชจะไม่เผยแพร่โดยไม่ถามก่อน)</label>
+    <button class="ba-btn" id="bp-save" onclick="bpSave()"${(bpPreview&&!bpBusy)?'':' disabled'}>${bpBusy?'⏳ กำลังส่ง...':'💾 ส่งรูปให้โค้ช'}</button>
+    <div id="bp-msg" style="text-align:center;font-size:11.5px;margin-top:6px;line-height:1.5"></div>
+    <div style="font-size:12.5px;font-weight:600;margin:14px 0 6px">รูปที่ส่งแล้ว</div>
+    <div id="bp-grid">${_bpLoaded?_baGridHtml(_baPhotos[uid]||[],{tap:'bpView',emptyTap:'bpPick',empty:'ยังไม่มีรูป — ส่งรูปแรกได้เลย'}):(_bpLoadErr?'<div style="text-align:center;font-size:11.5px;color:#92400E">📡 โหลดคลังรูปไม่สำเร็จ <button onclick="_bpLoadGrid()" style="margin-left:6px;padding:3px 10px;border:none;border-radius:7px;background:#F59E0B;color:#fff;font-size:11px;font-family:\'Prompt\',sans-serif">🔄 ลองใหม่</button></div>':'<div style="text-align:center;padding:8px"><div class="df-spin sm" style="margin:0 auto"></div></div>')}</div>
+    <div class="hl-hint" style="margin-top:6px">แตะช่อง + เพื่อเพิ่มมุมนั้นของวันนั้น · แตะรูปเพื่อดู/ลบ</div>
+  </div>`;
+  if(!_bpLoaded&&!_bpLoadErr)_bpLoadGrid();
+}
+async function _bpLoadGrid(){
+  const uid=user&&user.userId;if(!uid)return;
+  _bpLoadErr=false;
+  try{await _baLoadPhotos(uid);_bpLoaded=true;}
+  catch(e){_bpLoadErr=true;try{_reportError('ba-load',(e.code||'')+' '+(e.message||''),'','_bpLoadGrid');}catch(_){}}
+  const g=document.getElementById('bp-grid');
+  if(g)_bpRenderCard(); // วาดใหม่ทั้งการ์ด (ค่าในฟอร์มถูกเก็บไว้ก่อน)
+}
+function bpSetAngle(k){bpAngle=k;_bpRenderCard();}
+function bpOnFile(inp){
+  const f=inp.files&&inp.files[0];if(!f)return;
+  if(bpPreview)try{URL.revokeObjectURL(bpPreview);}catch(_){}
+  bpFile=f;bpPreview=URL.createObjectURL(f);
+  const m=document.getElementById('bp-msg');if(m)m.textContent='';
+  _bpRenderCard();
+}
+function bpPick(angle,date){
+  bpAngle=angle;_bpRenderCard();
+  const d=document.getElementById('bp-date');if(d&&date)d.value=date;
+  const c=document.getElementById('bp-card');if(c)c.scrollIntoView({behavior:'smooth',block:'start'});
+  const f=document.getElementById('bp-file');if(f)try{f.click();}catch(_){}
+}
+async function bpSave(){
+  const uid=user&&user.userId;if(!uid||bpBusy)return;
+  const say=(t,c)=>{const m=document.getElementById('bp-msg');if(m){m.textContent=t;m.style.color=c||'var(--gray)';}}; // หา element ใหม่ทุกครั้ง — การ์ดถูกวาดใหม่ระหว่างทาง
+  const date=(document.getElementById('bp-date')||{}).value||'';
+  if(!bpFile){say('เลือกรูปก่อนค่ะ','#B45309');return;}
+  if(!isValidYmd(date)||date>todayStr()){say('วันที่ไม่ถูกต้อง (ไม่เกินวันนี้)','#B45309');return;}
+  const consent=document.getElementById('bp-consent');
+  if(!consent||!consent.checked){say('ติ๊กยินยอมก่อนนะคะ — ไม่งั้นโค้ชใช้รูปเทียบให้ไม่ได้','#B45309');return;}
+  bpBusy=true;_bpRenderCard();say('⏳ กำลังย่อรูปและส่ง...');
+  try{
+    const r=await _baAddPhoto(uid,bpFile,bpAngle,date,'student',studentPhotoMeta);
+    studentPhotoMeta=Object.assign({},studentPhotoMeta||{},{count:(+(studentPhotoMeta&&studentPhotoMeta.count)||0)+1,lastDate:(!studentPhotoMeta||!studentPhotoMeta.lastDate||date>studentPhotoMeta.lastDate)?date:studentPhotoMeta.lastDate});
+    if(studentConsent!=='given'){
+      studentConsent='given';
+      _fsWrite(db.collection('students').doc(uid).set({consentStatus:'given',consentDate:todayStr()},{merge:true}),8000).catch(()=>{});
+    }
+    if(bpPreview)try{URL.revokeObjectURL(bpPreview);}catch(_){}
+    bpFile=null;bpPreview='';bpBusy=false;_bpLoaded=true;
+    _bpRenderCard();
+    say(`✅ ส่งแล้ว · ${BA_TH(r.angle)} ${formatDateTH(r.date)} — ย่อรูปเหลือ ${Math.round(r.bytes/1024)} KB${r.slow?' (เน็ตช้า จะซิงค์ให้เอง)':''}`,'#166534');
+    showToast('✅ ส่งรูปให้โค้ชแล้วค่ะ',2500);
+  }catch(e){
+    bpBusy=false;_bpRenderCard();
+    say('❌ ส่งไม่สำเร็จ: '+(e.message==='timeout'?'เน็ตช้า ลองใหม่อีกครั้ง':(e.message||e)),'#B91C1C');
+    try{_reportError('ba-upload',(e.code||'')+' '+(e.message||''),'','bpSave');}catch(_){}
+  }
+}
+function bpView(id){
+  const uid=user&&user.userId;const p=(_baPhotos[uid]||[]).find(x=>x.id===id);if(!p)return;
+  _baViewer(`<img src="${safeImg(p.url)}" alt="" style="max-width:100%;max-height:72vh;border-radius:12px;object-fit:contain">
+    <div style="color:#fff;font-size:13px;margin:12px 0 10px">${BA_TH(p.angle)} · ${formatDateTH(p.date)}${p.from==='coach'||p.from==='tool'?' · โค้ชอัปให้':''}</div>
+    <div style="display:flex;gap:8px;width:100%;max-width:360px"><button class="ba-btn o sm" style="flex:1" onclick="baCloseViewer()">ปิด</button><button class="ba-btn sm" style="flex:1;background:#B91C1C" onclick="bpDelete('${p.id}')">🗑️ ลบรูปนี้</button></div>`);
+}
+async function bpDelete(id){
+  const uid=user&&user.userId;const p=(_baPhotos[uid]||[]).find(x=>x.id===id);if(!p)return;
+  if(!confirm(`ลบรูป ${BA_TH(p.angle)} ${formatDateTH(p.date)} ใช่ไหมคะ?`))return;
+  baCloseViewer();
+  try{await _baDeletePhoto(uid,p);if(studentPhotoMeta)studentPhotoMeta.count=Math.max(0,(+studentPhotoMeta.count||0)-1);_bpRenderCard();showToast('🗑️ ลบแล้วค่ะ',2000);}
+  catch(e){showToast('❌ ลบไม่สำเร็จ: '+(e.message||e),3500);}
+}
+
+// ---------- ฝั่งนักเรียน: การ์ดจากโค้ชบนหน้าแรก + ส่งเข้า LINE 1 ครั้ง ----------
+let _baLineSentSession=false;
+function _baRenderHome(){
+  const box=document.getElementById('ba-home');if(!box)return;
+  const c=studentBaCard;
+  if(!c||!c.url||c.dismissed){box.style.display='none';box.innerHTML='';return;}
+  const st=c.stats||{};const bits=[];
+  if(st.days)bits.push(`${st.days} วัน`);
+  if(st.weightFrom!=null&&st.weightTo!=null)bits.push(`น้ำหนัก ${st.weightFrom} → ${st.weightTo} กก.`);
+  if(st.waistFrom!=null&&st.waistTo!=null)bits.push(`เอว ${st.waistFrom} → ${st.waistTo} ซม.`);
+  const when=(c.beforeDate&&c.afterDate)?`${formatDateTH(c.beforeDate)} → ${formatDateTH(c.afterDate)}`:'';
+  box.style.display='block';
+  box.innerHTML=`<div class="ba-home-card">
+    <div style="display:flex;justify-content:space-between;align-items:center"><div style="font-size:14px;font-weight:600">🎉 Before/After จากโค้ช</div><button onclick="baDismiss()" title="ซ่อน" style="border:none;background:none;color:var(--gray);font-size:16px;cursor:pointer;padding:0 4px">✕</button></div>
+    <div style="font-size:10.5px;color:var(--gray);margin:2px 0 8px">${[when,bits.join(' · ')].filter(Boolean).join(' · ')}</div>
+    <img src="${safeImg(c.url)}" alt="Before/After" onclick="baOpenImg()" style="width:100%;border-radius:10px;display:block;background:#111;cursor:pointer">
+    ${c.note?`<div style="font-size:12px;margin:10px 0 4px;line-height:1.5">💬 <b>โค้ช:</b> ${escHtml(c.note)}</div>`:''}
+    <div style="display:flex;gap:6px;margin-top:8px"><button class="ba-btn sm" style="flex:1" onclick="baSaveImg()">💾 บันทึกรูป</button><button class="ba-btn o sm" style="flex:1" onclick="baNextPhoto()">📸 ถ่ายรอบถัดไป</button></div>
+    <div id="ba-home-note" class="hl-hint" style="margin-top:6px">${c.seen?'รูปนี้ถูกส่งเข้าแชท LINE ของคุณแล้วด้วย':''}</div>
+  </div>`;
+  _baMaybeSendLine();
+}
+function baOpenImg(){const c=studentBaCard;if(!c||!c.url)return;_baViewer(`<img src="${safeImg(c.url)}" alt="" style="max-width:100%;max-height:80vh;border-radius:12px;object-fit:contain"><button class="ba-btn o sm" style="margin-top:12px;max-width:200px" onclick="baCloseViewer()">ปิด</button>`);}
+function baSaveImg(){const c=studentBaCard;if(!c||!c.url)return;try{if(typeof liff!=='undefined'&&liff.isInClient())liff.openWindow({url:c.url,external:true});else window.open(c.url,'_blank','noopener');}catch(_){window.open(c.url,'_blank');}}
+function baNextPhoto(){
+  const tabs=document.querySelectorAll('.nav-tab');
+  try{selStudentTab('health',tabs[1]);}catch(_){}
+  setTimeout(()=>{const c=document.getElementById('bp-card');if(c)c.scrollIntoView({behavior:'smooth',block:'start'});},150);
+}
+async function baDismiss(){
+  const c=studentBaCard;if(!c)return;
+  c.dismissed=true;_baRenderHome();
+  try{await _fsWrite(db.collection('students').doc(user.userId).set({baCard:{dismissed:true}},{merge:true}),8000);}catch(_){}
+}
+async function _baMaybeSendLine(){
+  const c=studentBaCard;
+  if(!c||!c.url||c.seen||_baLineSentSession)return;
+  if(typeof liff==='undefined'||!liff.isInClient())return;
+  const key='_baSent_'+(c.path||c.url).slice(-40);
+  try{if(localStorage.getItem(key))return;}catch(_){}
+  _baLineSentSession=true;
+  try{localStorage.setItem(key,'1');}catch(_){} // mark ก่อนส่ง กันเปิดแอปรัวๆ แล้วส่งซ้ำ (แนวเดียวกับการ์ดใกล้จบคอร์ส)
+  try{
+    if(!await _ensureSendPermission(false))return;
+    await liff.sendMessages([{type:'image',originalContentUrl:c.url,previewImageUrl:c.url}]);
+    c.seen=true;
+    const n=document.getElementById('ba-home-note');if(n)n.textContent='รูปนี้ถูกส่งเข้าแชท LINE ของคุณแล้วด้วย';
+    await _fsWrite(db.collection('students').doc(user.userId).set({baCard:{seen:true,seenAt:firebase.firestore.FieldValue.serverTimestamp()}},{merge:true}),8000);
+  }catch(e){try{_reportError('ba-line',(e.code||'')+' '+(e.message||''),'','_baMaybeSendLine');}catch(_){}}
+}
+
+// ---------- ฝั่งโค้ช: แถบในหน้ารายละเอียด (0 คำขอ — อ่านจาก students doc ที่มีอยู่แล้ว) ----------
+function _baSectionHtml(uid,t){
+  const m=(t&&t.progressPhotoMeta)||{};const n=Math.max(0,+m.count||0),un=Math.max(0,+m.unseenByCoach||0);
+  const cs=(t&&t.consentStatus)||'';
+  const consent=cs==='given'?'ยินยอมแล้ว ✓':cs==='declined'?'<span style="color:var(--red)">ไม่ยินยอม</span>':'ยังไม่ได้ยินยอม';
+  const sub=n?`${n} รูป · ล่าสุด ${m.lastDate?formatDateTH(m.lastDate):'-'} · ${consent}`:`ยังไม่มีรูป · ${consent}`;
+  const card=t&&t.baCard&&t.baCard.url?` · ส่งการ์ดล่าสุด ${t.baCard.afterDate?formatDateTH(t.baCard.afterDate):'แล้ว'}${t.baCard.seen?' ✓':''}`:'';
+  return `<div class="sd-section" id="ba-sec-${uid}" style="cursor:pointer" onclick="openBaPanel('${uid}')"><div style="display:flex;align-items:center;gap:8px"><div style="flex:1;min-width:0"><div class="sd-section-title" style="margin:0">📸 รูปความคืบหน้า${un?`<span class="ba-new">ใหม่ ${un}</span>`:''}</div><div style="font-size:11px;color:var(--gray);margin-top:3px">${sub}${card}</div></div><span style="color:#C2C9D2;font-size:18px">›</span></div></div>`;
+}
+// ---------- ฝั่งโค้ช: แผงรูป + เทียบ + ส่ง ----------
+let _ba=null; // {uid,name,view:'grid'|'compare',sel:{B,A},mode:'side'|'slide'|'ghost',xf:{B:{z,x,y},A:{z,x,y}},div:50,ghost:50,stats,busy,upOpen,upAngle}
+function _baPanel(){
+  let p=document.getElementById('ba-panel');
+  if(!p){p=document.createElement('div');p.id='ba-panel';document.body.appendChild(p);}
+  return p;
+}
+function _baMeta(uid){const c=_sdCache&&_sdCache[uid];return (c&&c.targets&&c.targets.progressPhotoMeta)||{};}
+async function openBaPanel(uid){
+  const u=(typeof _coachUser==='function')?_coachUser(uid):null;
+  _ba={uid,name:(u&&u.displayName)||'นักเรียน',view:'grid',sel:{B:null,A:null},mode:'side',xf:{B:{z:1,x:0,y:0},A:{z:1,x:0,y:0}},div:50,ghost:50,stats:null,busy:false,upOpen:false,upAngle:'front',loading:true,err:''};
+  const p=_baPanel();p.style.display='block';p.scrollTop=0;
+  _baRender();
+  try{await _baLoadPhotos(uid);_ba.loading=false;}
+  catch(e){_ba.loading=false;_ba.err=e.message||'โหลดไม่สำเร็จ';}
+  if(_ba&&_ba.uid===uid)_baRender();
+  // เคลียร์ป้าย "ใหม่" (1 เขียน เฉพาะเมื่อมี)
+  const m=_baMeta(uid);
+  if(+m.unseenByCoach>0){
+    m.unseenByCoach=0;
+    const sec=document.getElementById('ba-sec-'+uid);if(sec&&_sdCache[uid])sec.outerHTML=_baSectionHtml(uid,_sdCache[uid].targets);
+    _fsWrite(db.collection('students').doc(uid).set({progressPhotoMeta:{unseenByCoach:0}},{merge:true}),8000).catch(()=>{});
+  }
+}
+function closeBaPanel(){const p=document.getElementById('ba-panel');if(p){p.style.display='none';p.innerHTML='';}_ba=null;}
+function _baPhotoById(id){return (_baPhotos[_ba.uid]||[]).find(x=>x.id===id)||null;}
+function _baRender(){
+  if(!_ba)return;
+  const ne=document.getElementById('ba-note');if(ne)_ba.note=ne.value; // วาดใหม่กี่ครั้งโน้ตต้องไม่หาย
+  const p=_baPanel();
+  const head=`<div class="sd-header"><button class="sd-back" onclick="${_ba.view==='compare'?'baBackToGrid()':'closeBaPanel()'}">←</button><div style="flex:1;min-width:0"><div class="sd-name">📸 ${escHtml(_ba.name)}</div><div style="font-size:11px;color:var(--gray)">${_ba.view==='compare'?'เทียบ Before/After':'รูปความคืบหน้า'}</div></div></div>`;
+  p.innerHTML=head+`<div style="padding:12px 14px">${_ba.view==='compare'?_baCompareHtml():_baGridViewHtml()}</div>`;
+  if(_ba.view==='compare')_baBindPanes();
+}
+function _baGridViewHtml(){
+  const photos=_baPhotos[_ba.uid]||[];
+  const B=_baPhotoById(_ba.sel.B),A=_baPhotoById(_ba.sel.A);
+  const t=_sdCache&&_sdCache[_ba.uid]&&_sdCache[_ba.uid].targets||{};
+  const cs=t.consentStatus||'';
+  const consent=cs==='given'?'<span style="color:#166534">ยินยอมแล้ว ✓</span>':cs==='declined'?'<span style="color:var(--red)">นักเรียนไม่ยินยอม — ส่งให้ดูเองได้ ห้ามเผยแพร่</span>':'<span style="color:#92400E">ยังไม่ได้ยินยอม — ขอให้นักเรียนติ๊กในแอปตอนส่งรูป</span>';
+  let body;
+  if(_ba.loading)body='<div style="text-align:center;padding:20px"><div class="df-spin sm" style="margin:0 auto"></div><div style="font-size:12px;color:var(--gray);margin-top:6px">กำลังโหลดคลังรูป...</div></div>';
+  else if(_ba.err)body=`<div style="text-align:center;font-size:12px;color:#92400E;padding:10px">📡 ${escHtml(_ba.err)} <button class="ba-btn sm" style="display:inline-block;width:auto;margin-left:6px" onclick="_baRetry()">🔄 ลองใหม่</button></div>`;
+  else body=_baGridHtml(photos,{tap:'baTap',sel:_ba.sel,empty:'ยังไม่มีรูป — อัปแทนนักเรียนได้ด้านล่าง หรือรอให้นักเรียนส่งจากแท็บ Health log'});
+  const pick=B?`Before: ${BA_TH(B.angle)} ${formatDateTH(B.date)}${A?` → After: ${formatDateTH(A.date)}`:' · แตะรูปมุมเดียวกันอีกใบเป็น After'}`:'แตะรูป 2 ใบ (มุมเดียวกัน) = Before + After';
+  const up=_ba.upOpen?`<div class="hl-card" style="margin-top:8px"><div style="font-size:12px;font-weight:600;margin-bottom:6px">📷 อัปรูปแทนนักเรียน</div>
+      <div class="ba-chips">${BA_ANGLES.map(a=>`<div class="ba-chip${_ba.upAngle===a.k?' on':''}" onclick="_ba.upAngle='${a.k}';_baRender()">${a.icon} ${a.th}</div>`).join('')}</div>
+      <div style="display:flex;gap:8px;align-items:center;margin:8px 0"><span style="font-size:11.5px;color:var(--gray)">📅 วันที่</span><input type="date" id="ba-up-date" value="${_ba.upDate||todayStr()}" max="${todayStr()}" style="flex:1;min-width:0;padding:7px 8px;border:1.5px solid #E5E7EB;border-radius:9px;font-size:12px;font-family:'Prompt',sans-serif;background:#fff"></div>
+      <label for="ba-up-file" class="ba-btn o sm">${_ba.busy?'⏳ กำลังอัป...':'📷 เลือกรูปแล้วอัปทันที'}</label><input type="file" id="ba-up-file" accept="image/*" style="position:absolute;width:1px;height:1px;opacity:0" onchange="baCoachUpload(this)">
+      <div id="ba-up-msg" style="font-size:11px;margin-top:6px;text-align:center"></div></div>`:'';
+  return `<div class="hl-card"><div style="font-size:11px;color:var(--gray);margin-bottom:8px">${consent}</div>${body}
+    <div class="hl-hint" style="margin:8px 0 6px;text-align:left">${pick}</div>
+    <div style="display:flex;gap:6px"><button class="ba-btn sm" style="flex:1" onclick="baCompare()"${B&&A?'':' disabled'}>🔍 เทียบ Before/After</button><button class="ba-btn o sm" style="flex:1" onclick="_ba.upOpen=!_ba.upOpen;_baRender()">📷 อัปรูปแทนนักเรียน</button></div>
+    ${BA_TOOL_URL?`<a class="ba-btn o sm" style="margin-top:6px" href="${BA_TOOL_URL}${BA_TOOL_URL.indexOf('?')>=0?'&':'?'}uid=${encodeURIComponent(_ba.uid)}" target="_blank" rel="noopener">🛠️ เปิดเครื่องมือเต็ม (จัดตำแหน่ง AI · การ์ด IG) ↗</a>`:''}
+  </div>${up}
+  <div class="hl-hint" style="text-align:left">ในแอป: เทียบ + ตัวเลข + โน้ต → ส่งการ์ดรูปเดียวให้นักเรียน · งานละเอียด/โพสต์ IG ใช้เครื่องมือเต็ม (รูปชุดเดียวกัน)</div>`;
+}
+async function _baRetry(){if(!_ba)return;_ba.loading=true;_ba.err='';_baRender();try{await _baLoadPhotos(_ba.uid,true);}catch(e){_ba.err=e.message||'โหลดไม่สำเร็จ';}_ba.loading=false;_baRender();}
+function baTap(id){
+  if(!_ba)return;const p=_baPhotoById(id);if(!p)return;
+  const s=_ba.sel,B=_baPhotoById(s.B);
+  if(!B){s.B=id;s.A=null;}
+  else if(s.B===id){s.B=s.A;s.A=null;}
+  else if(s.A===id){s.A=null;}
+  else if(B.angle!==p.angle){s.B=id;s.A=null;showToast('ต้องเป็นมุมเดียวกันค่ะ — เริ่มเลือกใหม่จากใบนี้',2200);}
+  else if(p.date<B.date){s.A=s.B;s.B=id;} // ใบเก่ากว่าเป็น Before เสมอ
+  else s.A=id;
+  _baRender();
+}
+async function baCoachUpload(inp){
+  const f=inp.files&&inp.files[0];if(!f||!_ba||_ba.busy)return;
+  const date=(document.getElementById('ba-up-date')||{}).value||'';_ba.upDate=date;
+  const say=(t,c)=>{const m=document.getElementById('ba-up-msg');if(m){m.textContent=t;m.style.color=c||'var(--gray)';}};
+  if(!isValidYmd(date)||date>todayStr()){say('วันที่ไม่ถูกต้อง','#B45309');inp.value='';return;}
+  _ba.busy=true;_baRender();
+  try{
+    const r=await _baAddPhoto(_ba.uid,f,_ba.upAngle,date,'coach',_baMeta(_ba.uid));
+    const m=_baMeta(_ba.uid);m.count=(+m.count||0)+1;if(!m.lastDate||date>m.lastDate)m.lastDate=date;
+    const sec=document.getElementById('ba-sec-'+_ba.uid);if(sec&&_sdCache[_ba.uid])sec.outerHTML=_baSectionHtml(_ba.uid,_sdCache[_ba.uid].targets);
+    _ba.busy=false;_baRender();showToast(`✅ อัปแล้ว · ${BA_TH(r.angle)} ${formatDateTH(r.date)} (${Math.round(r.bytes/1024)} KB)`,2500);
+  }catch(e){_ba.busy=false;_baRender();const m2=document.getElementById('ba-up-msg');if(m2){m2.textContent='❌ อัปไม่สำเร็จ: '+(e.message==='timeout'?'เน็ตช้า ลองใหม่':(e.message||e));m2.style.color='#B91C1C';}
+    try{_reportError('ba-upload-coach',(e.code||'')+' '+(e.message||''),'','baCoachUpload');}catch(_){}}
+}
+// ตัวเลขอัตโนมัติ: น้ำหนัก/เอวจาก weeklyChecks ที่โหลดไว้แล้ว (ใกล้วันที่สุด ±10 วัน) · มื้อจาก allSubs — 0 คำขอ
+function _baComputeStats(uid,B,A){
+  const out={days:daysBetweenYmd(B.date,A.date)};
+  const wc=(_sdCache&&_sdCache[uid]&&_sdCache[uid].weeklyChecks)||[];
+  const near=d=>{let best=null,bd=99;wc.forEach(e=>{if(!e||!e.date)return;const g=Math.abs(daysBetweenYmd(e.date,d));if(g<=10&&g<bd){bd=g;best=e;}});return best;};
+  const eB=near(B.date),eA=near(A.date);
+  if(eB&&eA&&eB!==eA){
+    if(eB.weight_kg!=null&&eA.weight_kg!=null){out.weightFrom=+eB.weight_kg;out.weightTo=+eA.weight_kg;}
+    if(eB.waist_cm!=null&&eA.waist_cm!=null){out.waistFrom=+eB.waist_cm;out.waistTo=+eA.waist_cm;}
+  }
+  try{out.meals=(allSubs||[]).filter(s=>s.userId===uid&&!s.isTest&&s.mode!=='mission'&&s.mealDate&&s.mealDate>=B.date&&s.mealDate<=A.date).length;}catch(_){}
+  return out;
+}
+function baCompare(){
+  if(!_ba)return;const B=_baPhotoById(_ba.sel.B),A=_baPhotoById(_ba.sel.A);if(!B||!A)return;
+  _ba.view='compare';_ba.xf={B:{z:1,x:0,y:0},A:{z:1,x:0,y:0}};_ba.div=50;_ba.ghost=50;_ba.sent=false;
+  _ba.stats=_baComputeStats(_ba.uid,B,A);_ba.inc={w:true,wa:true,m:true};
+  _baRender();
+}
+function baBackToGrid(){if(!_ba)return;_ba.view='grid';_baRender();}
+function _baXfCss(k){const x=_ba.xf[k];return `transform:translate(${x.x}px,${x.y}px) scale(${x.z})`;}
+function _baCompareHtml(){
+  const B=_baPhotoById(_ba.sel.B),A=_baPhotoById(_ba.sel.A);if(!B||!A)return '';
+  const st=_ba.stats||{},inc=_ba.inc||{};
+  const stat=(key,on,label,val,sub)=>`<div class="ba-stat${on?'':' off'}" onclick="_ba.inc.${key}=!_ba.inc.${key};_baRender()">${label}<b>${val}</b>${sub}</div>`;
+  const stats=[`<div class="ba-stat" style="cursor:default">ระยะเวลา<b>${st.days} วัน</b>${formatDateTH(B.date)} → ${formatDateTH(A.date)}</div>`];
+  if(st.weightFrom!=null)stats.push(stat('w',inc.w,'น้ำหนัก',`${st.weightFrom} → ${st.weightTo}`,`${(st.weightTo-st.weightFrom>0?'+':'')+(Math.round((st.weightTo-st.weightFrom)*10)/10)} กก.`));
+  if(st.waistFrom!=null)stats.push(stat('wa',inc.wa,'รอบเอว',`${st.waistFrom} → ${st.waistTo}`,`${(st.waistTo-st.waistFrom>0?'+':'')+(Math.round((st.waistTo-st.waistFrom)*10)/10)} ซม.`));
+  if(st.meals!=null)stats.push(stat('m',inc.m,'มื้อที่ส่ง',`${st.meals}`,`ใน ${st.days} วัน`));
+  const mode=_ba.mode;
+  const pane=(k,p,extra)=>`<div class="ba-pane" data-k="${k}" ${extra||''}><img src="${safeImg(p.url)}" alt="" style="${_baXfCss(k)}"><span class="ba-tag${k==='A'?' g':''}" style="z-index:3">${k==='A'?'After':'Before'} · ${formatDateTH(p.date)}</span></div>`;
+  let stage;
+  if(mode==='side')stage=`<div style="display:flex;gap:6px">${pane('B',B,'style="flex:1"')}${pane('A',A,'style="flex:1"')}</div>`;
+  else if(mode==='slide')stage=`<div class="ba-pane" data-k="S" style="width:100%"><img src="${safeImg(B.url)}" alt="" style="${_baXfCss('B')}"><img src="${safeImg(A.url)}" alt="" style="${_baXfCss('A')};clip-path:inset(0 0 0 ${_ba.div}%)"><div style="position:absolute;top:0;bottom:0;left:${_ba.div}%;width:2px;background:#fff;box-shadow:0 0 4px rgba(0,0,0,.6);z-index:2"></div><span class="ba-tag" style="z-index:3">Before</span><span class="ba-tag g" style="left:auto;right:5px;z-index:3">After</span></div>
+    <input type="range" class="ba-range" min="5" max="95" value="${_ba.div}" oninput="_baSetDiv(+this.value)">`;
+  else stage=`<div class="ba-pane" data-k="S" style="width:100%"><img src="${safeImg(B.url)}" alt="" style="${_baXfCss('B')}"><img src="${safeImg(A.url)}" alt="" style="${_baXfCss('A')};opacity:${_ba.ghost/100}"><span class="ba-tag" style="z-index:3">Before + After (ซ้อน)</span></div>
+    <input type="range" class="ba-range" min="0" max="100" value="${_ba.ghost}" oninput="_baSetGhost(+this.value)">`;
+  const zoom=k=>`<div style="flex:1;font-size:10.5px;color:var(--gray)">${k==='B'?'Before':'After'} 🔍 ${_ba.xf[k].z.toFixed(1)}×<input type="range" class="ba-range" min="1" max="2.5" step="0.1" value="${_ba.xf[k].z}" oninput="_ba.xf.${k}.z=+this.value;_baApplyXf()"></div>`;
+  return `<div class="hl-card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-size:13px;font-weight:600">${escHtml(_ba.name)} · มุม${BA_TH(B.angle)}</div><span style="font-size:10.5px;color:var(--gray)">${st.days} วัน</span></div>
+    ${stage}
+    <div class="hl-hint" style="margin-top:6px">ลากรูปเพื่อเลื่อน · ซูมให้หัว-เท้าตรงกัน (ปรับทีละรูป)</div>
+    <div style="display:flex;gap:10px;margin-top:4px">${zoom('B')}${zoom('A')}</div>
+    <button class="ba-btn o sm" style="margin-top:6px" onclick="_ba.xf={B:{z:1,x:0,y:0},A:{z:1,x:0,y:0}};_baRender()">↺ รีเซ็ตการจัด</button>
+    <div class="ba-chips" style="margin-top:10px">${[['side','↔️ คู่กัน'],['slide','🔀 สไลด์ทับ'],['ghost','👻 ซ้อนจาง']].map(m=>`<div class="ba-chip${mode===m[0]?' on':''}" onclick="_ba.mode='${m[0]}';_baRender()">${m[1]}</div>`).join('')}</div>
+    <div style="display:flex;gap:6px;margin-top:10px">${stats.join('')}</div>
+    <div class="hl-hint" style="text-align:left;margin-top:4px">ตัวเลขดึงจากที่นักเรียนบันทึกไว้แล้ว · แตะเพื่อติ๊กออก (จะไม่ขึ้นบนการ์ด)${st.weightFrom==null&&st.waistFrom==null?' · ไม่มีค่าวัดใกล้วันที่ทั้งสอง (±10 วัน)':''}</div>
+    <textarea id="ba-note" rows="3" maxlength="${BA_NOTE_MAX}" placeholder="ข้อความถึงนักเรียน (ไม่บังคับ)" style="width:100%;margin-top:10px;font-family:'Prompt',sans-serif;font-size:12px;border:1.5px solid #E5E7EB;border-radius:9px;padding:8px;box-sizing:border-box;resize:none">${escHtml(_ba.note||'')}</textarea>
+    ${_ba.sent?`<div style="background:#DCFCE7;color:#166534;border-radius:10px;padding:10px;text-align:center;font-size:12.5px;font-weight:600;margin-top:8px">✅ ส่งแล้ว — นักเรียนจะเห็นตอนเปิดแอป และได้รูปในแชท LINE</div>`:
+      `<button class="ba-btn" id="ba-send" style="margin-top:8px" onclick="baSend()"${_ba.busy?' disabled':''}>${_ba.busy?'⏳ กำลังสร้างการ์ดและส่ง...':'📤 ส่งการ์ดให้ '+escHtml(_ba.name)}</button>`}
+    <div id="ba-send-msg" style="font-size:11px;text-align:center;margin-top:6px;color:#B91C1C"></div>
+    <div class="hl-hint" style="text-align:center;margin-top:4px">การ์ด = รูปเดียว (2 รูป + ตัวเลข) ไม่ใช่โพสต์ IG · ส่งซ้ำได้ การ์ดใหม่ทับการ์ดเก่า</div>
+  </div>`;
+}
+function _baSetDiv(v){if(!_ba)return;_ba.div=v;const pane=_baPanel().querySelector('.ba-pane[data-k="S"]');if(!pane)return;const im=pane.querySelectorAll('img')[1],ln=pane.querySelector('div');if(im)im.style.clipPath=`inset(0 0 0 ${v}%)`;if(ln)ln.style.left=v+'%';}
+function _baSetGhost(v){if(!_ba)return;_ba.ghost=v;const pane=_baPanel().querySelector('.ba-pane[data-k="S"]');if(!pane)return;const im=pane.querySelectorAll('img')[1];if(im)im.style.opacity=v/100;}
+function _baApplyXf(){
+  const p=_baPanel();
+  p.querySelectorAll('.ba-pane').forEach(pane=>{
+    const k=pane.dataset.k;const imgs=pane.querySelectorAll('img');
+    if(k==='S'){if(imgs[0])imgs[0].style.transform=_baXfCss('B').slice(10);if(imgs[1])imgs[1].style.transform=_baXfCss('A').slice(10);}
+    else if(imgs[0])imgs[0].style.transform=_baXfCss(k).slice(10);
+  });
+  p.querySelectorAll('.ba-range[min="1"]').forEach((r,i)=>{const k=i===0?'B':'A';const lab=r.parentElement;if(lab)lab.firstChild.textContent=`${k==='B'?'Before':'After'} 🔍 ${_ba.xf[k].z.toFixed(1)}×`;});
+}
+// ลากเลื่อนรูป (pointer events) — โหมดคู่กัน: ลากในกรอบไหนเลื่อนรูปนั้น · โหมดซ้อน: ลากซ้ายครึ่ง = Before ขวาครึ่ง = After
+function _baBindPanes(){
+  _baPanel().querySelectorAll('.ba-pane').forEach(pane=>{
+    let drag=null;
+    pane.onpointerdown=e=>{let k=pane.dataset.k;if(k==='S'){const r=pane.getBoundingClientRect();k=(e.clientX-r.left)<r.width/2?'B':'A';}drag={k,x:e.clientX,y:e.clientY,ox:_ba.xf[k].x,oy:_ba.xf[k].y};try{pane.setPointerCapture(e.pointerId);}catch(_){}e.preventDefault();};
+    pane.onpointermove=e=>{if(!drag||!_ba)return;_ba.xf[drag.k].x=Math.round(drag.ox+(e.clientX-drag.x));_ba.xf[drag.k].y=Math.round(drag.oy+(e.clientY-drag.y));_baApplyXf();};
+    pane.onpointerup=pane.onpointercancel=()=>{drag=null;};
+  });
+}
+function _baLoadImg(url){return new Promise((res,rej)=>{const im=new Image();im.crossOrigin='anonymous';im.onload=()=>res(im);im.onerror=()=>rej(new Error('โหลดรูปไม่ได้ (เช็ค CORS ของ Storage)'));im.src=url;});}
+function _baCoverDraw(ctx,im,x0,y0,pw,ph,xf,k){ // วาดเหมือน CSS object-fit:cover + translate/scale รอบจุดกึ่งกลาง · k = อัตราส่วน px การ์ด / px จอ
+  const s=Math.max(pw/im.naturalWidth,ph/im.naturalHeight),dw=im.naturalWidth*s,dh=im.naturalHeight*s;
+  ctx.save();ctx.beginPath();ctx.rect(x0,y0,pw,ph);ctx.clip();
+  const cx=x0+pw/2,cy=y0+ph/2;
+  ctx.translate(cx+xf.x*k,cy+xf.y*k);ctx.scale(xf.z,xf.z);ctx.translate(-cx,-cy);
+  ctx.drawImage(im,x0+(pw-dw)/2,y0+(ph-dh)/2,dw,dh);
+  ctx.restore();
+}
+function _baToBlob(cv,q){return new Promise(res=>cv.toBlob(b=>res(b),'image/jpeg',q));}
+async function _baBuildCard(B,A,st,inc){
+  const [imB,imA]=await Promise.all([_baLoadImg(B.url),_baLoadImg(A.url)]);
+  try{await document.fonts.ready;}catch(_){}
+  const W=1200,PAD=32,GAP=16,HEAD=72,FOOT=120,PW=(W-PAD*2-GAP)/2,PH=Math.round(PW*4/3),H=HEAD+PH+FOOT+PAD;
+  const cv=document.createElement('canvas');cv.width=W;cv.height=H;const ctx=cv.getContext('2d');
+  ctx.fillStyle='#2D2D2D';ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#fff';ctx.font='700 30px Prompt, sans-serif';ctx.textBaseline='middle';
+  ctx.fillText(`Before / After · ${_ba.name}`,PAD,HEAD/2);
+  ctx.font='400 20px Prompt, sans-serif';ctx.fillStyle='#F5D58A';ctx.textAlign='right';ctx.fillText(`มุม${BA_TH(B.angle)} · ${st.days} วัน`,W-PAD,HEAD/2);ctx.textAlign='left';
+  const paneCss=(_baPanel().querySelector('.ba-pane')||{}).clientWidth||PW;const k=PW/paneCss;
+  _baCoverDraw(ctx,imB,PAD,HEAD,PW,PH,_ba.xf.B,k);_baCoverDraw(ctx,imA,PAD+PW+GAP,HEAD,PW,PH,_ba.xf.A,k);
+  const tag=(x,txt,col)=>{ctx.font='700 22px Prompt, sans-serif';const w=ctx.measureText(txt).width+28;ctx.fillStyle=col;ctx.beginPath();if(ctx.roundRect)ctx.roundRect(x+14,HEAD+14,w,40,20);else ctx.rect(x+14,HEAD+14,w,40);ctx.fill();ctx.fillStyle='#fff';ctx.fillText(txt,x+28,HEAD+34);};
+  tag(PAD,`Before · ${formatDateTH(B.date)}`,'rgba(45,45,45,.85)');tag(PAD+PW+GAP,`After · ${formatDateTH(A.date)}`,'#16A34A');
+  const bits=[];
+  if(inc.w&&st.weightFrom!=null)bits.push(`น้ำหนัก ${st.weightFrom} → ${st.weightTo} กก. (${(st.weightTo-st.weightFrom>0?'+':'')+(Math.round((st.weightTo-st.weightFrom)*10)/10)})`);
+  if(inc.wa&&st.waistFrom!=null)bits.push(`รอบเอว ${st.waistFrom} → ${st.waistTo} ซม. (${(st.waistTo-st.waistFrom>0?'+':'')+(Math.round((st.waistTo-st.waistFrom)*10)/10)})`);
+  if(inc.m&&st.meals!=null)bits.push(`บันทึกมื้อ ${st.meals} มื้อ`);
+  ctx.fillStyle='#fff';ctx.font='500 24px Prompt, sans-serif';ctx.textAlign='center';
+  ctx.fillText(bits.length?bits.join('  ·  '):`${st.days} วันของการตั้งใจ 💪`,W/2,HEAD+PH+44);
+  ctx.font='700 22px Prompt, sans-serif';ctx.fillStyle='#F5A623';ctx.fillText('DO IT FIT  ·  Meal Log',W/2,HEAD+PH+88);ctx.textAlign='left';
+  let q=0.85,blob=await _baToBlob(cv,q);
+  while(blob&&blob.size>BA_CARD_MAX_BYTES&&q>0.5){q=Math.round((q-0.1)*100)/100;blob=await _baToBlob(cv,q);}
+  if(!blob)throw new Error('สร้างรูปการ์ดไม่สำเร็จ (canvas tainted — เช็ค CORS ของ Storage)');
+  return {blob,w:W,h:H,q};
+}
+async function baSend(){
+  if(!_ba||_ba.busy)return;const B=_baPhotoById(_ba.sel.B),A=_baPhotoById(_ba.sel.A);if(!B||!A)return;
+  const t=_sdCache&&_sdCache[_ba.uid]&&_sdCache[_ba.uid].targets||{};
+  if(t.consentStatus==='declined'&&!confirm('นักเรียนคนนี้ "ไม่ยินยอม" — ส่งให้ดูเองในแอปได้ แต่ห้ามเผยแพร่ ส่งไหมคะ?'))return;
+  const noteEl=document.getElementById('ba-note');_ba.note=(noteEl?noteEl.value:'').trim().slice(0,BA_NOTE_MAX);
+  const msg=document.getElementById('ba-send-msg');
+  _ba.busy=true;_baRender();
+  try{
+    const inc=_ba.inc||{},st=_ba.stats||{};
+    const card=await _baBuildCard(B,A,st,inc);
+    const path=`progressCards/${_ba.uid}/${_baYmdCompact(A.date)}_${Date.now()}.jpg`;
+    const {url}=await _baUpload(path,card.blob,30000);
+    const stats={days:st.days};
+    if(inc.w&&st.weightFrom!=null){stats.weightFrom=st.weightFrom;stats.weightTo=st.weightTo;}
+    if(inc.wa&&st.waistFrom!=null){stats.waistFrom=st.waistFrom;stats.waistTo=st.waistTo;}
+    if(inc.m&&st.meals!=null)stats.meals=st.meals;
+    const base={url,path,note:_ba.note,beforeDate:B.date,afterDate:A.date,angle:B.angle,stats,at:firebase.firestore.FieldValue.serverTimestamp(),from:'app'};
+    const r=await _fsWrite(db.collection('students').doc(_ba.uid).set({baCard:Object.assign({},base,{seen:false,dismissed:false})},{merge:true}),8000);
+    _fsWrite(db.collection('students').doc(_ba.uid).collection('baCards').doc().set(base),8000).catch(()=>{}); // ประวัติ (ไม่รอ)
+    if(_sdCache[_ba.uid]&&_sdCache[_ba.uid].targets)_sdCache[_ba.uid].targets.baCard=Object.assign({},base,{seen:false,dismissed:false,at:null});
+    const sec=document.getElementById('ba-sec-'+_ba.uid);if(sec&&_sdCache[_ba.uid])sec.outerHTML=_baSectionHtml(_ba.uid,_sdCache[_ba.uid].targets);
+    _ba.busy=false;_ba.sent=true;_baRender();
+    showToast(r==='timeout'?_slowMsg('📡 เน็ตช้า — บันทึกการ์ดไว้แล้ว จะซิงค์เอง'):`✅ ส่งการ์ดให้ ${_ba.name} แล้วค่ะ (${Math.round(card.blob.size/1024)} KB)`,3200);
+  }catch(e){
+    _ba.busy=false;_baRender();
+    const m2=document.getElementById('ba-send-msg');if(m2)m2.textContent='❌ ส่งไม่สำเร็จ: '+(e.message==='timeout'?'เน็ตช้า ลองใหม่อีกครั้ง':(e.message||e));
+    try{_reportError('ba-send',(e.code||'')+' '+(e.message||''),'','baSend');}catch(_){}
+  }
+}
+
 // ===== HEALTH LOG =====
 const MUSCLE_OPTIONS=[
   {key:'full',   icon:'🏋️', label:'เต็มตัว'},
@@ -2740,6 +3207,7 @@ function renderHealthLog(){
       <button onclick="saveHealthLog()" style="width:100%;padding:13px;background:var(--primary);color:white;border:none;border-radius:12px;font-size:15px;font-weight:700;font-family:'Prompt',sans-serif;cursor:pointer">💾 บันทึกข้อมูลสุขภาพวันนี้</button>
     </div>
 
+    <div id="bp-card" style="padding:0 12px"></div><!-- v130: รูปความคืบหน้า -->
     <!-- WEEKLY CHECK SECTION -->
     <div style="padding:0 12px">
       <div style="border-top:2px dashed var(--border);margin-bottom:14px"></div>
@@ -2829,6 +3297,7 @@ function renderHealthLog(){
       <button onclick="saveWeeklyCheck()" style="width:100%;padding:13px;background:#059669;color:white;border:none;border-radius:12px;font-size:15px;font-weight:700;font-family:'Prompt',sans-serif;cursor:pointer">📏 บันทึกผลการวัด</button>
     </div>
   `;
+  _bpRenderCard(); // v130
   // load & render student's own progress below form
   loadMyProgress();
 }
@@ -4326,7 +4795,7 @@ function renderPhotoThumbs(){
   const addBtn=document.getElementById('photo-add-btn');
   if(addBtn)addBtn.style.display=photoBase64List.length>=3?'none':'inline-flex';
 }
-async function compressPhoto(file){
+async function compressPhoto(file,maxPx,quality){ // v130: maxPx/quality เป็นตัวเลือก — ค่าเดิม 800 / 0.7
   // v76 BUGFIX: เดิมมีแต่ resolve ไม่มี reject และไม่มี onerror สักตัว
   //   ไฟล์เสีย / ฟอร์แมตที่เบราว์เซอร์ decode ไม่ได้ / หน่วยความจำไม่พอ → Promise ค้างตลอดกาล
   //   ฝั่งนักเรียน _photoProcessing ค้าง true → แนบรูปไม่ได้อีกเลยทั้ง session แบบเงียบๆ ไม่มี error ให้เห็น
@@ -4342,12 +4811,12 @@ async function compressPhoto(file){
       img.onerror=()=>fin(reject,new Error('ไฟล์นี้เปิดเป็นรูปไม่ได้'));
       img.onload=()=>{
         try{
-          const MAX=800;let w=img.width,h=img.height;
+          const MAX=maxPx||800;let w=img.width,h=img.height;
           if(!w||!h)return fin(reject,new Error('รูปนี้ขนาดผิดปกติ'));
           if(w>h&&w>MAX){h=h/w*MAX;w=MAX;}else if(h>MAX){w=w/h*MAX;h=MAX;}
           const canvas=document.createElement('canvas');canvas.width=Math.round(w);canvas.height=Math.round(h);
           canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);
-          fin(resolve,canvas.toDataURL('image/jpeg',0.7));
+          fin(resolve,canvas.toDataURL('image/jpeg',quality||0.7));
         }catch(err){fin(reject,err instanceof Error?err:new Error('ย่อรูปไม่สำเร็จ'));}
       };
       img.src=e.target.result;
@@ -5985,6 +6454,7 @@ async function _prefetchRun(userId){
       targets.discountCode=d.discountCode||'';targets.discountPercent=d.discountPercent||0;
       targets.profile=d.profile||null; // v70.1 ลืมก๊อปมา → การ์ดข้อมูลพื้นฐานว่างตลอด
       targets.onboard=d.onboard||null; // v124: แถบเริ่มคอร์ส x/9 + สวิตช์รูปหุ่น (targets ไม่ใช่เอกสารดิบ ต้องก๊อปมาเหมือน profile)
+      targets.progressPhotoMeta=d.progressPhotoMeta||null;targets.consentStatus=d.consentStatus||'';targets.baCard=d.baCard||null; // v130
     }
     // NB7: prefetch ล้มบางส่วน (เน็ตช้า) → อย่า cache — ไม่งั้นหน้านักเรียนจะโชว์ "ไม่มีข้อมูล" ทั้งที่มี
     if(tdSnap&&hsSnap&&wsSnap&&wcSnap){
@@ -6053,6 +6523,7 @@ async function openStudentDetail(userId){
     targets.discountPercent=d.discountPercent||0;
     targets.profile=d.profile||null; // v70.1 ลืมก๊อปมา → การ์ดข้อมูลพื้นฐานว่างตลอด
     targets.onboard=d.onboard||null; // v124: แถบเริ่มคอร์ส x/9 + สวิตช์รูปหุ่น (targets ไม่ใช่เอกสารดิบ ต้องก๊อปมาเหมือน profile)
+      targets.progressPhotoMeta=d.progressPhotoMeta||null;targets.consentStatus=d.consentStatus||'';targets.baCard=d.baCard||null; // v130
   }
   // v74 BUGFIX: Phase 2 (ล่างลงไป) มีการ์ดนี้อยู่แล้ว แต่ Phase 1 ลืมใส่
   // โค้ชกดดู A (เน็ตช้า) แล้วกด B ต่อ → ข้อมูล A มาถึงทีหลังแล้ววาดทับ แต่หัวข้อยังเป็นชื่อ B
@@ -7206,7 +7677,8 @@ function renderStudentDetail(u, targets, healthLogs, weeklySummaries={}, weeklyC
     style="width:100%;padding:11px;background:var(--light);border:1.5px solid var(--border);border-radius:10px;font-size:13px;font-weight:600;font-family:'Prompt',sans-serif;color:var(--primary-dark);cursor:pointer;margin-top:4px">
     📅 ดูย้อนหลังเพิ่มเติม
   </button>`:'';
-  document.getElementById('sd-content').innerHTML=profileHtml+onboardHtml+planSectionHtml+progHtml+notesHtml+targHtml+macro7Html+`<div id="sd-progress-${uid}">${progressHtml}</div>`+zigzagHtml+`<div id="sd-lifestyle-${uid}">${lifestyleHtml}</div>`+`<div id="sd-weekly-${uid}">${weeklyHtml}</div>`+loadMoreBtn;
+  const baHtml=_baSectionHtml(uid,targets); // v130
+  document.getElementById('sd-content').innerHTML=profileHtml+onboardHtml+planSectionHtml+progHtml+baHtml+notesHtml+targHtml+macro7Html+`<div id="sd-progress-${uid}">${progressHtml}</div>`+zigzagHtml+`<div id="sd-lifestyle-${uid}">${lifestyleHtml}</div>`+`<div id="sd-weekly-${uid}">${weeklyHtml}</div>`+loadMoreBtn;
 }
 
 // ===== LIFESTYLE 7 วัน (bar charts) =====
