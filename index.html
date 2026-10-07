@@ -494,6 +494,14 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
 .ba-pane{position:relative;aspect-ratio:3/4;border-radius:10px;overflow:hidden;background:#222;touch-action:none;user-select:none;-webkit-user-select:none}.ba-pane img{position:absolute;left:0;top:0;width:100%;height:100%;object-fit:cover;pointer-events:none;will-change:transform}
 .ba-stat{flex:1;min-width:0;background:var(--light);border:1px solid var(--border);border-radius:10px;padding:6px 4px;text-align:center;font-size:9.5px;color:var(--gray);cursor:pointer;line-height:1.35}.ba-stat b{display:block;font-size:12.5px;color:#92400E}.ba-stat.off{opacity:.4;text-decoration:line-through}
 .ba-range{width:100%;accent-color:var(--primary);margin:6px 0 0}
+.ba-pane.sel{outline:3px solid var(--primary);outline-offset:-3px}.ba-zb{position:absolute;right:6px;bottom:6px;background:rgba(45,45,45,.8);color:#fff;font-size:10px;padding:2px 7px;border-radius:999px;z-index:3;pointer-events:none;white-space:nowrap}.ba-actb{background:var(--primary);font-weight:600}
+.ba-ctl3{display:grid;grid-template-columns:1fr 1.2fr 1fr;gap:8px;margin-top:6px}.ba-ctl5{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:8px}
+.ba-kb{border:1.5px solid var(--border);background:#fff;color:var(--primary-dark);border-radius:11px;padding:12px 0;font-size:20px;line-height:1;font-family:'Prompt',sans-serif;cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent}.ba-kb:active{background:var(--light)}
+.ba-kz{border:1.5px solid var(--border);background:#fff;border-radius:11px;padding:8px 4px;font-size:11px;line-height:1.25;color:var(--gray);text-align:center}.ba-kz b{font-size:15px;color:var(--primary-dark)}
+.ba-gl{position:absolute;left:0;right:0;border-top:2px dashed;pointer-events:none;z-index:5}.ba-gl span{position:absolute;right:4px;top:-18px;font-size:9.5px;color:#fff;padding:2px 7px;border-radius:4px;pointer-events:auto;cursor:ns-resize;touch-action:none;user-select:none;-webkit-user-select:none}
+.ba-mk{position:absolute;z-index:3;touch-action:none}.ba-mkv{top:0;bottom:0;width:24px;margin-left:-12px;cursor:ew-resize}.ba-mkv::before{content:'';position:absolute;left:11px;top:0;bottom:0;border-left:3px dashed var(--mc);filter:drop-shadow(0 0 1.5px rgba(0,0,0,.8))}
+.ba-mke{border:3px solid;border-radius:50%;box-shadow:0 0 0 1.5px rgba(0,0,0,.35),inset 0 0 0 1.5px rgba(0,0,0,.35);cursor:move}
+.ba-colc{width:28px;height:28px;border-radius:50%;border:2px solid #E5E7EB;cursor:pointer;box-sizing:border-box;flex:0 0 auto}.ba-colc.on{border-color:#2D2D2D;box-shadow:0 0 0 2px #fff inset}
 #ba-viewer{display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:40;flex-direction:column;align-items:center;justify-content:center;padding:16px;font-family:'Prompt',sans-serif}
 #student-detail{display:none;position:fixed;inset:0;background:#F9FAFB;z-index:20;overflow-y:auto;padding-bottom:40px}
 .sd-header{background:white;padding:12px 16px;border-bottom:1px solid #E5E7EB;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:5}
@@ -1109,7 +1117,7 @@ function _slowMsg(okText){
 //   (loadSavedMenus ดึงมา .limit(40) อยู่แล้ว 20 จึงยังอยู่ใต้เพดานการอ่าน)
 //   ประกาศไว้บนสุด เพราะถูกใช้ทั้งใน loadStudentData / loadSavedMenus / saveCurrentMenu
 const MENU_CAP=20;
-const APP_VERSION='v131-2026-10-05'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
+const APP_VERSION='v133-2026-10-07'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
 const _errLogged=new Set();let _errCount=0;
 // ═════ v120: บันทึกเหตุการณ์คิวมื้ออาหาร ═════
 // ★ แยกโควตาจาก _reportError โดยตั้งใจ — idb-known/photo-fail ยิงถี่จนกินเพดาน 10 หมด
@@ -1489,6 +1497,7 @@ function _logAITiming(d){
       ttfbMs:Math.round(d.ttfbMs||0),  // v122: เวลาถึงท่อนแรก = ส่วนที่โมเดล "คิดในใจ" — ใช้ตัดสินใจเรื่อง thinking low
       streamed:!!d.streamed,           // v122: รอบนี้ได้รับแบบทยอยจริงไหม (false = ถอยกลับอ่านก้อนเดียว)
       ok:d.ok!==false,
+      retry:!!d.retry, // v133: true = รอบนี้แอปลองซ้ำเองไปแล้ว (วัดว่าช่วยจริงไหม)
       err:(d.err||'').slice(0,150),
       userId:(typeof user!=='undefined'&&user&&user.userId)||null,
       online:navigator.onLine,
@@ -2920,14 +2929,31 @@ function _baComputeStats(uid,B,A){
   try{out.meals=(allSubs||[]).filter(s=>s.userId===uid&&!s.isTest&&s.mode!=='mission'&&s.mealDate&&s.mealDate>=B.date&&s.mealDate<=A.date).length;}catch(_){}
   return out;
 }
+// ===== v132: จัดรูปบนมือถือ — บีบนิ้ว/ลาก + ปุ่มใหญ่ · เส้นไกด์หัว/เท้า (ของโค้ช ไม่ติดการ์ด) · มาร์กให้นักเรียนดู (ติดการ์ด) =====
+const BA_MARK_COLORS=['#EF4444','#16A34A','#F5A623','#FFFFFF'];
+const _baMarksByUid={}; // uid → marks (จำไว้ใน session ส่งซ้ำแก้ต่อได้)
+function _baGuidesLoad(){try{const g=JSON.parse(localStorage.getItem('_baGuides')||'null');if(g&&g.head>=0&&g.feet<=1)return {on:g.on!==false,head:g.head,feet:g.feet};}catch(_){}return {on:true,head:0.08,feet:0.96};}
+function _baGuidesSave(){try{localStorage.setItem('_baGuides',JSON.stringify(_ba.guides));}catch(_){}}
 function baCompare(){
   if(!_ba)return;const B=_baPhotoById(_ba.sel.B),A=_baPhotoById(_ba.sel.A);if(!B||!A)return;
   _ba.view='compare';_ba.xf={B:{z:1,x:0,y:0},A:{z:1,x:0,y:0}};_ba.div=50;_ba.ghost=50;_ba.sent=false;
+  _ba.act='A';_ba.tool=null;_ba.col=BA_MARK_COLORS[0];_ba.guides=_baGuidesLoad();
+  const key=_ba.sel.B+'|'+_ba.sel.A;_ba.marks=(_baMarksByUid[_ba.uid]&&_baMarksByUid[_ba.uid].key===key)?_baMarksByUid[_ba.uid].marks:[];
+  _baMarksByUid[_ba.uid]={key,marks:_ba.marks};
   _ba.stats=_baComputeStats(_ba.uid,B,A);_ba.inc={w:true,wa:true,m:true};
   _baRender();
 }
 function baBackToGrid(){if(!_ba)return;_ba.view='grid';_baRender();}
 function _baXfCss(k){const x=_ba.xf[k];return `transform:translate(${x.x}px,${x.y}px) scale(${x.z})`;}
+function _baMarksHtml(k0){ // มาร์กของกรอบ k0 ('S' = ทั้งคู่)
+  return (_ba.marks||[]).filter(m=>k0==='S'||m.k===k0).map(m=>m.t==='v'
+    ?`<div class="ba-mk ba-mkv" data-mid="${m.id}" style="left:${(m.x*100).toFixed(2)}%;--mc:${m.c}"></div>`
+    :`<div class="ba-mk ba-mke" data-mid="${m.id}" style="left:${((m.x-m.w/2)*100).toFixed(2)}%;top:${((m.y-m.h/2)*100).toFixed(2)}%;width:${(m.w*100).toFixed(2)}%;height:${(m.h*100).toFixed(2)}%;border-color:${m.c}"></div>`).join('');
+}
+function _baGuidesHtml(){
+  const g=_ba.guides;if(!g||!g.on)return '';
+  return `<div class="ba-gl" data-g="head" style="top:${(g.head*100).toFixed(2)}%;border-color:#2f7be6"><span style="background:#2f7be6">หัว ⇅</span></div><div class="ba-gl" data-g="feet" style="top:${(g.feet*100).toFixed(2)}%;border-color:#16A34A"><span style="background:#16A34A">เท้า ⇅</span></div>`;
+}
 function _baCompareHtml(){
   const B=_baPhotoById(_ba.sel.B),A=_baPhotoById(_ba.sel.A);if(!B||!A)return '';
   const st=_ba.stats||{},inc=_ba.inc||{};
@@ -2936,32 +2962,60 @@ function _baCompareHtml(){
   if(st.weightFrom!=null)stats.push(stat('w',inc.w,'น้ำหนัก',`${st.weightFrom} → ${st.weightTo}`,`${(st.weightTo-st.weightFrom>0?'+':'')+(Math.round((st.weightTo-st.weightFrom)*10)/10)} กก.`));
   if(st.waistFrom!=null)stats.push(stat('wa',inc.wa,'รอบเอว',`${st.waistFrom} → ${st.waistTo}`,`${(st.waistTo-st.waistFrom>0?'+':'')+(Math.round((st.waistTo-st.waistFrom)*10)/10)} ซม.`));
   if(st.meals!=null)stats.push(stat('m',inc.m,'มื้อที่ส่ง',`${st.meals}`,`ใน ${st.days} วัน`));
-  const mode=_ba.mode;
-  const pane=(k,p,extra)=>`<div class="ba-pane" data-k="${k}" ${extra||''}><img src="${safeImg(p.url)}" alt="" style="${_baXfCss(k)}"><span class="ba-tag${k==='A'?' g':''}" style="z-index:3">${k==='A'?'After':'Before'} · ${formatDateTH(p.date)}</span></div>`;
-  let stage;
+  const mode=_ba.mode,act=_ba.act;
+  const pane=(k,p,extra)=>`<div class="ba-pane${act===k?' sel':''}" data-k="${k}" ${extra||''}><img src="${safeImg(p.url)}" alt="" style="${_baXfCss(k)}"><span class="ba-tag${k==='A'?' g':''}" style="z-index:3">${k==='A'?'After':'Before'} · ${formatDateTH(p.date)}</span><span class="ba-zb" data-zb="${k}">${_ba.xf[k].z.toFixed(1)}×</span>${_baMarksHtml(k)}</div>`;
+  let stage,extra='';
   if(mode==='side')stage=`<div style="display:flex;gap:6px">${pane('B',B,'style="flex:1"')}${pane('A',A,'style="flex:1"')}</div>`;
-  else if(mode==='slide')stage=`<div class="ba-pane" data-k="S" style="width:100%"><img src="${safeImg(B.url)}" alt="" style="${_baXfCss('B')}"><img src="${safeImg(A.url)}" alt="" style="${_baXfCss('A')};clip-path:inset(0 0 0 ${_ba.div}%)"><div style="position:absolute;top:0;bottom:0;left:${_ba.div}%;width:2px;background:#fff;box-shadow:0 0 4px rgba(0,0,0,.6);z-index:2"></div><span class="ba-tag" style="z-index:3">Before</span><span class="ba-tag g" style="left:auto;right:5px;z-index:3">After</span></div>
-    <input type="range" class="ba-range" min="5" max="95" value="${_ba.div}" oninput="_baSetDiv(+this.value)">`;
-  else stage=`<div class="ba-pane" data-k="S" style="width:100%"><img src="${safeImg(B.url)}" alt="" style="${_baXfCss('B')}"><img src="${safeImg(A.url)}" alt="" style="${_baXfCss('A')};opacity:${_ba.ghost/100}"><span class="ba-tag" style="z-index:3">Before + After (ซ้อน)</span></div>
-    <input type="range" class="ba-range" min="0" max="100" value="${_ba.ghost}" oninput="_baSetGhost(+this.value)">`;
-  const zoom=k=>`<div style="flex:1;font-size:10.5px;color:var(--gray)">${k==='B'?'Before':'After'} 🔍 ${_ba.xf[k].z.toFixed(1)}×<input type="range" class="ba-range" min="1" max="2.5" step="0.1" value="${_ba.xf[k].z}" oninput="_ba.xf.${k}.z=+this.value;_baApplyXf()"></div>`;
+  else if(mode==='slide'){stage=`<div class="ba-pane" data-k="S" style="width:100%"><img src="${safeImg(B.url)}" alt="" style="${_baXfCss('B')}"><img src="${safeImg(A.url)}" alt="" style="${_baXfCss('A')};clip-path:inset(0 0 0 ${_ba.div}%)"><div style="position:absolute;top:0;bottom:0;left:${_ba.div}%;width:2px;background:#fff;box-shadow:0 0 4px rgba(0,0,0,.6);z-index:2"></div><span class="ba-tag" style="z-index:3">Before</span><span class="ba-tag g" style="left:auto;right:5px;z-index:3">After</span><span class="ba-zb ba-actb" data-zb="S">กำลังปรับ: ${act==='A'?'After':'Before'} ${_ba.xf[act].z.toFixed(1)}×</span>${_baMarksHtml('S')}</div>`;
+    extra=`<input type="range" class="ba-range" min="5" max="95" value="${_ba.div}" oninput="_baSetDiv(+this.value)"><div class="hl-hint" style="margin-top:0">ตำแหน่งเส้นแบ่ง</div>`;}
+  else {stage=`<div class="ba-pane" data-k="S" style="width:100%"><img src="${safeImg(B.url)}" alt="" style="${_baXfCss('B')}"><img src="${safeImg(A.url)}" alt="" style="${_baXfCss('A')};opacity:${_ba.ghost/100}"><span class="ba-tag" style="z-index:3">Before + After (ซ้อน)</span><span class="ba-zb ba-actb" data-zb="S">กำลังปรับ: ${act==='A'?'After':'Before'} ${_ba.xf[act].z.toFixed(1)}×</span>${_baMarksHtml('S')}</div>`;
+    extra=`<input type="range" class="ba-range" min="0" max="100" value="${_ba.ghost}" oninput="_baSetGhost(+this.value)"><div class="hl-hint" style="margin-top:0">ความจาง After</div>`;}
+  const tool=(t,icon,lab)=>`<div class="ba-chip${_ba.tool===t?' on':''}" data-tool="${t}" onclick="_baSetTool('${t}')" style="padding:8px 2px;line-height:1.3">${icon}<br>${lab}</div>`;
+  const col=c=>`<div class="ba-colc${_ba.col===c?' on':''}" data-col="${c}" onclick="_baSetCol('${c}')" style="background:${c}"></div>`;
   return `<div class="hl-card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-size:13px;font-weight:600">${escHtml(_ba.name)} · มุม${BA_TH(B.angle)}</div><span style="font-size:10.5px;color:var(--gray)">${st.days} วัน</span></div>
-    ${stage}
-    <div class="hl-hint" style="margin-top:6px">ลากรูปเพื่อเลื่อน · ซูมให้หัว-เท้าตรงกัน (ปรับทีละรูป)</div>
-    <div style="display:flex;gap:10px;margin-top:4px">${zoom('B')}${zoom('A')}</div>
-    <button class="ba-btn o sm" style="margin-top:6px" onclick="_ba.xf={B:{z:1,x:0,y:0},A:{z:1,x:0,y:0}};_baRender()">↺ รีเซ็ตการจัด</button>
-    <div class="ba-chips" style="margin-top:10px">${[['side','↔️ คู่กัน'],['slide','🔀 สไลด์ทับ'],['ghost','👻 ซ้อนจาง']].map(m=>`<div class="ba-chip${mode===m[0]?' on':''}" onclick="_ba.mode='${m[0]}';_baRender()">${m[1]}</div>`).join('')}</div>
+    <div id="ba-stage" style="position:relative">${stage}${_baGuidesHtml()}</div>
+    ${extra}
+    <div class="ba-chips" style="margin-top:8px"><div class="chip ba-chip${_ba.guides.on?' on':''}" onclick="_baToggleGuides()">📏 เส้นไกด์: ${_ba.guides.on?'เปิด':'ปิด'}</div>${[['side','↔️ คู่กัน'],['slide','🔀 สไลด์ทับ'],['ghost','👻 ซ้อนจาง']].map(m=>`<div class="ba-chip${mode===m[0]?' on':''}" onclick="_ba.mode='${m[0]}';_baRender()">${m[1]}</div>`).join('')}</div>
+    <div class="hl-hint" style="text-align:left;margin-top:6px">เส้นไกด์ (ของโค้ช ไม่ติดการ์ด): ปรับให้หัวชนเส้นบน เท้าชนเส้นล่างทั้ง 2 รูป = สเกลเท่ากัน · ลากป้าย ⇅ เพื่อย้ายเส้น</div>
+    <div class="ba-chips" style="margin-top:10px"><div class="ba-chip${act==='B'?' on':''}" data-act="B" onclick="_ba.act='B';_baSyncAct()">กำลังปรับ: Before</div><div class="ba-chip${act==='A'?' on':''}" data-act="A" onclick="_ba.act='A';_baSyncAct()">กำลังปรับ: After</div></div>
+    <div class="hl-hint" style="text-align:left;margin:6px 0 2px">แตะรูปเพื่อเลือก · <b>บีบนิ้ว = ซูม · ลาก = เลื่อน</b> · ปุ่มไว้เก็บงานละเอียด</div>
+    <div class="ba-ctl3"><button class="ba-kb" data-op="z-">−</button><div class="ba-kz" id="ba-zoom">ซูม ${act==='A'?'After':'Before'}<br><b>${_ba.xf[act].z.toFixed(1)}×</b></div><button class="ba-kb" data-op="z+">+</button></div>
+    <div class="ba-ctl5"><button class="ba-kb" data-op="u">⬆️</button><button class="ba-kb" data-op="d">⬇️</button><button class="ba-kb" data-op="l">⬅️</button><button class="ba-kb" data-op="r">➡️</button><button class="ba-kb" data-op="reset" title="รีเซ็ตรูปที่เลือก">↺</button></div>
+    <div style="font-size:11.5px;font-weight:600;margin:12px 0 6px">✏️ มาร์กให้นักเรียนดู <span style="font-weight:400;color:var(--gray)">(ติดไปบนการ์ด)</span></div>
+    <div class="ba-chips" id="ba-tools">${tool('v','📏','เส้นตั้ง')}${tool('e','⭕','วงรี')}${tool('del','🗑️','ลบ')}<div class="ba-chip" onclick="_baClearMarks()" style="padding:8px 2px;line-height:1.3">✖<br>ล้างหมด</div></div>
+    <div style="display:flex;gap:8px;align-items:center;margin-top:8px" id="ba-cols"><span class="hl-hint" style="margin:0">สี</span>${BA_MARK_COLORS.map(col).join('')}<span class="hl-hint" style="margin:0 0 0 auto" id="ba-mk-n">${(_ba.marks||[]).length?(_ba.marks.length+' มาร์ก'):''}</span></div>
+    <div class="hl-hint" style="text-align:left;margin-top:6px" id="ba-tool-hint">${_baToolHint()}</div>
     <div style="display:flex;gap:6px;margin-top:10px">${stats.join('')}</div>
     <div class="hl-hint" style="text-align:left;margin-top:4px">ตัวเลขดึงจากที่นักเรียนบันทึกไว้แล้ว · แตะเพื่อติ๊กออก (จะไม่ขึ้นบนการ์ด)${st.weightFrom==null&&st.waistFrom==null?' · ไม่มีค่าวัดใกล้วันที่ทั้งสอง (±10 วัน)':''}</div>
     <textarea id="ba-note" rows="3" maxlength="${BA_NOTE_MAX}" placeholder="ข้อความถึงนักเรียน (ไม่บังคับ)" style="width:100%;margin-top:10px;font-family:'Prompt',sans-serif;font-size:12px;border:1.5px solid #E5E7EB;border-radius:9px;padding:8px;box-sizing:border-box;resize:none">${escHtml(_ba.note||'')}</textarea>
     ${_ba.sent?`<div style="background:#DCFCE7;color:#166534;border-radius:10px;padding:10px;text-align:center;font-size:12.5px;font-weight:600;margin-top:8px">✅ ส่งแล้ว — นักเรียนจะเห็นตอนเปิดแอป และได้รูปในแชท LINE</div>`:
       `<button class="ba-btn" id="ba-send" style="margin-top:8px" onclick="baSend()"${_ba.busy?' disabled':''}>${_ba.busy?'⏳ กำลังสร้างการ์ดและส่ง...':'📤 ส่งการ์ดให้ '+escHtml(_ba.name)}</button>`}
     <div id="ba-send-msg" style="font-size:11px;text-align:center;margin-top:6px;color:#B91C1C"></div>
-    <div class="hl-hint" style="text-align:center;margin-top:4px">การ์ด = รูปเดียว (2 รูป + ตัวเลข) ไม่ใช่โพสต์ IG · ส่งซ้ำได้ การ์ดใหม่ทับการ์ดเก่า</div>
+    <div class="hl-hint" style="text-align:center;margin-top:4px">การ์ด = รูปเดียว (2 รูป + มาร์ก + ตัวเลข) ไม่ใช่โพสต์ IG · เส้นไกด์ไม่ติดไป · ส่งซ้ำได้ การ์ดใหม่ทับการ์ดเก่า</div>
   </div>`;
 }
-function _baSetDiv(v){if(!_ba)return;_ba.div=v;const pane=_baPanel().querySelector('.ba-pane[data-k="S"]');if(!pane)return;const im=pane.querySelectorAll('img')[1],ln=pane.querySelector('div');if(im)im.style.clipPath=`inset(0 0 0 ${v}%)`;if(ln)ln.style.left=v+'%';}
+function _baToolHint(){const t=_ba.tool;return t==='v'?'แตะในรูป = วางเส้นตั้ง (ขึ้นคู่ในอีกรูปที่ตำแหน่งเดียวกัน ลากแยกได้) · แตะเครื่องมือซ้ำเพื่อเลิก':t==='e'?'ลากกรอบในรูป = วาดวงรี · ลากวงรีเพื่อย้าย · แตะเครื่องมือซ้ำเพื่อเลิก':t==='del'?'แตะมาร์กที่จะลบ':'เลือกเครื่องมือ แล้วแตะ/ลากบนรูป · ไม่เลือก = นิ้วใช้ซูม/เลื่อนรูปตามปกติ';}
+function _baSetTool(t){if(!_ba)return;_ba.tool=_ba.tool===t?null:t;const box=document.getElementById('ba-tools');if(box)box.querySelectorAll('[data-tool]').forEach(c=>c.classList.toggle('on',c.dataset.tool===_ba.tool));const h=document.getElementById('ba-tool-hint');if(h)h.textContent=_baToolHint();}
+function _baSetCol(c){if(!_ba)return;_ba.col=c;const box=document.getElementById('ba-cols');if(box)box.querySelectorAll('[data-col]').forEach(x=>x.classList.toggle('on',x.dataset.col===c));}
+function _baId(){return 'm'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);}
+function _baMark(id){return (_ba.marks||[]).find(m=>m.id===id)||null;}
+function _baRenderMarks(){
+  _baPanel().querySelectorAll('.ba-pane').forEach(pane=>{pane.querySelectorAll('.ba-mk').forEach(n=>n.remove());pane.insertAdjacentHTML('beforeend',_baMarksHtml(pane.dataset.k));});
+  const n=document.getElementById('ba-mk-n');if(n)n.textContent=(_ba.marks||[]).length?(_ba.marks.length+' มาร์ก'):'';
+}
+function _baAddV(k,fx,pair){const ks=pair?['B','A']:[k];const c=_ba.col;ks.forEach(kk=>_ba.marks.push({id:_baId(),t:'v',k:kk,x:fx,c}));_baRenderMarks();}
+function _baDelMark(id){_ba.marks=_ba.marks.filter(m=>m.id!==id);_baMarksByUid[_ba.uid].marks=_ba.marks;_baRenderMarks();}
+function _baClearMarks(){if(!_ba||!_ba.marks.length)return;if(!confirm('ล้างมาร์กทั้งหมดใช่ไหมคะ?'))return;_ba.marks=[];_baMarksByUid[_ba.uid].marks=_ba.marks;_baRenderMarks();}
+function _baToggleGuides(){if(!_ba)return;_ba.guides.on=!_ba.guides.on;_baGuidesSave();_baRender();}
+function _baSyncAct(){
+  if(!_ba)return;const act=_ba.act,P=_baPanel();
+  P.querySelectorAll('.ba-pane').forEach(p=>{if(p.dataset.k!=='S')p.classList.toggle('sel',p.dataset.k===act);});
+  P.querySelectorAll('[data-act]').forEach(c=>c.classList.toggle('on',c.dataset.act===act));
+  const z=document.getElementById('ba-zoom');if(z)z.innerHTML=`ซูม ${act==='A'?'After':'Before'}<br><b>${_ba.xf[act].z.toFixed(1)}×</b>`;
+  const ab=P.querySelector('.ba-actb');if(ab)ab.textContent=`กำลังปรับ: ${act==='A'?'After':'Before'} ${_ba.xf[act].z.toFixed(1)}×`;
+}
+function _baSetDiv(v){if(!_ba)return;_ba.div=v;const pane=_baPanel().querySelector('.ba-pane[data-k="S"]');if(!pane)return;const im=pane.querySelectorAll('img')[1],ln=pane.querySelector('div:not(.ba-mk)');if(im)im.style.clipPath=`inset(0 0 0 ${v}%)`;if(ln)ln.style.left=v+'%';}
 function _baSetGhost(v){if(!_ba)return;_ba.ghost=v;const pane=_baPanel().querySelector('.ba-pane[data-k="S"]');if(!pane)return;const im=pane.querySelectorAll('img')[1];if(im)im.style.opacity=v/100;}
 function _baApplyXf(){
   const p=_baPanel();
@@ -2969,17 +3023,84 @@ function _baApplyXf(){
     const k=pane.dataset.k;const imgs=pane.querySelectorAll('img');
     if(k==='S'){if(imgs[0])imgs[0].style.transform=_baXfCss('B').slice(10);if(imgs[1])imgs[1].style.transform=_baXfCss('A').slice(10);}
     else if(imgs[0])imgs[0].style.transform=_baXfCss(k).slice(10);
+    const zb=pane.querySelector('.ba-zb');if(zb&&k!=='S')zb.textContent=_ba.xf[k].z.toFixed(1)+'×';
   });
-  p.querySelectorAll('.ba-range[min="1"]').forEach((r,i)=>{const k=i===0?'B':'A';const lab=r.parentElement;if(lab)lab.firstChild.textContent=`${k==='B'?'Before':'After'} 🔍 ${_ba.xf[k].z.toFixed(1)}×`;});
+  _baSyncAct();
 }
-// ลากเลื่อนรูป (pointer events) — โหมดคู่กัน: ลากในกรอบไหนเลื่อนรูปนั้น · โหมดซ้อน: ลากซ้ายครึ่ง = Before ขวาครึ่ง = After
+// ปุ่มเก็บงานละเอียด: ซูม ±0.1 · ขยับ 10px · กดค้าง = ทำซ้ำ
+function _baOp(op){
+  if(!_ba)return;const xf=_ba.xf[_ba.act];
+  if(op==='z+')xf.z=Math.min(3,Math.round((xf.z+0.1)*10)/10);else if(op==='z-')xf.z=Math.max(1,Math.round((xf.z-0.1)*10)/10);
+  else if(op==='u')xf.y-=10;else if(op==='d')xf.y+=10;else if(op==='l')xf.x-=10;else if(op==='r')xf.x+=10;
+  else if(op==='reset'){xf.z=1;xf.x=0;xf.y=0;}
+  _baApplyXf();
+}
+function _baBindCtl(){
+  _baPanel().querySelectorAll('.ba-kb').forEach(b=>{
+    let t1=null,t2=null;const stop=()=>{clearTimeout(t1);clearInterval(t2);t1=t2=null;};
+    b.onpointerdown=e=>{e.preventDefault();_baOp(b.dataset.op);if(b.dataset.op==='reset')return;t1=setTimeout(()=>{t2=setInterval(()=>_baOp(b.dataset.op),80);},400);};
+    b.onpointerup=b.onpointercancel=b.onpointerleave=stop;
+  });
+  _baPanel().querySelectorAll('.ba-gl').forEach(g=>{ // ลากเส้นไกด์
+    const lab=g.querySelector('span');if(!lab)return;
+    lab.onpointerdown=e=>{e.preventDefault();e.stopPropagation();const st=document.getElementById('ba-stage');if(!st)return;const r=st.getBoundingClientRect();
+      const mv=ev=>{const f=Math.min(1,Math.max(0,(ev.clientY-r.top)/r.height));_ba.guides[g.dataset.g]=Math.round(f*1000)/1000;g.style.top=(f*100)+'%';};
+      const up=()=>{window.removeEventListener('pointermove',mv);window.removeEventListener('pointerup',up);window.removeEventListener('pointercancel',up);_baGuidesSave();};
+      window.addEventListener('pointermove',mv);window.addEventListener('pointerup',up);window.addEventListener('pointercancel',up);};
+  });
+}
+// นิ้วบนรูป: 1 นิ้วลาก = เลื่อน · 2 นิ้ว = ซูมรอบจุดที่บีบ · มีเครื่องมือมาร์ก = วาง/วาด/ลบ · ลากมาร์ก = ย้าย
 function _baBindPanes(){
   _baPanel().querySelectorAll('.ba-pane').forEach(pane=>{
-    let drag=null;
-    pane.onpointerdown=e=>{let k=pane.dataset.k;if(k==='S'){const r=pane.getBoundingClientRect();k=(e.clientX-r.left)<r.width/2?'B':'A';}drag={k,x:e.clientX,y:e.clientY,ox:_ba.xf[k].x,oy:_ba.xf[k].y};try{pane.setPointerCapture(e.pointerId);}catch(_){}e.preventDefault();};
-    pane.onpointermove=e=>{if(!drag||!_ba)return;_ba.xf[drag.k].x=Math.round(drag.ox+(e.clientX-drag.x));_ba.xf[drag.k].y=Math.round(drag.oy+(e.clientY-drag.y));_baApplyXf();};
-    pane.onpointerup=pane.onpointercancel=()=>{drag=null;};
+    const ptrs=new Map();let gest=null;
+    const frac=e=>{const r=pane.getBoundingClientRect();return {fx:(e.clientX-r.left)/r.width,fy:(e.clientY-r.top)/r.height,r};};
+    pane.onpointerdown=e=>{
+      if(!_ba)return;e.preventDefault();
+      const k0=pane.dataset.k,{fx,fy,r}=frac(e);const k=k0==='S'?_ba.act:k0;
+      const mEl=e.target&&e.target.closest?e.target.closest('.ba-mk'):null;
+      if(_ba.tool==='del'){if(mEl)_baDelMark(mEl.dataset.mid);return;}
+      if(mEl){const m=_baMark(mEl.dataset.mid);if(!m)return;gest={type:'mark',m,fx,fy,mx:m.x,my:m.y};try{pane.setPointerCapture(e.pointerId);}catch(_){}return;}
+      if(_ba.tool==='v'){_baAddV(k,Math.min(1,Math.max(0,fx)),k0!=='S');return;}
+      if(_ba.tool==='e'){const m={id:_baId(),t:'e',k,x:fx,y:fy,w:0,h:0,c:_ba.col};_ba.marks.push(m);gest={type:'ell',m,fx,fy};try{pane.setPointerCapture(e.pointerId);}catch(_){}_baRenderMarks();return;}
+      if(k0!=='S'&&_ba.act!==k){_ba.act=k;_baSyncAct();}
+      ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+      if(ptrs.size===1)gest={type:'pan',k,x:e.clientX,y:e.clientY,ox:_ba.xf[k].x,oy:_ba.xf[k].y};
+      else if(ptrs.size>=2){const [a,b]=[...ptrs.values()];gest={type:'pinch',k,d0:Math.max(1,Math.hypot(a.x-b.x,a.y-b.y)),z0:_ba.xf[k].z,ox:_ba.xf[k].x,oy:_ba.xf[k].y,cx:(a.x+b.x)/2-(r.left+r.width/2),cy:(a.y+b.y)/2-(r.top+r.height/2)};}
+      try{pane.setPointerCapture(e.pointerId);}catch(_){}
+    };
+    pane.onpointermove=e=>{
+      if(!_ba||!gest)return;
+      if(ptrs.has(e.pointerId))ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+      if(gest.type==='pan'&&ptrs.size===1){const xf=_ba.xf[gest.k];xf.x=Math.round(gest.ox+(e.clientX-gest.x));xf.y=Math.round(gest.oy+(e.clientY-gest.y));_baApplyXf();}
+      else if(gest.type==='pinch'&&ptrs.size>=2){const [a,b]=[...ptrs.values()];const d=Math.hypot(a.x-b.x,a.y-b.y);const z=Math.min(3,Math.max(1,gest.z0*d/gest.d0)),s=z/gest.z0;const xf=_ba.xf[gest.k];
+        xf.z=Math.round(z*100)/100;xf.x=Math.round(gest.cx-(gest.cx-gest.ox)*s);xf.y=Math.round(gest.cy-(gest.cy-gest.oy)*s);_baApplyXf();} // ซูมรอบจุดกึ่งกลางสองนิ้ว (จุดนั้นอยู่กับที่)
+      else if(gest.type==='mark'){const {fx,fy}=frac(e);gest.m.x=Math.min(1,Math.max(0,gest.mx+fx-gest.fx));if(gest.m.t==='e')gest.m.y=Math.min(1,Math.max(0,gest.my+fy-gest.fy));_baRenderMarks();}
+      else if(gest.type==='ell'){const {fx,fy}=frac(e);gest.m.w=Math.abs(fx-gest.fx);gest.m.h=Math.abs(fy-gest.fy);gest.m.x=(fx+gest.fx)/2;gest.m.y=(fy+gest.fy)/2;_baRenderMarks();}
+    };
+    const up=e=>{
+      ptrs.delete(e.pointerId);
+      if(gest&&gest.type==='ell'){if(gest.m.w<0.04||gest.m.h<0.04)_baDelMark(gest.m.id);gest=null;return;}
+      if(gest&&gest.type==='mark'){gest=null;return;}
+      if(ptrs.size===0)gest=null;
+      else if(ptrs.size===1&&gest&&gest.type==='pinch'){const [a]=[...ptrs.values()];const k=gest.k;gest={type:'pan',k,x:a.x,y:a.y,ox:_ba.xf[k].x,oy:_ba.xf[k].y};}
+    };
+    pane.onpointerup=pane.onpointercancel=up;
+    pane.ongesturestart=e=>e.preventDefault(); // Safari/LINE iOS: กันหน้าเว็บทั้งหน้าซูมตามตอนบีบในกรอบรูป
+    pane.ongesturechange=e=>e.preventDefault();
   });
+  _baBindCtl();
+}
+// วาดมาร์กลงการ์ด (พิกัดเป็นสัดส่วนของกรอบ → ตรงกับที่เห็นบนจอ)
+function _baDrawMarks(ctx,x0,y0,pw,ph,k){
+  const ms=(_ba.marks||[]).filter(m=>m.k===k);if(!ms.length)return;
+  ctx.save();ctx.beginPath();ctx.rect(x0,y0,pw,ph);ctx.clip();ctx.lineCap='round';
+  ms.forEach(m=>{
+    const draw=()=>{ctx.beginPath();if(m.t==='v'){ctx.moveTo(x0+m.x*pw,y0);ctx.lineTo(x0+m.x*pw,y0+ph);}else{ctx.ellipse(x0+m.x*pw,y0+m.y*ph,Math.max(2,m.w*pw/2),Math.max(2,m.h*ph/2),0,0,Math.PI*2);}ctx.stroke();};
+    if(m.t==='v')ctx.setLineDash([18,12]);else ctx.setLineDash([]);
+    ctx.strokeStyle=m.c==='#FFFFFF'?'rgba(0,0,0,.45)':'rgba(255,255,255,.55)';ctx.lineWidth=9;draw(); // ขอบรองให้เห็นบนทุกพื้นหลัง
+    ctx.strokeStyle=m.c;ctx.lineWidth=5;draw();
+  });
+  ctx.setLineDash([]);ctx.restore();
 }
 function _baLoadImg(url){return new Promise((res,rej)=>{const im=new Image();im.crossOrigin='anonymous';im.onload=()=>res(im);im.onerror=()=>rej(new Error('โหลดรูปไม่ได้ (เช็ค CORS ของ Storage)'));im.src=url;});}
 function _baCoverDraw(ctx,im,x0,y0,pw,ph,xf,k){ // วาดเหมือน CSS object-fit:cover + translate/scale รอบจุดกึ่งกลาง · k = อัตราส่วน px การ์ด / px จอ
@@ -3002,6 +3123,7 @@ async function _baBuildCard(B,A,st,inc){
   ctx.font='400 20px Prompt, sans-serif';ctx.fillStyle='#F5D58A';ctx.textAlign='right';ctx.fillText(`มุม${BA_TH(B.angle)} · ${st.days} วัน`,W-PAD,HEAD/2);ctx.textAlign='left';
   const paneCss=(_baPanel().querySelector('.ba-pane')||{}).clientWidth||PW;const k=PW/paneCss;
   _baCoverDraw(ctx,imB,PAD,HEAD,PW,PH,_ba.xf.B,k);_baCoverDraw(ctx,imA,PAD+PW+GAP,HEAD,PW,PH,_ba.xf.A,k);
+  _baDrawMarks(ctx,PAD,HEAD,PW,PH,'B');_baDrawMarks(ctx,PAD+PW+GAP,HEAD,PW,PH,'A'); // v132: มาร์กให้นักเรียนดู (เส้นไกด์ไม่วาด)
   const tag=(x,txt,col)=>{ctx.font='700 22px Prompt, sans-serif';const w=ctx.measureText(txt).width+28;ctx.fillStyle=col;ctx.beginPath();if(ctx.roundRect)ctx.roundRect(x+14,HEAD+14,w,40,20);else ctx.rect(x+14,HEAD+14,w,40);ctx.fill();ctx.fillStyle='#fff';ctx.fillText(txt,x+28,HEAD+34);};
   tag(PAD,`Before · ${formatDateTH(B.date)}`,'rgba(45,45,45,.85)');tag(PAD+PW+GAP,`After · ${formatDateTH(A.date)}`,'#16A34A');
   const bits=[];
@@ -4263,8 +4385,9 @@ async function _callGeminiAI(){
     // v122: ★ สถานะ 3 แบบ — ทยอยรับผลอยู่ / รายการเยอะบอกล่วงหน้า / ปกติ
     //   "เน็ตช้า" เดิมทำให้นักเรียนโทษเน็ตตัวเอง ทั้งที่จริงคือ AI ใช้เวลาตามจำนวนรายการ
     if(_streamed)el.textContent=sec.toFixed(1)+' วินาที · กำลังทยอยรับผล';
+    else if(_aiRetryAt)el.innerHTML=sec.toFixed(1)+' วินาที · <b style="color:#92400E">🔁 AI ช้าผิดปกติ กำลังลองใหม่ให้อัตโนมัติ (รอบ 2)</b>'; // v133
     else if(_nLines>=6)el.innerHTML=sec.toFixed(1)+' วินาที · <b style="color:#92400E">'+_nLines+' รายการ อาจใช้เวลา ~'+Math.round(6+1.5*_nLines)+' วิ</b>';
-    else el.textContent=sec.toFixed(1)+' วินาที'+(sec>8?' — รออีกนิดนะคะ':'');
+    else el.textContent='🤔 AI กำลังอ่านรายการและคิดคำตอบ… '+sec.toFixed(1)+' วินาที'+(sec>12?' — ช่วงนี้ AI ช้า รอได้ถึง 30 วิค่ะ':sec>8?' — รออีกนิดนะคะ':''); // v133: บอกว่าช่วงจอว่างคือ AI กำลังคิด
   },100);
   // ดึงค่าอ้างอิงจาก DB สำหรับอาหารที่พิมพ์มา
   const dbRefs=buildDBContext(text);
@@ -4328,6 +4451,7 @@ async function _callGeminiAI(){
 กฎ: c=คาร์บ p=โปรตีน f=ไขมัน a=แอลกอฮอล์(เอทานอล) หน่วยกรัม ทศนิยม1ตำแหน่ง | a=0 เสมอถ้าไม่ใช่เครื่องดื่มแอลกอฮอล์ ห้ามยัดแอลกอฮอล์เข้า c/p/f | amount ต้องมีตัวเลขเสมอ เช่น "100 กรัม" "1 ทัพพี" "2 ลูก" — ห้ามใช้คำอธิบายอย่างเดียว | ห้ามใส่ kcal และห้ามใส่ total ระบบคำนวณเอง`;
   const _fullPrompt=sysMsg+'\n\n'+userPrompt;
   let _netMs=0,_respChars=0,_ttfbMs=0,_streamed=false;
+  let _aiRetried=false,_aiRetryAt=0; // v133: ลองซ้ำเองแล้วหรือยัง / เริ่มรอบสองเมื่อไหร่ (ไว้โชว์สถานะ)
   // v122: จำนวนบรรทัดที่พิมพ์ — ใช้บอกล่วงหน้าว่านานแค่ไหน + เป็นตัวหารของแถบความคืบหน้า
   const _nLines=String(text||'').split(/[\n,]/).map(x=>x.trim()).filter(x=>x.length>=2).length;
   // BUGFIX v46.1: ล้างผลเก่าก่อนเริ่ม — เดิมถ้า AI ล้มเหลว aiParsedData ของ "มื้อก่อนหน้า" ยังค้างอยู่
@@ -4371,19 +4495,22 @@ async function _callGeminiAI(){
     //   ระหว่างที่ AI พิมพ์อยู่มันไม่เคยเงียบ → รายการยาวไม่ชนกำแพงอีก
     //   ★ คืนค่าโครงเดียวกับ res.json() เดิมทุกกรณี → โค้ด _paramErr/retry ด้านล่างใช้ต่อได้ไม่แตะ
     //   ★ ถอยกลับ: ไม่ใช่ event-stream (error JSON / endpoint ไม่รับ) หรือ body อ่านเป็น stream ไม่ได้ → อ่านเป็นก้อนเดียว
-    const _SILENCE_MS=12000,_HARD_MS=45000;
+    // v133: aiTiming 5–7 ต.ค. — ตัวอักษรแรกจาก Gemini มาที่มัธยฐาน 8–9 วิ, 90% ภายใน ~11 วิ → เพดาน 12 วิ ห่างไม่ถึง 1 วิ
+    //   พอ Google ช้าลงนิดเดียวช่วงคนใช้เยอะ ทุกคำขอโดนตัดพร้อมกัน (7 ต.ค. ล้ม 102 ครั้งที่ 12.0 วิพอดี ttfb=0)
+    //   → รอ "ตัวอักษรแรก" ได้ 30 วิ · หลังเริ่มตอบแล้วค่อยใช้เกณฑ์เงียบ 12 วิ · เพดานรวม 60 วิ
+    const _FIRST_MS=30000,_SILENCE_MS=12000,_HARD_MS=60000;
     const _callAI=async(withThink,withSchema)=>{
       const c=new AbortController();
       let _sil=null;const _hard=setTimeout(()=>c.abort(),_HARD_MS);
-      const _arm=()=>{clearTimeout(_sil);_sil=setTimeout(()=>c.abort(),_SILENCE_MS);};
-      _arm();
+      const _arm=(ms)=>{clearTimeout(_sil);_sil=setTimeout(()=>c.abort(),ms||_SILENCE_MS);};
+      _arm(_FIRST_MS);
       try{const r=document.getElementById('ai-stream-rows');if(r)r.innerHTML='';}catch(_){}
       try{
         const res=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:streamGenerateContent?alt=sse',{
           method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':GEMINI_KEY},
           body:_mkBody(withThink,withSchema),signal:c.signal
         });
-        _arm();
+        _arm(_FIRST_MS); // header มาแล้ว แต่ตัวอักษรแรกยังต้องรอ AI คิด
         const ct=String(res.headers.get('content-type')||'');
         if(!res.ok||ct.indexOf('text/event-stream')<0){
           // error JSON (400/403/429…) หรือ endpoint ไม่ส่ง SSE → อ่านเป็นก้อนเดียวเหมือน v121
@@ -4431,7 +4558,17 @@ async function _callGeminiAI(){
     const _paramErr=d=>!!(d&&d.error&&/schema|thinking|unknown name|invalid json payload|not supported|invalid value/i.test(d.error.message||''));
     let _sendSchema=!_noSchema, _sendThink=!_noThink;
     // v122: _callAI คืน object โครงเดียวกับ res.json() แล้ว (ทั้งกรณี stream และถอยกลับ)
-    let data=await _callAI(_sendThink,_sendSchema);
+    // v133: หมดเวลา (abort) หรือ Google ตอบว่าคนเยอะ (503/high demand) → ลองใหม่เอง 1 ครั้ง นักเรียนไม่ต้องกด
+    //   ไม่ลองซ้ำกับ error อื่น (key ผิด/พารามิเตอร์/quota) เพราะซ้ำไปก็ได้คำตอบเดิม
+    const _aiHot=d=>!!(d&&d.error&&(d.error.code===503||d.error.code===429||/high demand|overloaded|unavailable|temporar|resource.?exhausted/i.test(d.error.message||'')));
+    const _aiAbort=e=>/abort|signal/i.test((e&&e.name||'')+' '+(e&&e.message||''));
+    const _callAIR=async(t,sc)=>{
+      const again=async()=>{_aiRetried=true;_aiRetryAt=Date.now();try{const r=document.getElementById('ai-stream-rows');if(r)r.innerHTML='';}catch(_){}
+        await new Promise(r=>setTimeout(r,1500));return await _callAI(t,sc);};
+      try{const d=await _callAI(t,sc);if(_aiHot(d)&&!_aiRetried)return await again();return d;}
+      catch(e){if(_aiAbort(e)&&!_aiRetried)return await again();throw e;}
+    };
+    let data=await _callAIR(_sendThink,_sendSchema);
     if(_paramErr(data)&&_sendSchema){
       try{localStorage.setItem('_dfnoschema','1');}catch(_){}
       _sendSchema=false;
@@ -4474,7 +4611,7 @@ async function _callGeminiAI(){
     aiCacheSet(_cacheKey,aiParsedData); // เก็บเมื่อผ่านทั้ง sanity check และวาดผลได้จริงแล้วเท่านั้น
     _logDbMiss((aiParsedData.items||[]).filter(it=>it._src!=='db').map(it=>it.name)); // v62: จดไว้ว่าอะไรยังไม่มีใน DB
     _logAITiming({src:'ai',totalMs:Date.now()-_t0,keyLoadMs:_keyMs,netMs:_netMs,parseMs:Date.now()-_tp0,ttfbMs:_ttfbMs,streamed:_streamed,
-      promptChars:_fullPrompt.length,respChars:_respChars,dbRefs:dbRefs.length,items:(aiParsedData.items||[]).length,ok:true,thinkLow:_sendThink,
+      promptChars:_fullPrompt.length,respChars:_respChars,dbRefs:dbRefs.length,items:(aiParsedData.items||[]).length,ok:true,thinkLow:_sendThink,retry:_aiRetried,
       schema:_sendSchema}); // v102: ดูจาก aiTiming ได้เลยว่ารุ่นรับ responseSchema ไหม
   }catch(e){
     // v76: ล้างผลทิ้งเสมอเมื่อพลาด — ไม่ใช่แค่ผลของ "มื้อก่อน" (v46.1) แต่รวมผลของมื้อนี้ที่ sanity check ตีตกด้วย
@@ -4482,12 +4619,12 @@ async function _callGeminiAI(){
     aiParsedData=null;
     if(/api.?key/i.test(e.message||'')){GEMINI_KEY=null;try{localStorage.removeItem('_dfk');}catch(_){}} // key ถูก rotate → ล้างแล้วโหลดใหม่ครั้งหน้า
     _logAITiming({src:'ai',totalMs:Date.now()-_t0,keyLoadMs:_keyMs,netMs:_netMs,ttfbMs:_ttfbMs,streamed:_streamed,
-      promptChars:_fullPrompt.length,respChars:_respChars,dbRefs:dbRefs.length,ok:false,err:e.message||''});
+      promptChars:_fullPrompt.length,respChars:_respChars,dbRefs:dbRefs.length,ok:false,err:e.message||'',retry:_aiRetried});
     const area=document.getElementById('ai-result-area');
     // v122: v76 เคยเชื่อว่าหมดเวลาเพราะ prompt ยาว — aiTiming 611 ครั้งบอกว่าไม่ใช่ (r=+0.11)
     //   ตัวขับคือจำนวนรายการ (r=+0.67) และตอนนี้ตัดเฉพาะเมื่อ "เงียบ" จริง → ถ้ายังหมดเวลา = AI/เน็ตสะดุด ลองใหม่มักผ่าน
     const _abort=/abort|timeout|signal/i.test((e&&e.name||'')+' '+(e&&e.message||''));
-    const _emsg=_abort?'AI ตอบช้าผิดปกติ — กด ✨ ลองใหม่อีกครั้ง หรือแบ่งเป็น 2 รอบนะคะ':escHtml(e.message||'ไม่ทราบสาเหตุ');
+    const _emsg=_abort?'AI ตอบช้าผิดปกติ (ลองให้ 2 รอบแล้ว) — รอสักครู่แล้วกด ✨ อีกครั้ง หรือส่งแบบ Hand portion ไปก่อนนะคะ':escHtml(e.message||'ไม่ทราบสาเหตุ'); // v133
     area.innerHTML=`<div class="ai-error">⚠️ ${_emsg}<br><span style="font-size:11px">กด ✨ ลองใหม่อีกครั้งนะคะ</span></div>`;
     area.style.display='block';
   }finally{
