@@ -430,6 +430,33 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
 .empty-state .es-icon{font-size:48px;margin-bottom:12px}
 .empty-state p{font-size:14px}
 
+/* v134: 💧 น้ำ + 🩸 รอบเดือน */
+.wstrip{background:#EFF6FF;border:1.5px solid #BFDBFE;border-radius:14px;padding:10px 12px;margin:10px 12px 0}
+.wtop{display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:#1E3A8A;flex-wrap:wrap}
+.wtop b{color:#1D4ED8}.wtop .wr{margin-left:auto;font-size:11px;color:#1D4ED8;font-weight:500}
+.wglasses{display:flex;gap:5px;margin-top:8px}
+.wg{flex:1;aspect-ratio:1/1.25;max-width:44px;border-radius:7px 7px 9px 9px;border:2px solid #93C5FD;background:#fff;position:relative;overflow:hidden;cursor:pointer}
+.wg i{position:absolute;left:0;right:0;bottom:0;background:#60A5FA;height:0;transition:height .15s}
+.wg.f i{height:100%}.wg.h i{height:50%}
+.wg.plus{border-style:dashed;display:flex;align-items:center;justify-content:center;color:#3B82F6;font-weight:700;font-size:18px}
+.wbar{height:6px;background:#DBEAFE;border-radius:4px;margin-top:8px;overflow:hidden}.wbar i{display:block;height:100%;background:#3B82F6;transition:width .2s}
+.pbtn{border:2px solid #E5E7EB;border-radius:12px;padding:12px 8px;text-align:center;font-size:13px;background:#F9FAFB;font-weight:600;cursor:pointer}
+.pbtn.on{border-color:#EC4899;background:#FDF2F8;color:#9D174D}
+.cyc{background:#FDF2F8;border:1px solid #FBCFE8;border-radius:10px;padding:8px 10px;font-size:11.5px;color:#9D174D;margin-top:10px;line-height:1.5}
+.cstage{display:flex;gap:3px;margin-top:8px}
+.cstage div{flex:1;text-align:center;font-size:9px;padding:6px 2px;border-radius:8px;line-height:1.3}
+.cstage div b{display:block;font-size:14px}
+.cstage div.now{outline:2.5px solid #2D2D2D;font-weight:700}
+.cmsg{border-radius:10px;padding:8px 10px;font-size:11px;line-height:1.6;margin-top:8px}
+.ccal{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-top:8px}
+.ccal span{text-align:center;font-size:10px;padding:4px 0;border-radius:6px;background:#F9FAFB;border:1px solid #F3F4F6}
+.ccal span.p{background:#FCE7F3;color:#9D174D;font-weight:700;border-color:#F9A8D4}
+.ccal span.t{outline:2px solid var(--primary)}
+.ccal span.pr{background:#FDF2F8;color:#BE185D;border-style:dashed}
+.ck2{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px}
+.ck2 div{background:#F9FAFB;border:1px solid #E5E7EB;border-radius:10px;padding:7px 8px;font-size:10.5px;line-height:1.5;color:var(--gray)}
+.ck2 b{font-size:14px;display:block;color:var(--text)}
+.cbadge{font-size:11px;border:1px solid;border-radius:12px;padding:2px 7px;font-weight:600}
 /* HEALTH LOG */
 #panel-health{padding:12px;display:none}
 .hl-card{background:white;border-radius:14px;border:1px solid #E5E7EB;padding:14px;margin-bottom:10px}
@@ -638,6 +665,7 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
   <!-- LOG PANELS -->
   <div id="log-panels">
     <div id="ba-home" style="display:none"></div><!-- v130: การ์ด Before/After จากโค้ช -->
+    <div id="water-strip" style="display:none"></div><!-- v134: แตะแก้วน้ำได้ทันที -->
     <div class="meal-bar">
       <p>มื้ออาหาร</p>
       <div class="meal-btns">
@@ -1117,7 +1145,7 @@ function _slowMsg(okText){
 //   (loadSavedMenus ดึงมา .limit(40) อยู่แล้ว 20 จึงยังอยู่ใต้เพดานการอ่าน)
 //   ประกาศไว้บนสุด เพราะถูกใช้ทั้งใน loadStudentData / loadSavedMenus / saveCurrentMenu
 const MENU_CAP=20;
-const APP_VERSION='v133-2026-10-07'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
+const APP_VERSION='v134-2026-10-12'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
 const _errLogged=new Set();let _errCount=0;
 // ═════ v120: บันทึกเหตุการณ์คิวมื้ออาหาร ═════
 // ★ แยกโควตาจาก _reportError โดยตั้งใจ — idb-known/photo-fail ยิงถี่จนกินเพดาน 10 หมด
@@ -2365,11 +2393,13 @@ async function loadStudentData(){
     applyTargets(td);
     if(td&&td.exists){const d=td.data();studentProgramData={programStart:d.programStart||'',programEnd:d.programEnd||'',programWeeks:d.programWeeks||12,pausedDays:d.pausedDays||0,isPaused:d.isPaused||false,discountCode:d.discountCode||'',discountPercent:d.discountPercent||0};
       studentProfile=d.profile||null; // v70
+      studentCycle=d.cycle||null;studentWaterGoal=+d.waterGoalMl||0; // v134
       studentOnboard=d.onboard||null; // v124: สถานะภารกิจเริ่มคอร์ส (เขียนโดยแอปนักเรียน + สวิตช์รูปหุ่นของโค้ช)
       studentBaCard=d.baCard||null;studentConsent=d.consentStatus||'';studentPhotoMeta=d.progressPhotoMeta||null; // v130
       studentHasTargets=!!(d.targets&&d.targets.kcal!=null); // v124: ข้อ 4 รับทราบเป้าหมาย ต้องมีเป้าก่อน
       maybeAskProfile(); // v70: ยังไม่เคยกรอก → ชวนกรอก (ข้ามได้)
     }
+    setTimeout(()=>{try{_waterRender();}catch(_){}},0); // v134: แถบน้ำ (ดึงเอกสารสุขภาพวันนี้ 1 ใบ)
     // NW1: ถ้าผลมาจาก offline cache แล้วว่างเปล่า → อย่าทับ ปล่อย null ให้ loadSavedMenus retry ได้
     if(savedSnap&&!(savedSnap.metadata&&savedSnap.metadata.fromCache&&savedSnap.empty)){
       // v78: เดิมไม่เรียงเลย → ลำดับชิปตอนเปิดแอปกับตอนโหลดซ้ำไม่ตรงกัน
@@ -3168,6 +3198,274 @@ async function baSend(){
   }
 }
 
+// ===== v134: 💧 ดื่มน้ำ + 🩸 ประจำเดือน =====
+// เก็บทั้งคู่ในเอกสาร healthLogs/{uid}/days/{date} ที่มีอยู่แล้ว (merge) → Dashboard/โค้ชอ่านของเดิม ไม่มี query เพิ่ม
+//   water:ml (จำนวนเต็ม) · periodStart:true เฉพาะ "วันแรก" ที่ประจำเดือนมา
+// รายการวันแรกย้อนหลังเก็บซ้ำไว้ที่ students/{uid}.cycle.starts (arrayUnion/arrayRemove) → รอบเฉลี่ย/Stage คิดในเครื่อง
+//   ไม่ต้องอ่าน healthLogs ย้อน 60 วัน · ป้ายบนการ์ดรายชื่อโค้ชใช้ทะเบียน students ที่อ่านอยู่แล้ว
+// เป้าน้ำ: students/{uid}.waterGoalMl (โค้ชตั้งรายคน) · ไม่ตั้ง = WATER_GOAL_DEFAULT
+const WATER_GLASS_ML=250, WATER_GOAL_DEFAULT=2000, WATER_MAX_ML=6000;
+const CYCLE_MENSES_DAYS=5, CYCLE_DEFAULT_LEN=28, CYCLE_LEN_MIN=15, CYCLE_LEN_MAX=60, CYCLE_LATE_DAYS=7, CYCLE_USE_GAPS=6;
+// ข้อความแต่ละ Stage — แก้ถ้อยคำได้ที่นี่ที่เดียว (เป็นคำแนะนำทั่วไปของโค้ช ไม่ใช่คำวินิจฉัย)
+const CYCLE_STAGES={
+  menses:    {icon:'🩸',name:'มีประจำเดือน',  bg:'#FCE7F3',fg:'#9D174D',msg:'ช่วงมีประจำเดือน — น้ำหนักอาจขึ้นจากน้ำในตัว ไม่ใช่ไขมัน ชั่งต่อตามปกติได้เลย ถ้าปวดลดความหนักการซ้อมได้'},
+  follicular:{icon:'🌱',name:'Follicular',     bg:'#ECFDF5',fg:'#065F46',msg:'ช่วงหลังประจำเดือน — หลายคนรู้สึกพลังดีขึ้น เหมาะลองเพิ่มความหนักเวท'},
+  ovulation: {icon:'🥚',name:'Ovulation',      bg:'#FEF3C7',fg:'#92400E',msg:'ช่วงกลางรอบ (ประมาณ) — ใช้แรงได้เต็มที่ กินโปรตีนให้ครบตามเป้า'},
+  luteal:    {icon:'🌙',name:'Luteal',         bg:'#EEF2FF',fg:'#3730A3',msg:'ช่วงก่อนประจำเดือน — อาจอยากของหวาน/บวมน้ำ เตรียมของว่างตามแผนไว้ น้ำหนักค้างได้ ไม่ต้องตกใจ'},
+  late:      {icon:'⏳',name:'รอบนี้ยาวกว่าปกติ',bg:'#F3F4F6',fg:'#374151',msg:'เลยรอบเฉลี่ยมาแล้ว — ถ้ามาแล้วอย่าลืมติ๊กวันแรกในแท็บ Health log นะคะ'},
+};
+let hlWater=0, hlPeriodStart=false;            // ค่าของ selectedDate ที่อยู่บนจอ
+let studentCycle=null, studentWaterGoal=0;     // จาก students/{uid} ตอนเปิดแอป
+let _waterPend=null;                           // {date,ml,t} การเขียนที่หน่วงรวมไว้
+
+function _waterGoal(g){const v=+(g||0);return v>0?v:(studentWaterGoal>0?studentWaterGoal:WATER_GOAL_DEFAULT);}
+function _hlEntryOf(date){ // undefined = ยังไม่รู้ · null = รู้ว่าไม่มี · obj = มี
+  let e=(dashCache&&dashCache[3])?dashCache[3][date]:undefined;
+  if(e===undefined)e=_hlCache[date];
+  return e;
+}
+function _wpLoadFromEntry(e){hlWater=(e&&+e.water>0)?Math.min(WATER_MAX_ML,Math.round(+e.water)):0;hlPeriodStart=!!(e&&e.periodStart);}
+// _fetchHealthDay ดึงเสร็จ → ถ้ายังไม่ได้แตะอะไร ให้ค่าบนจอตรงกับเอกสาร แล้ววาดแถบน้ำใหม่
+function _wpOnFetched(date,e){
+  if(date!==selectedDate)return;
+  if(_waterPend&&_waterPend.date===date){ // แตะน้ำไว้ก่อนเอกสารมาถึง → ค่าที่แตะชนะ (merge จะตามไปเขียน)
+    const o=Object.assign({},e||{},{water:_waterPend.ml});_hlCache[date]=o;if(dashCache&&dashCache[3])dashCache[3][date]=o;
+  }else if(!_hlTouched)_wpLoadFromEntry(e);
+  _waterRender();
+}
+
+// ---------- 💧 น้ำ: แถบบน Food log + การ์ดใน Health log ----------
+function _waterGlassesHtml(ml,goal,tapFn){
+  const n=Math.max(8,Math.ceil(goal/WATER_GLASS_ML));
+  const full=Math.floor(ml/WATER_GLASS_ML),half=(ml%WATER_GLASS_ML)>=WATER_GLASS_ML/2;
+  let h='';
+  for(let i=0;i<n;i++){const c=i<full?' f':(i===full&&half?' h':'');h+=`<div class="wg${c}" onclick="${tapFn}(${i})"><i></i></div>`;}
+  return h;
+}
+function _waterStripHtml(){
+  const goal=_waterGoal(),ml=hlWater,e=_hlEntryOf(selectedDate);
+  const loading=e===undefined&&!_hlFail[selectedDate];
+  const left=Math.max(0,goal-ml),pct=Math.min(100,Math.round(ml/goal*100));
+  return `<div class="wstrip">
+    <div class="wtop">💧 น้ำ${selectedDate===todayStr()?'วันนี้':' '+formatDateShort(selectedDate)} <b>${ml.toLocaleString()} / ${goal.toLocaleString()} ml</b>
+      <span class="wr">${loading?'⏳':(left?('เหลืออีก '+left.toLocaleString()):'🎉 ครบเป้าแล้ว')}</span></div>
+    <div class="wglasses">${_waterGlassesHtml(ml,goal,'waterTap')}<div class="wg plus" onclick="waterAsk()">+</div></div>
+    <div class="wbar"><i style="width:${pct}%"></i></div>
+    <div class="hl-hint" style="color:#1E40AF;margin-top:5px">แตะแก้ว = +${WATER_GLASS_ML} ml (แก้วละ ${WATER_GLASS_ML}) · แตะแก้วที่เต็มอยู่ = ลดลงถึงแก้วนั้น · ปุ่ม + ใส่ขวด/ml เอง · บันทึกให้อัตโนมัติ</div>
+  </div>`;
+}
+function _waterRender(){
+  const el=document.getElementById('water-strip');if(!el)return;
+  if(!user||!user.userId){el.style.display='none';return;}
+  const e=_hlEntryOf(selectedDate);
+  if(e===undefined&&!_hlFail[selectedDate]&&!_hlFetching[selectedDate])_fetchHealthDay(selectedDate); // ยังไม่รู้ → ไปดึง (1 เอกสาร)
+  el.style.display='block';el.innerHTML=_waterStripHtml();
+  const inp=document.getElementById('hl-water');if(inp&&document.activeElement!==inp)inp.value=hlWater; // การ์ดใน Health log ให้ตรงกัน
+  const g=document.getElementById('hl-water-glasses');if(g)g.innerHTML=_waterGlassesHtml(hlWater,_waterGoal(),'waterTap');
+  const s=document.getElementById('hl-water-sum');if(s)s.textContent=`${hlWater.toLocaleString()} / ${_waterGoal().toLocaleString()} ml`;
+}
+// แตะแก้วที่ i (0-based): แก้วว่าง → เติมถึงแก้วนั้น · แก้วเต็ม → ลดลงเหลือ i แก้ว (แตะแก้วสุดท้ายที่เต็ม = เอาออก 1)
+function waterTap(i){
+  const full=Math.floor(hlWater/WATER_GLASS_ML);
+  const ml=(i<full)?i*WATER_GLASS_ML:(i+1)*WATER_GLASS_ML;
+  waterSet(ml);
+}
+function waterAdd(delta){waterSet(hlWater+delta);}
+function waterSet(ml){
+  ml=Math.max(0,Math.min(WATER_MAX_ML,Math.round(+ml||0)));
+  if(ml===hlWater&&_hlEntryOf(selectedDate)!==undefined)return;
+  hlWater=ml;_hlTouched=true;
+  const date=selectedDate;
+  const o=Object.assign({},_hlEntryOf(date)||{},{water:ml});_hlCache[date]=o;if(dashCache&&dashCache[3])dashCache[3][date]=o; // optimistic
+  _waterRender();
+  // หน่วง 1.5 วิ รวมการแตะรัวๆ เป็นการเขียนครั้งเดียว
+  if(_waterPend&&_waterPend.t)clearTimeout(_waterPend.t);
+  _waterPend={date,ml,t:setTimeout(()=>_waterFlush(),1500)};
+}
+async function _waterFlush(){
+  const p=_waterPend;if(!p)return;_waterPend=null;
+  if(!user||!user.userId)return;
+  const path=`healthLogs/${user.userId}/days/${p.date}`;
+  try{
+    const pr=db.doc(path).set({water:p.ml,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
+    const r=await _fsWrite(pr,8000);
+    if(r==='timeout')_queueBackup(path+'#water',{water:p.ml,updatedAt:{__ts:Date.now()}}); // path แยก: ไม่ให้ทับ backup ของฟอร์มสุขภาพทั้งใบ
+    else _dropBackup(path+'#water');
+  }catch(e){showToast('⚠️ บันทึกน้ำไม่ได้: '+(e&&e.message||''),3000);}
+}
+// ปิดแอป/สลับหน้าระหว่างยังหน่วงอยู่ → เขียนทันที
+try{document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'&&_waterPend){clearTimeout(_waterPend.t);_waterFlush();}});}catch(_){}
+async function waterAsk(){
+  const v=await (typeof _dfAsk==='function'?_dfAsk({msg:'ดื่มไปเท่าไหร่คะ? (ml)\nขวดเล็ก 600 · ขวดใหญ่ 1,500 · แก้ว 250',input:true,placeholder:'เช่น 600'}):Promise.resolve(prompt('ดื่มไปกี่ ml?')));
+  const n=parseInt(String(v||'').replace(/[^0-9]/g,''),10);
+  if(n>0)waterAdd(n);
+}
+function _waterCardHtml(){
+  const goal=_waterGoal();
+  return `<div class="hl-card" style="border-color:#BFDBFE">
+      <div class="hl-title">💧 ดื่มน้ำ <span id="hl-water-sum" style="margin-left:auto;font-size:12px;font-weight:600;color:#1D4ED8">${hlWater.toLocaleString()} / ${goal.toLocaleString()} ml</span></div>
+      <div class="wglasses" id="hl-water-glasses" style="margin-bottom:10px">${_waterGlassesHtml(hlWater,goal,'waterTap')}</div>
+      <div class="hl-stepper">
+        <button onclick="waterAdd(-${WATER_GLASS_ML})">−</button>
+        <input class="hl-input" id="hl-water" type="number" value="${hlWater}" step="${WATER_GLASS_ML}" min="0" max="${WATER_MAX_ML}" style="width:84px" onchange="waterSet(this.value)">
+        <span class="hl-unit">ml</span>
+        <button onclick="waterAdd(${WATER_GLASS_ML})">+</button>
+      </div>
+      <div class="hl-hint">แตะแก้วหรือปรับทีละ ${WATER_GLASS_ML} ml · บันทึกทันทีไม่ต้องกดปุ่มล่าง · เป้า ${goal.toLocaleString()} ml${studentWaterGoal>0?' (โค้ชตั้งให้)':' (ค่าเริ่มต้น โค้ชปรับได้)'}</div>
+    </div>`;
+}
+
+// ---------- 🩸 รอบเดือน: คำนวณล้วนๆ (ไม่แตะ DOM/DB) ----------
+// cycle={starts:['YYYY-MM-DD',...]} · today='YYYY-MM-DD' · คืน null ถ้าไม่มีวันแรกเลย
+function cycleStartsClean(starts){
+  const s=[...new Set((Array.isArray(starts)?starts:[]).filter(d=>/^\d{4}-\d{2}-\d{2}$/.test(String(d))))].sort();
+  const out=[];for(const d of s){if(out.length&&daysBetweenYmd(out[out.length-1],d)<10)continue;out.push(d);} // ติ๊กซ้อนกันใน 10 วัน = วันเดียวกัน (กันกดพลาด)
+  return out; // เรียงเก่า→ใหม่
+}
+function cycleInfo(cycle,today,opts){
+  opts=opts||{};
+  const menses=opts.mensesDays||CYCLE_MENSES_DAYS;
+  const all=cycleStartsClean(cycle&&cycle.starts);
+  const starts=all.filter(d=>d<=today);
+  if(!starts.length)return null;
+  const last=starts[starts.length-1];
+  const day=daysBetweenYmd(last,today)+1;
+  const gaps=[];
+  for(let i=starts.length-1;i>0&&gaps.length<CYCLE_USE_GAPS;i--){const g=daysBetweenYmd(starts[i-1],starts[i]);if(g>=CYCLE_LEN_MIN&&g<=CYCLE_LEN_MAX)gaps.push(g);}
+  const n=gaps.length;
+  const avg=n?Math.round(gaps.reduce((a,b)=>a+b,0)/n*10)/10:CYCLE_DEFAULT_LEN;
+  const len=Math.round(avg);
+  const ovul=Math.max(menses+2,len-14); // ไข่ตก ≈ 14 วันก่อนรอบถัดไป (ค่าประมาณ)
+  let stage;
+  if(day>len+CYCLE_LATE_DAYS)stage='late';
+  else if(day<=menses)stage='menses';
+  else if(day<ovul-1)stage='follicular';
+  else if(day<=ovul+1)stage='ovulation';
+  else stage='luteal';
+  const ranges={menses:[1,menses],follicular:[menses+1,ovul-2],ovulation:[ovul-1,ovul+1],luteal:[ovul+2,len]};
+  return {last,day,avg,len,n,gaps,stage,ovul,menses,next:shiftYmd(last,len),prevGap:n?gaps[0]:null,starts,
+    inMenses:day<=menses,estimated:n===0,late:stage==='late',ranges};
+}
+// วันที่ d อยู่ในช่วงมีประจำเดือน (5 วันจากวันแรกไหน ๆ) ไหม — ใช้แรเงา/ป้าย
+function cycleIsMensesDay(cycle,d,mensesDays){
+  const m=mensesDays||CYCLE_MENSES_DAYS;
+  return cycleStartsClean(cycle&&cycle.starts).some(s=>{const k=daysBetweenYmd(s,d);return k>=0&&k<m;});
+}
+
+// ---------- 🩸 UI ----------
+function _cycleStageStrip(ci,small){
+  const keys=['menses','follicular','ovulation','luteal'];
+  return `<div class="cstage${small?' sm':''}">${keys.map(k=>{const S=CYCLE_STAGES[k],r=ci.ranges[k];
+    return `<div style="background:${S.bg};color:${S.fg}" class="${ci.stage===k?'now':''}"><b>${S.icon}</b>${small?'':S.name+'<br>'}วัน ${r[0]}${r[1]>r[0]?'–'+r[1]:''}</div>`;}).join('')}</div>`;
+}
+function _cycleCalHtml(ci,today){
+  // ปฏิทินรอบปัจจุบัน: วัน 1..len (+ 2 วันเผื่อ) · ชมพู = มีประจำเดือน · กรอบ = วันนี้ · จาง = คาดรอบถัดไป
+  const n=Math.max(ci.len,ci.day)+2;let h='';
+  for(let i=1;i<=n;i++){
+    const cls=(i<=ci.menses?' p':'')+(i===ci.day?' t':'')+(i>ci.len?' pr':'');
+    h+=`<span class="${cls.trim()}">${i}</span>`;
+  }
+  return `<div class="ccal">${h}</div>`;
+}
+function _fmtAvg(a){return Number.isInteger(a)?String(a):a.toFixed(1);}
+// การ์ดใน Dashboard นักเรียน / หน้าโค้ช
+function buildCycleCard(cycle,today,o){
+  o=o||{};
+  const ci=cycleInfo(cycle,today);
+  const isF=o.gender==='f';
+  if(!ci&&!isF)return ''; // ไม่ใช่หญิง + ไม่เคยติ๊ก → ไม่โชว์เลย
+  const title=`<div class="ls-ch"><span class="ls-ctitle">🩸 รอบเดือน${o.forCoach?'':'ของฉัน'}</span><span class="ls-cavg">${ci?(ci.n?`รอบเฉลี่ย ${_fmtAvg(ci.avg)} วัน · ${ci.n} รอบ`:'ยังไม่ครบ 2 รอบ · ใช้ 28 วันไปก่อน'):'ยังไม่มีข้อมูล'}</span></div>`;
+  if(!ci)return `<div class="ls-chart-card" style="border-color:#FBCFE8">${title}<div class="hl-hint" style="margin-top:6px">${o.forCoach?'นักเรียนยังไม่เคยติ๊ก "วันแรกที่ประจำเดือนมา" ในแท็บ Health log':'ติ๊ก "🩸 วันนี้ประจำเดือนมา (วันแรก)" ในแท็บ Health log แล้วแอปจะนับรอบและบอก Stage ให้เองค่ะ'}</div></div>`;
+  const S=CYCLE_STAGES[ci.stage];
+  const lastTxt=formatDateShort(ci.last),nextTxt=formatDateShort(ci.next);
+  const hist=ci.starts.slice(-4).reverse().map(formatDateShort).join(' · ');
+  const body=ci.late
+    ?`<div style="font-size:12px;margin-top:6px">วันนี้ = <b>วันที่ ${ci.day}</b> ของรอบ · <b style="color:${S.fg}">${S.icon} ${S.name}</b> (เฉลี่ย ${_fmtAvg(ci.avg)} วัน)</div>`
+    :`<div style="font-size:12px;margin-top:6px">วันนี้ = <b>วันที่ ${ci.day}</b> ของรอบ · Stage <b style="color:${S.fg}">${S.icon} ${S.name}</b></div>${_cycleStageStrip(ci,false)}`;
+  const msg=`<div class="cmsg" style="background:${S.bg};color:${S.fg}">${S.icon} ${escHtml(S.msg)}</div>`;
+  const facts=`<div class="ck2">
+      <div>วันแรกล่าสุด<b>${lastTxt}</b></div>
+      <div>รอบเฉลี่ย<b>${_fmtAvg(ci.avg)} วัน</b>${ci.n?`จาก ${ci.n} รอบ (${ci.gaps.join(', ')})`:'ค่าตั้งต้น 28 — ยังไม่มี 2 รอบ'}</div>
+      <div>รอบถัดไป (ประมาณ)<b>~${nextTxt}</b></div>
+      <div>วันแรกที่จดไว้<b style="font-size:11px">${hist||'-'}</b></div>
+    </div>`;
+  const hint=`<div class="hl-hint" style="margin-top:6px">${o.forCoach?'ข้อมูลจากที่นักเรียนติ๊กเอง · ':''}Stage เป็นค่าประมาณจากรอบเฉลี่ย (Ovulation ≈ 14 วันก่อนรอบถัดไป) ไม่ใช่การวินิจฉัย · ชมพู = ${ci.menses} วันจากวันแรก</div>`;
+  return `<div class="ls-chart-card" style="border-color:#FBCFE8">${title}${body}${o.forCoach?facts:msg+_cycleCalHtml(ci,today)}${o.forCoach?msg:''}${hint}</div>`;
+}
+// ป้ายเล็กบนการ์ดรายชื่อโค้ช
+function cycleBadgeHtml(cycle,today){
+  const ci=cycleInfo(cycle,today);if(!ci)return '';
+  const S=CYCLE_STAGES[ci.stage];
+  const soon=!ci.late&&daysBetweenYmd(today,ci.next)>=0&&daysBetweenYmd(today,ci.next)<=2;
+  return `<span class="cbadge" style="background:${S.bg};color:${S.fg};border-color:${S.fg}33" title="${S.name} · รอบเฉลี่ย ${_fmtAvg(ci.avg)} วัน">${S.icon} วัน ${ci.day}${soon?' · ⏰ ใกล้มา':''}</span>`;
+}
+// การ์ดใน Health log (ติ๊กวันแรก)
+function _periodCardHtml(){
+  const isF=studentProfile&&studentProfile.gender==='f';
+  const ci=cycleInfo(studentCycle,selectedDate);
+  if(!isF&&!ci)return '';
+  const on=hlPeriodStart;
+  let info='';
+  if(on){
+    const prev=ci&&ci.prevGap?`รอบที่แล้วยาว <b>${ci.prevGap} วัน</b> · `:'';
+    info=`<div class="cyc">📆 ${prev}${ci&&ci.n?`รอบเฉลี่ย <b>${_fmtAvg(ci.avg)} วัน</b> จาก ${ci.n} รอบ`:'ติ๊กครบ 2 รอบ แอปจะคำนวณรอบเฉลี่ยให้'}<br><span style="color:#BE185D">${escHtml(CYCLE_STAGES.menses.msg)}</span></div>`;
+  }else if(ci){
+    const S=CYCLE_STAGES[ci.stage];
+    info=`<div class="cyc">${S.icon} วันที่ ${ci.day} ของรอบ · Stage: <b>${S.name}</b>${ci.late?'':` · คาดรอบถัดไป ~${formatDateShort(ci.next)}`}</div>`;
+  }
+  return `<div class="hl-card" style="border-color:#FBCFE8">
+      <div class="hl-title">🩸 ประจำเดือน</div>
+      <div class="pbtn${on?' on':''}" onclick="togglePeriodStart()">🩸 ${selectedDate===todayStr()?'วันนี้':formatDateShort(selectedDate)}ประจำเดือนมา (วันแรก)${on?' ✓':''}</div>
+      <div class="hl-hint" style="margin-top:8px">ติ๊กแค่วันแรกที่มา วันเดียวพอ · บันทึกทันที · แตะซ้ำเพื่อเอาออก · ลืมติ๊ก ย้อนไปเลือกวันนั้นในแถบวันที่ด้านบนได้</div>
+      ${info}
+    </div>`;
+}
+let _periodBusy=false;
+async function togglePeriodStart(){
+  if(_periodBusy||!user||!user.userId)return;
+  const date=selectedDate,on=!hlPeriodStart;
+  if(on){ // กันกดพลาด: มีวันแรกอื่นอยู่ใกล้ ๆ (<10 วัน)
+    const near=cycleStartsClean(studentCycle&&studentCycle.starts).find(s=>s!==date&&Math.abs(daysBetweenYmd(s,date))<10);
+    if(near&&!await askConfirm(`มีวันแรกที่จดไว้แล้วคือ ${formatDateShort(near)} (ห่างกัน ${Math.abs(daysBetweenYmd(near,date))} วัน)\n\nจะเพิ่ม ${formatDateShort(date)} เป็นวันแรกอีกวันแน่ใจไหมคะ?`))return;
+  }
+  _periodBusy=true;
+  try{
+    hlPeriodStart=on;_hlTouched=true;
+    const o=Object.assign({},_hlEntryOf(date)||{},{periodStart:on});_hlCache[date]=o;if(dashCache&&dashCache[3])dashCache[3][date]=o;
+    const cur=cycleStartsClean(studentCycle&&studentCycle.starts).filter(s=>s!==date);if(on)cur.push(date);
+    studentCycle=Object.assign({},studentCycle||{},{starts:cur.sort()});
+    const el=document.getElementById('period-card');if(el)el.outerHTML=`<div id="period-card">${_periodCardHtml()}</div>`;
+    const FV=firebase.firestore.FieldValue;
+    const hp=`healthLogs/${user.userId}/days/${date}`;
+    const p1=db.doc(hp).set({periodStart:on,updatedAt:FV.serverTimestamp()},{merge:true});
+    const p2=db.collection('students').doc(user.userId).set({cycle:{starts:on?FV.arrayUnion(date):FV.arrayRemove(date),updatedAt:FV.serverTimestamp()}},{merge:true});
+    const [r1,r2]=await Promise.all([_fsWrite(p1,8000),_fsWrite(p2,8000)]);
+    if(r1==='timeout')_queueBackup(hp+'#period',{periodStart:on,updatedAt:{__ts:Date.now()}});else _dropBackup(hp+'#period');
+    // cycle ใช้ arrayUnion/arrayRemove → คิวสำรองใส่ค่าธรรมดาไม่ได้ ถ้าหมดเวลาให้ Firestore ส่งเองเมื่อเน็ตกลับ (p2 ค้างในคิวของมันอยู่แล้ว)
+    showToast(on?'🩸 จดวันแรกแล้วค่ะ':'เอาวันแรกออกแล้วค่ะ',2000);
+  }catch(e){showToast('⚠️ บันทึกไม่ได้: '+(e&&e.message||''),3000);}
+  finally{_periodBusy=false;}
+}
+// โค้ชตั้งเป้าน้ำรายคน
+async function coachSetWaterGoal(uid){
+  const inp=document.getElementById('wg-in-'+uid);if(!inp)return;
+  const v=Math.round(+inp.value||0);
+  if(v&&(v<500||v>WATER_MAX_ML)){showToast('เป้าน้ำควรอยู่ระหว่าง 500–'+WATER_MAX_ML.toLocaleString()+' ml',3000);return;}
+  try{
+    const r=await _fsWrite(db.collection('students').doc(uid).set({waterGoalMl:v||firebase.firestore.FieldValue.delete()},{merge:true}),8000);
+    if(_sdCache&&_sdCache[uid]&&_sdCache[uid].targets)_sdCache[uid].targets.waterGoalMl=v||0;
+    showToast(r==='timeout'?'📡 เน็ตช้า — จะบันทึกให้เมื่อเน็ตกลับค่ะ':(v?`💧 ตั้งเป้าน้ำ ${v.toLocaleString()} ml แล้ว`:'ใช้ค่าเริ่มต้น '+WATER_GOAL_DEFAULT.toLocaleString()+' ml'),2500);
+    const c=_sdCache&&_sdCache[uid];
+    if(c&&typeof renderStudentDetail==='function'&&document.getElementById('wg-in-'+uid)){const u=(_coachUserMap()||{})[uid];if(u)renderStudentDetail(u,c.targets,c.healthLogs,c.weeklySummaries,c.weeklyChecks);}
+  }catch(e){showToast('⚠️ บันทึกไม่ได้: '+(e&&e.message||''),3000);}
+}
+function _coachWaterGoalRow(uid,goal){
+  return `<div style="display:flex;gap:8px;align-items:center;margin-top:8px;font-size:11px;flex-wrap:wrap">เป้าน้ำของคนนี้
+    <input id="wg-in-${uid}" class="hl-input" type="number" step="250" min="500" max="${WATER_MAX_ML}" value="${goal>0?goal:''}" placeholder="${WATER_GOAL_DEFAULT}" style="width:84px;font-size:13px;padding:5px"> ml
+    <button onclick="coachSetWaterGoal('${uid}')" style="padding:5px 10px;background:var(--light);border:1.5px solid var(--border);border-radius:8px;font-size:11px;font-weight:600;font-family:'Prompt',sans-serif;color:var(--primary-dark);cursor:pointer">💾 ตั้งเป้า</button>
+    <span style="color:var(--gray)">ว่าง = ค่าเริ่มต้น ${WATER_GOAL_DEFAULT.toLocaleString()} ml</span></div>`;
+}
+
 // ===== HEALTH LOG =====
 const MUSCLE_OPTIONS=[
   {key:'full',   icon:'🏋️', label:'เต็มตัว'},
@@ -3202,6 +3500,7 @@ async function _fetchHealthDay(date,_force){
     if(d&&d.exists){
       _hlCache[date]=d.data();
       if(dashCache&&dashCache[3])dashCache[3][date]=d.data();
+      _wpOnFetched(date,d.data()); // v134
       // BUGFIX v63.1: ห้ามวาดทับถ้านักเรียนกำลังพิมพ์อยู่ (ช่องวัดสัดส่วนอยู่หน้าเดียวกัน)
       // เดิมถ้าดึงข้อมูลช้า 6 วิ แล้ววาดใหม่ ตัวเลขที่นักเรียนเพิ่งกรอกจะหายทั้งหมด
       const _ae=document.activeElement;
@@ -3216,9 +3515,11 @@ async function _fetchHealthDay(date,_force){
       }
     }else if(d){
       _hlCache[date]=null;delete _hlFail[date];   // v86: เอกสารไม่มีอยู่จริง — รู้แน่ชัด
+      _wpOnFetched(date,null); // v134
     }else{
       // v86: ดึงไม่สำเร็จ (timeout / error) — ห้ามจำว่า "ไม่มีข้อมูล" เด็ดขาด
       delete _hlCache[date];_hlFail[date]=1;
+      if(typeof _waterRender==='function')_waterRender(); // v134: เอา ⏳ ออก
       if(studentTab==='health'&&selectedDate===date){
         // v94: เดิมวาดใหม่ทันทีโดยไม่เช็คว่านักเรียนกรอกอะไรไปแล้วหรือยัง
         //   เน็ตแย่ + กรอกไปครึ่งฟอร์ม = หายทั้งหมดต่อหน้า ต้องเตือนแทน ไม่ใช่ล้างทิ้ง
@@ -3254,9 +3555,11 @@ function renderHealthLog(){
       hlMuscles=_mgFromEntry(entry); // v93: รองรับทั้ง array ใหม่และสตริงเก่า
       // v94: 0 = "วันนั้นไม่ได้เล่น" ไม่ใช่ "เล่น 0 นาที" — กลับมาเลือกกล้ามเนื้อใหม่ต้องได้ค่าเริ่มต้น
       hlWeightMin=(typeof entry.weightMin==='number'&&entry.weightMin>0)?entry.weightMin:30;
+      _wpLoadFromEntry(entry); // v134
     } else {
       // No saved log for this date — reset to defaults so previous date values don't bleed over
       hlSleep=7.0;hlStress=2;hlSteps=8000;hlCardio=0;hlMuscles=[];hlWeightMin=30;
+      _wpLoadFromEntry(null); // v134
     }
   }
   _hlTouched=false; // v94: วาดฟอร์มใหม่ = ค่าบนจอตรงกับข้อมูลจริงแล้ว เริ่มนับใหม่
@@ -3314,6 +3617,9 @@ function renderHealthLog(){
       </div>
       <div class="hl-hint">ปรับทีละ 5 นาที หรือพิมพ์เองได้</div>
     </div>
+
+    ${_waterCardHtml()}<!-- v134 -->
+    <div id="period-card">${_periodCardHtml()}</div>
 
     <!-- WEIGHT TRAINING -->
     <div class="hl-card">
@@ -3510,7 +3816,8 @@ async function saveHealthLog(){
     // Update local cache so switching tabs & dates shows the latest saved values
     const _hlSaved={sleep:hlSleep,stress:hlStress,steps:hlSteps,cardio:hlCardio,
       muscleGroups:hlMuscles.slice(),muscleGroup:hlMuscles.length?hlMuscles[0]:'none',
-      weightMin:hlMuscles.length?hlWeightMin:0}; // v93
+      weightMin:hlMuscles.length?hlWeightMin:0,
+      water:hlWater,periodStart:hlPeriodStart}; // v93 · v134: น้ำ/ประจำเดือนเขียนแยกไปแล้ว ใส่ไว้ใน cache ให้ครบ
     if(dashCache&&dashCache[3])dashCache[3][_hlDate]=_hlSaved;
     _hlCache[_hlDate]=_hlSaved; // v58: จำไว้ในแท็บนี้ด้วย สลับวันไปกลับจะได้ไม่ต้องดึงใหม่
     delete _hlFail[_hlDate]; // v86: บันทึกแล้ว = รู้ค่าปัจจุบันแน่นอน ไม่ต้องเตือนอีก
@@ -3576,6 +3883,8 @@ async function sendHealthLogCard(hl,dateStr){
     if(_h.stress>0)row('🧠','ความเครียด',_h.stress+'/5');
     if(_h.steps>0)row('👟','ก้าวเดิน',Number(_h.steps).toLocaleString()+' ก้าว');
     if(_h.cardio>0)row('🏃','คาร์ดิโอ',_h.cardio+' นาที');
+    if(+_h.water>0)row('💧','น้ำ',Number(_h.water).toLocaleString()+' / '+_waterGoal().toLocaleString()+' ml'); // v134
+    if(_h.periodStart)row('🩸','ประจำเดือน','วันแรก'); // v134
     // v93: โชว์ทุกส่วนที่เลือก ไม่ใช่แค่ตัวแรก
     if(_mg.length){const _onlyP=_mg.every(k=>k==='pilates');row(_onlyP?'🧘':'🏋️',_onlyP?'พิลาทิส/โยคะ':'เวทเทรนนิ่ง',(_onlyP?'':mgLabels(_mg))+(_h.weightMin>0?` ${_h.weightMin} นาที`:''));} // v129
     if(!rows.length)return; // ไม่กรอกอะไรเลย → ไม่ส่ง card
@@ -3921,6 +4230,7 @@ function selDate(str,el){
   // v91: แท็บสุขภาพผูกกับวันที่ — ถ้าไม่วาดใหม่ หน้าจะโชว์เลขของวันเก่า
   //   แต่ saveHealthLog เขียนลง selectedDate ตัวใหม่ = ข้อมูลวันเก่าถูกก๊อปไปทับวันใหม่เงียบๆ
   //   (แท็บ log ไม่ต้องวาดใหม่ ฟอร์มไม่ได้อิงวันที่จนกว่าจะกดส่ง)
+  _wpLoadFromEntry(_hlEntryOf(str));_waterRender(); // v134: แถบน้ำผูกกับวันที่เลือก
   if(typeof studentTab!=='undefined'&&studentTab==='health'&&typeof renderHealthLog==='function')renderHealthLog();
 }
 
@@ -5789,7 +6099,7 @@ async function loadDashboard(forceRefresh=false,silent=false){ // v51: silent = 
     if(td2&&td2.exists)applyTargets(td2);
     let targets={kcal:TARGETS.kcal,c:TARGETS.c,p:TARGETS.p,f:TARGETS.f};
     let coachNotes='';
-    if(td2&&td2.exists){const dd=td2.data();if(dd.coachNotes)coachNotes=dd.coachNotes;}
+    if(td2&&td2.exists){const dd=td2.data();if(dd.coachNotes)coachNotes=dd.coachNotes;if(dd.cycle)studentCycle=dd.cycle;studentWaterGoal=+dd.waterGoalMl||0;} // v134: รีเฟรชรอบ/เป้าน้ำ
     let healthLogs={};
     if(hs)hs.docs.forEach(d=>{healthLogs[d.id]=d.data();});
     let weeklyChecks=[];
@@ -5866,7 +6176,8 @@ function renderStudentDashboard(subs, targets, coachNotes, healthLogs, weeklyChe
 
   const macro7Html=buildMacro7Html(MON,TH_SHORT,byDate,targets);
   const zigzagHtml=buildStudentZigzagSection(MON,TH_SHORT,byDate,targets);
-  const lifestyleHtml=buildLifestyleSection(MON,TH_SHORT,healthLogs);
+  const lifestyleHtml=buildLifestyleSection(MON,TH_SHORT,healthLogs,{waterGoal:_waterGoal()}); // v134
+  const cycleHtml=buildCycleCard(studentCycle,today,{gender:studentProfile&&studentProfile.gender}); // v134
   // v105: นักเรียนแก้ "ผลการวัดของตัวเอง" ได้ (วันเริ่ม/วันจบคอร์สยังเป็นของโค้ชเท่านั้น — อยู่คนละส่วน)
   const progressHtml=buildProgressSection(weeklyChecks,user.userId,true);
   const weeklyHtml=buildStudentWeeklySummary(subs,byDate,healthLogs,weeklySummaries);
@@ -5895,6 +6206,7 @@ function renderStudentDashboard(subs, targets, coachNotes, healthLogs, weeklyChe
       ${macro7Html}
       ${progressHtml}
       ${zigzagHtml}
+      ${cycleHtml}
       ${lifestyleHtml}
       ${weeklyHtml}
     </div>`;
@@ -6017,7 +6329,7 @@ async function loadStudentsRegistry(force){
         if(_isCoachId(d.id))return;                  // v78: ตัวโค้ชเอง + โค้ชคนอื่น (รวมที่เพิ่มผ่าน coaches)
         const x=d.data()||{};
         m[d.id]={displayName:x.displayName||'',pictureUrl:x.pictureUrl||'',tz:x.tz||null,
-          lastSeenAt:x.lastSeenAt||null,programStart:x.programStart||'',isPaused:!!x.isPaused};
+          lastSeenAt:x.lastSeenAt||null,programStart:x.programStart||'',isPaused:!!x.isPaused,cycle:x.cycle||null}; // v134: ไว้ทำป้าย Stage
       });
       _stuReg=m;_stuRegAt=Date.now();
       // วาดใหม่รอบเดียวตอนทะเบียนมาถึง (รอบถัดไปจะติด cache 5 นาที ไม่วนซ้ำ)
@@ -6524,6 +6836,7 @@ function buildStudentCard(u,MON){
           ${streak>0?`<span class="stu-streak" title="${_subsTruncated?'ข้อมูลเกินเพดานที่ดึงมา ตัวเลขจริงอาจมากกว่านี้':''}">🔥 ${streak}${_subsTruncated?'+':''} วัน</span>`:''}
           ${showTestiBadge?`<span class="stu-testimonial-badge">⭐ ขอ Review</span>`:''}
           ${_statusBadge}
+          ${cycleBadgeHtml(_rg&&_rg.cycle,todayStrTZ(_tzc))}
         </div>
         <div style="font-size:11px;color:var(--gray);margin-top:2px">avg ${avgKcal} kcal/วัน <span style="font-size:9px">(สัปดาห์นี้)</span> · log ${uniqueDays}${_subsTruncated?'+':''} วัน</div>
       </div>
@@ -6605,6 +6918,7 @@ async function _prefetchRun(userId){
       targets.profile=d.profile||null; // v70.1 ลืมก๊อปมา → การ์ดข้อมูลพื้นฐานว่างตลอด
       targets.onboard=d.onboard||null; // v124: แถบเริ่มคอร์ส x/9 + สวิตช์รูปหุ่น (targets ไม่ใช่เอกสารดิบ ต้องก๊อปมาเหมือน profile)
       targets.progressPhotoMeta=d.progressPhotoMeta||null;targets.consentStatus=d.consentStatus||'';targets.baCard=d.baCard||null; // v130
+      targets.cycle=d.cycle||null;targets.waterGoalMl=+d.waterGoalMl||0; // v134
     }
     // NB7: prefetch ล้มบางส่วน (เน็ตช้า) → อย่า cache — ไม่งั้นหน้านักเรียนจะโชว์ "ไม่มีข้อมูล" ทั้งที่มี
     if(tdSnap&&hsSnap&&wsSnap&&wcSnap){
@@ -6651,7 +6965,7 @@ async function openStudentDetail(userId){
         const hl=await db.collection('healthLogs').doc(userId).collection('days').where(firebase.firestore.FieldPath.documentId(),'>=',_hld(30)).get().catch(e=>{console.error('[HL bg]',e?.code,e?.message);_hlBgErr=e?.code||'error';return null;});
         const el=document.getElementById('sd-lifestyle-'+userId);
         if(_hlBgErr){if(el)el.innerHTML=`<div style="padding:16px;text-align:center;color:#EF4444;font-size:13px">⚠️ health log โหลดไม่ได้<br><code style="font-size:11px;background:#FEE2E2;padding:2px 6px;border-radius:4px">${_hlBgErr}</code><br><small style="color:#6B7280">กด 🐞 ด้านล่างเพื่อดู console</small></div>`;}
-        else if(hl&&!hl.empty){hl.docs.forEach(d=>{c.healthLogs[d.id]=d.data();});if(el)el.innerHTML=buildLifestyleSection(MON,TH_SHORT,c.healthLogs);}
+        else if(hl&&!hl.empty){hl.docs.forEach(d=>{c.healthLogs[d.id]=d.data();});if(el)el.innerHTML=buildLifestyleSection(MON,TH_SHORT,c.healthLogs,{waterGoal:+(c.targets&&c.targets.waterGoalMl)||0,coachUid:userId});} // v134
       }catch(e){}})();
       return;
   }
@@ -6674,6 +6988,7 @@ async function openStudentDetail(userId){
     targets.profile=d.profile||null; // v70.1 ลืมก๊อปมา → การ์ดข้อมูลพื้นฐานว่างตลอด
     targets.onboard=d.onboard||null; // v124: แถบเริ่มคอร์ส x/9 + สวิตช์รูปหุ่น (targets ไม่ใช่เอกสารดิบ ต้องก๊อปมาเหมือน profile)
       targets.progressPhotoMeta=d.progressPhotoMeta||null;targets.consentStatus=d.consentStatus||'';targets.baCard=d.baCard||null; // v130
+      targets.cycle=d.cycle||null;targets.waterGoalMl=+d.waterGoalMl||0; // v134
   }
   // v74 BUGFIX: Phase 2 (ล่างลงไป) มีการ์ดนี้อยู่แล้ว แต่ Phase 1 ลืมใส่
   // โค้ชกดดู A (เน็ตช้า) แล้วกด B ต่อ → ข้อมูล A มาถึงทีหลังแล้ววาดทับ แต่หัวข้อยังเป็นชื่อ B
@@ -6717,7 +7032,7 @@ async function openStudentDetail(userId){
     const byDate={};realSubs(u.subs).forEach(s=>{const k=subDate(s);if(!byDate[k])byDate[k]=[];byDate[k].push(s);}); // v48
     const lsEl=document.getElementById('sd-lifestyle-'+userId);
     if(_hlE){if(lsEl)lsEl.innerHTML=`<div style="padding:16px;text-align:center;color:#EF4444;font-size:13px;font-family:'Prompt',sans-serif">📡 โหลด health log ไม่ได้ (${_hlE})<br><small style="color:#6B7280">ปิดหน้านี้แล้วเปิดใหม่อีกครั้งค่ะ</small></div>`;}
-    else if(lsEl)lsEl.innerHTML=buildLifestyleSection(MON,TH_SHORT,healthLogs);
+    else if(lsEl)lsEl.innerHTML=buildLifestyleSection(MON,TH_SHORT,healthLogs,{waterGoal:+targets.waterGoalMl||0,coachUid:userId}); // v134
     const wsEl=document.getElementById('sd-weekly-'+userId);
     if(wsEl){
       // NB7: ล้มเหลว ≠ ไม่มีข้อมูล — บอกตรงๆ ให้เปิดใหม่ แทนโชว์หน้าว่าง
@@ -7811,7 +8126,8 @@ function renderStudentDetail(u, targets, healthLogs, weeklySummaries={}, weeklyC
   const zigzagHtml=buildZigzagSection(MON, TH_SHORT, byDate, targets, u.userId, _tz); // v73
 
   // --- LIFESTYLE 7 วัน ---
-  const lifestyleHtml=buildLifestyleSection(MON, TH_SHORT, healthLogs);
+  const lifestyleHtml=buildLifestyleSection(MON, TH_SHORT, healthLogs,{waterGoal:+targets.waterGoalMl||0,coachUid:uid}); // v134
+  const cycleHtml=buildCycleCard(targets.cycle,todayStrTZ(_tz),{forCoach:true,gender:targets.profile&&targets.profile.gender}); // v134
 
   // --- WEEKLY SUMMARY ACCORDION ---
   const weeklyHtml=buildWeeklySummaryAccordion(u, byDate, targets, healthLogs, weeklySummaries);
@@ -7828,11 +8144,12 @@ function renderStudentDetail(u, targets, healthLogs, weeklySummaries={}, weeklyC
     📅 ดูย้อนหลังเพิ่มเติม
   </button>`:'';
   const baHtml=_baSectionHtml(uid,targets); // v130
-  document.getElementById('sd-content').innerHTML=profileHtml+onboardHtml+planSectionHtml+progHtml+baHtml+notesHtml+targHtml+macro7Html+`<div id="sd-progress-${uid}">${progressHtml}</div>`+zigzagHtml+`<div id="sd-lifestyle-${uid}">${lifestyleHtml}</div>`+`<div id="sd-weekly-${uid}">${weeklyHtml}</div>`+loadMoreBtn;
+  document.getElementById('sd-content').innerHTML=profileHtml+onboardHtml+planSectionHtml+progHtml+baHtml+cycleHtml+notesHtml+targHtml+macro7Html+`<div id="sd-progress-${uid}">${progressHtml}</div>`+zigzagHtml+`<div id="sd-lifestyle-${uid}">${lifestyleHtml}</div>`+`<div id="sd-weekly-${uid}">${weeklyHtml}</div>`+loadMoreBtn;
 }
 
 // ===== LIFESTYLE 7 วัน (bar charts) =====
-function buildLifestyleSection(MON, TH_SHORT, healthLogs){
+function buildLifestyleSection(MON, TH_SHORT, healthLogs, opts){
+  opts=opts||{}; // v134: {waterGoal, coachUid}
   const BAR_H=120;
   const STRESS_COLORS=['','#22C55E','#86EFAC','#FCD34D','#F97316','#EF4444'];
   const MUSCLE_EMOJI={full:'🏋️',legs:'🦵',chest:'💪',back:'🔙',shoulder:'🦾',arms:'💪',core:'🔥',pilates:'🧘',none:''}; // v129
@@ -7842,6 +8159,8 @@ function buildLifestyleSection(MON, TH_SHORT, healthLogs){
   const stressArr=MON.map(d=>healthLogs[d]?.stress??null);
   const stepsArr=MON.map(d=>healthLogs[d]?.steps??null);
   const cardioArr=MON.map(d=>healthLogs[d]?.cardio??null);
+  const _wGoal=_waterGoal(opts.waterGoal); // v134
+  const waterArr=MON.map(d=>{const e=healthLogs[d];return (e&&+e.water>0)?+e.water:null;}); // v134: ไม่กรอก = null ไม่ใช่ 0
   // v93: อ่าน muscleGroups ก่อน ถ้าไม่มีค่อยตกไปใช้ muscleGroup ตัวเก่า
   const _mgOf=d=>{const e=healthLogs[d];if(!e)return [];
     if(Array.isArray(e.muscleGroups))return e.muscleGroups.filter(k=>k&&k!=='none');
@@ -7892,6 +8211,8 @@ function buildLifestyleSection(MON, TH_SHORT, healthLogs){
     fmtFn:v=>v===0?'—':v+'m'
   });
 
+  const waterBars=makeBars(waterArr,{min:0,max:Math.max(Math.round(_wGoal*1.25),2500),color:'',colorFn:v=>v>=_wGoal?'linear-gradient(to top,#1D4ED8,#3B82F6)':'linear-gradient(to top,#93C5FD,#BFDBFE)',iconFn:()=>'',fmtFn:v=>v>=1000?(Math.round(v/100)/10)+'L':v}); // v134
+  const avgWater=Math.round(numAvg(waterArr)),waterHit=waterArr.filter(v=>v!==null&&v>=_wGoal).length;
   const avgSleep=numAvg(sleepArr).toFixed(1);
   const avgSteps=numAvg(stepsArr)>=1000?(numAvg(stepsArr)/1000).toFixed(1)+'k':Math.round(numAvg(stepsArr));
   const avgCardio=Math.round(numAvg(cardioArr));
@@ -7929,6 +8250,13 @@ function buildLifestyleSection(MON, TH_SHORT, healthLogs){
       <div class="ls-scale-lbl">สเกล 0–60 นาที</div>
     </div>
 
+    <div class="ls-chart-card" style="border-color:#BFDBFE">
+      <div class="ls-ch"><span class="ls-ctitle">💧 ดื่มน้ำ</span><span class="ls-cavg">${numDays(waterArr)?`avg ${avgWater.toLocaleString()} ml${_dayNote(waterArr)} · ถึงเป้า ${waterHit}/${numDays(waterArr)} วัน`:'ยังไม่ได้จด'}</span></div>
+      <div class="ls-bars">${waterBars}</div>
+      <div class="ls-scale-lbl">เป้า ${_wGoal.toLocaleString()} ml/วัน · สีเข้ม = ถึงเป้า</div>
+      ${opts.coachUid?_coachWaterGoalRow(opts.coachUid,+opts.waterGoal||0):''}
+    </div>
+
     <div class="ls-chart-card">
       <div class="ls-ch"><span class="ls-ctitle">🏋️ เวทเทรนนิ่ง / 🧘 พิลาทิส</span><span class="ls-cavg">สเกล 0–60 นาที</span></div>
       <div class="ls-bars">${weightBars}</div>
@@ -7941,6 +8269,7 @@ function buildLifestyleSection(MON, TH_SHORT, healthLogs){
         <div class="ls-avg-box"><div class="ls-avg-num">${avgSleep}</div><div class="ls-avg-lbl">😴 นอน ชม.</div></div>
         <div class="ls-avg-box"><div class="ls-avg-num">${avgSteps}</div><div class="ls-avg-lbl">👟 ก้าว</div></div>
         <div class="ls-avg-box"><div class="ls-avg-num">${avgCardio}</div><div class="ls-avg-lbl">🏃 คาร์ดิโอ</div></div>
+        <div class="ls-avg-box"><div class="ls-avg-num">${numDays(waterArr)?(avgWater>=1000?(Math.round(avgWater/100)/10)+'L':avgWater):'—'}</div><div class="ls-avg-lbl">💧 น้ำ/วัน</div></div>
       </div>
     </div>
   </div>`;
@@ -9005,7 +9334,7 @@ function buildStudentWeeklySummary(subs, byDate, healthLogs, weeklySummaries){
     //   เดิมหารด้วยจำนวนวันที่บันทึกทั้งหมด ทำให้เลขสองที่ในหน้าเดียวกันไม่ตรงกัน
     const _hlA=k=>{const v=hlDates.map(d=>+(healthLogs[d]||{})[k]||0).filter(x=>x>0);
       return{a:v.length?v.reduce((x,y)=>x+y,0)/v.length:0,n:v.length};};
-    const _hlS=_hlA('sleep'),_hlT=_hlA('steps'),_hlC=_hlA('cardio');
+    const _hlS=_hlA('sleep'),_hlT=_hlA('steps'),_hlC=_hlA('cardio'),_hlW=_hlA('water'); // v134
     const hlAvgSleep=hlDates.length?Math.round(_hlS.a*10)/10:null;
     const hlAvgSteps=hlDates.length?Math.round(_hlT.a):null;
     const hlAvgCardio=hlDates.length?Math.round(_hlC.a):null;
@@ -9032,6 +9361,7 @@ function buildStudentWeeklySummary(subs, byDate, healthLogs, weeklySummaries){
           <span class="stu-chip">😴 นอน avg ${hlAvgSleep} ชม. (${_hlS.n} วัน)</span>
           <span class="stu-chip">👟 ก้าว avg ${hlAvgSteps>=1000?(hlAvgSteps/1000).toFixed(1)+'k':hlAvgSteps} (${_hlT.n} วัน)</span>
           <span class="stu-chip">🏃 ${_hlC.n?`คาร์ดิโอ avg ${hlAvgCardio} นาที (${_hlC.n} วัน)`:'ไม่ได้คาร์ดิโอเลย'}</span>
+          ${_hlW.n?`<span class="stu-chip">💧 น้ำ avg ${Math.round(_hlW.a).toLocaleString()} ml (${_hlW.n} วัน)</span>`:''}
         </div>`:''}
         ${coachNote
           ?`<div style="background:#FFFBEB;border:1.5px solid #FDE68A;border-radius:10px;padding:11px;margin-top:4px">
@@ -9085,7 +9415,7 @@ function buildWeeklySummaryAccordion(u, byDate, targets, healthLogs, weeklySumma
     //   เดิมหารด้วยจำนวนวันที่บันทึกทั้งหมด ทำให้เลขสองที่ในหน้าเดียวกันไม่ตรงกัน
     const _hlA=k=>{const v=hlDates.map(d=>+(healthLogs[d]||{})[k]||0).filter(x=>x>0);
       return{a:v.length?v.reduce((x,y)=>x+y,0)/v.length:0,n:v.length};};
-    const _hlS=_hlA('sleep'),_hlT=_hlA('steps'),_hlC=_hlA('cardio');
+    const _hlS=_hlA('sleep'),_hlT=_hlA('steps'),_hlC=_hlA('cardio'),_hlW=_hlA('water'); // v134
     const hlAvgSleep=hlDates.length?Math.round(_hlS.a*10)/10:null;
     const hlAvgSteps=hlDates.length?Math.round(_hlT.a):null;
     const hlAvgCardio=hlDates.length?Math.round(_hlC.a):null;
@@ -9110,6 +9440,7 @@ function buildWeeklySummaryAccordion(u, byDate, targets, healthLogs, weeklySumma
           <span class="stu-chip">😴 นอน avg ${hlAvgSleep} ชม. (${_hlS.n} วัน)</span>
           <span class="stu-chip">👟 ก้าว avg ${hlAvgSteps>=1000?(hlAvgSteps/1000).toFixed(1)+'k':hlAvgSteps} (${_hlT.n} วัน)</span>
           <span class="stu-chip">🏃 ${_hlC.n?`คาร์ดิโอ avg ${hlAvgCardio} นาที (${_hlC.n} วัน)`:'ไม่ได้คาร์ดิโอเลย'}</span>
+          ${_hlW.n?`<span class="stu-chip">💧 น้ำ avg ${Math.round(_hlW.a).toLocaleString()} ml (${_hlW.n} วัน)</span>`:''}
         </div>`:''}
         <div style="font-size:11px;font-weight:600;color:var(--gray);margin-bottom:4px">📝 โน้ตโค้ช</div>
         <textarea id="wnote-${weekId}" rows="2"
