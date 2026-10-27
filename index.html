@@ -457,6 +457,33 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
 .ck2 div{background:#F9FAFB;border:1px solid #E5E7EB;border-radius:10px;padding:7px 8px;font-size:10.5px;line-height:1.5;color:var(--gray)}
 .ck2 b{font-size:14px;display:block;color:var(--text)}
 .cbadge{font-size:11px;border:1px solid;border-radius:12px;padding:2px 7px;font-weight:600}
+/* v135: ส่งออกข้อมูลให้ AI + รูป Dashboard เต็มจอ */
+#ex-sheet{display:none;position:fixed;inset:0;z-index:9990}
+.ex-scrim{position:absolute;inset:0;background:rgba(0,0,0,.4)}
+.ex-panel{position:absolute;left:0;right:0;bottom:0;max-height:92vh;overflow-y:auto;background:#fff;border-radius:20px 20px 0 0;padding:12px 14px calc(16px + env(safe-area-inset-bottom));box-shadow:0 -8px 30px rgba(0,0,0,.18);font-family:'Prompt',sans-serif;max-width:560px;margin:0 auto}
+.ex-grab{width:40px;height:4px;border-radius:2px;background:#D1D5DB;margin:0 auto 10px}
+.ex-t{font-size:15px;font-weight:700;flex:1}
+.ex-x{border:none;background:#F3F4F6;border-radius:50%;width:30px;height:30px;font-size:14px;cursor:pointer}
+.ex-s{font-size:11px;color:var(--gray);margin:2px 0 10px}
+.ex-chips{display:flex;gap:6px;margin-bottom:10px}
+.ex-chip{flex:1;padding:8px 0;border-radius:999px;border:1.5px solid #E5E7EB;font-size:12px;background:#F9FAFB;font-family:'Prompt',sans-serif;cursor:pointer}
+.ex-chip.on{border-color:var(--primary);background:var(--light);color:var(--primary-dark);font-weight:700}
+.ex-incs{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px}
+.ex-inc{font-size:11px;padding:4px 9px;border-radius:999px;background:#ECFDF5;color:#065F46;border:1px solid #A7F3D0;font-family:'Prompt',sans-serif;cursor:pointer}
+.ex-inc.off{background:#F3F4F6;color:#9CA3AF;border-color:#E5E7EB;text-decoration:line-through}
+.ex-warn{font-size:11px;background:#FFFBEB;border:1px solid #FDE68A;color:#92400E;border-radius:8px;padding:6px 9px;margin-bottom:8px;line-height:1.5}
+.ex-pre{display:block;width:100%;height:210px;background:#111827;color:#E5E7EB;border:none;border-radius:10px;padding:9px 10px;font-family:ui-monospace,Menlo,monospace;font-size:10.5px;line-height:1.5;white-space:pre;resize:none}
+.ex-primary{display:block;width:100%;margin-top:10px;padding:13px;border:none;border-radius:12px;background:var(--primary);color:#fff;font-size:15px;font-weight:700;font-family:'Prompt',sans-serif;cursor:pointer}
+.ex-second{display:flex;gap:8px;margin-top:8px}
+.ex-second button{flex:1;padding:10px 4px;border:1.5px solid #E5E7EB;border-radius:10px;background:#fff;font-size:12px;font-weight:600;color:#374151;font-family:'Prompt',sans-serif;cursor:pointer}
+.ex-hint{font-size:10.5px;color:var(--gray);margin-top:8px;line-height:1.5}
+#dash-img-view{display:none;position:fixed;inset:0;z-index:9995;background:#111827;flex-direction:column;font-family:'Prompt',sans-serif}
+.dv-bar{display:flex;align-items:center;gap:10px;padding:calc(10px + env(safe-area-inset-top)) 14px 10px;color:#fff;font-size:13px}
+.dv-x{border:none;background:rgba(255,255,255,.15);color:#fff;border-radius:50%;width:32px;height:32px;font-size:15px;cursor:pointer}
+.dv-scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 10px}
+.dv-scroll img{display:block;width:100%;height:auto;border-radius:8px;-webkit-touch-callout:default;user-select:auto}
+.dv-btns{display:flex;gap:8px;padding:10px 14px calc(12px + env(safe-area-inset-bottom))}
+.dv-btns button{flex:1;padding:11px;border:none;border-radius:10px;background:rgba(255,255,255,.14);color:#fff;font-size:13px;font-weight:600;font-family:'Prompt',sans-serif;cursor:pointer}
 /* HEALTH LOG */
 #panel-health{padding:12px;display:none}
 .hl-card{background:white;border-radius:14px;border:1px solid #E5E7EB;padding:14px;margin-bottom:10px}
@@ -1145,7 +1172,7 @@ function _slowMsg(okText){
 //   (loadSavedMenus ดึงมา .limit(40) อยู่แล้ว 20 จึงยังอยู่ใต้เพดานการอ่าน)
 //   ประกาศไว้บนสุด เพราะถูกใช้ทั้งใน loadStudentData / loadSavedMenus / saveCurrentMenu
 const MENU_CAP=20;
-const APP_VERSION='v134-2026-10-12'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
+const APP_VERSION='v136-2026-10-27'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
 const _errLogged=new Set();let _errCount=0;
 // ═════ v120: บันทึกเหตุการณ์คิวมื้ออาหาร ═════
 // ★ แยกโควตาจาก _reportError โดยตั้งใจ — idb-known/photo-fail ยิงถี่จนกินเพดาน 10 หมด
@@ -6184,13 +6211,13 @@ function renderStudentDashboard(subs, targets, coachNotes, healthLogs, weeklyChe
 
   document.getElementById('dashboard-content').innerHTML=`
     <div style="display:flex;gap:8px;padding:12px 12px 0">
-      <button onclick="downloadDashboard('dashboard-content','my_dashboard','img')"
+      <button onclick="downloadDashboard('dashboard-content','my_dashboard','view')"
         style="flex:1;padding:10px;background:var(--light);border:1.5px solid var(--border);border-radius:10px;font-size:12px;font-weight:600;font-family:'Prompt',sans-serif;color:var(--primary-dark);cursor:pointer">
         📷 บันทึกรูป
       </button>
-      <button onclick="downloadDashboard('dashboard-content','my_dashboard','pdf')"
-        style="flex:1;padding:10px;background:var(--light);border:1.5px solid var(--border);border-radius:10px;font-size:12px;font-weight:600;font-family:'Prompt',sans-serif;color:var(--primary-dark);cursor:pointer">
-        📄 ดาวน์โหลด PDF
+      <button onclick="openExportSheet()"
+        style="flex:1;padding:10px;background:#EEF2FF;border:1.5px solid #A5B4FC;border-radius:10px;font-size:12px;font-weight:600;font-family:'Prompt',sans-serif;color:#3730A3;cursor:pointer">
+        📋 ส่งออกให้ AI
       </button>
     </div>
     <div style="background:white;margin:12px 12px 0;border-radius:14px;padding:14px;border:1px solid #E5E7EB">
@@ -10702,6 +10729,218 @@ function _ensurePdfLibs(){
   }).catch(e=>{_pdfLibsP=null;throw e;});
   return _pdfLibsP;
 }
+// ===== v135: 📋 ส่งออกข้อมูลให้ AI + 📷 รูป Dashboard แบบกดค้างบันทึก =====
+// นักเรียนอยากเอา log ไปให้ AI วิเคราะห์คู่กับ Smartwatch — PDF เดิมเป็น "รูป" AI ต้องเดาตัวเลขจากภาพ
+//   และการดาวน์โหลดไฟล์ในเบราว์เซอร์ของ LINE (iPhone) ไม่แน่นอน → ส่งออกเป็น "ข้อความ" แล้วคัดลอก (ใช้ได้ใน LINE)
+// ★ ห้ามมั่ว: ใช้เฉพาะตัวเลขที่บันทึกจริง (getSubMacros = ค่าหลังโค้ชแก้) · ช่องว่าง = ไม่ได้จด ไม่ใส่ 0 แทน
+// ★ คอขวด: ใช้ข้อมูลที่ Dashboard โหลดไว้แล้ว (healthLogs 40 วัน / weeklyChecks 20 ครั้ง / มื้อ 120 รายการ)
+//   อ่านเพิ่ม 1 คำขอ เฉพาะเมื่อช่วงที่เลือกเก่ากว่ามื้อที่มีในเครื่อง และเครื่องมีครบเพดาน 120 แล้ว (คนกินหลายมื้อ/วัน + เลือก 30 วัน)
+const EX_RANGES=[7,14,30], EX_EXTRA_LIMIT=300;
+const EX_PROMPT='ช่วยวิเคราะห์ข้อมูลอาหารและสุขภาพ {N} วันของฉันด้านล่าง (ถ้าฉันแนบข้อมูลจาก Smartwatch มาด้วย ให้ดูคู่กันเป็นรายวัน)\n'
+  +'1) วันไหนกินเกินหรือขาดเป้า และน่าจะเพราะอะไร\n2) โปรตีนพอตามเป้าไหม\n3) การนอน ก้าวเดิน และการออกกำลังสัมพันธ์กับการกินยังไง\n4) ข้อแนะนำที่ทำได้จริง 3 ข้อ\n'
+  +'ใช้เป้าหมายตามข้อมูลนี้ ห้ามตั้งเป้าใหม่เอง · ช่องที่ว่าง = วันนั้นไม่ได้จด ไม่ใช่ศูนย์\n\n';
+let _ex={days:14,inc:{meals:true,health:true,water:true,body:true,profile:true,period:false},extra:null,extraFor:'',loading:false};
+
+function _exCsv(v){if(v==null||v==='')return '';const s=String(v);return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}
+function _exNum(v,dp){const n=+v;if(!isFinite(n))return '';const k=Math.pow(10,dp||0);return String(Math.round(n*k)/k);}
+// ชื่ออาหารของมื้อ — กติกาเดียวกับการ์ดสรุปวัน (v47.1) + รายการจาก AI ถ้ามี
+function _exMealName(s){
+  let nm='';
+  if(s.mode==='weigh'&&s.weighData&&Array.isArray(s.weighData.aiItems)&&s.weighData.aiItems.length)
+    nm=s.weighData.aiItems.map(it=>[it.name,it.amount].filter(Boolean).join(' ')).join(', ');
+  if(!nm)nm=(s.handData&&s.handData.menuName)||(s.labelData&&(s.labelData.menuName||s.labelData.food))||(s.weighData&&(s.weighData.menuName||s.weighData.food))||'';
+  nm=String(nm).replace(/^AI:\s*/,'').replace(/\s+/g,' ').trim();
+  const desc=s.handData&&s.handData.menuDesc?String(s.handData.menuDesc).replace(/\s+/g,' ').trim():'';
+  if(desc&&nm.indexOf(desc)<0)nm=nm?nm+' ('+desc+')':desc;
+  if(!nm)nm=({hand:'กะด้วยมือ',label:'จากฉลาก',weigh:'AI'})[s.mode]||'มื้อ';
+  return nm.length>90?nm.slice(0,88)+'…':nm;
+}
+// รวบรวมข้อมูลจากของที่มีในเครื่อง → {dates, rows, meals, ...}
+function exBuild(src,opt){
+  opt=opt||{};
+  const days=opt.days||14,today=opt.today||todayStr();
+  const start=shiftYmd(today,-(days-1));
+  const dates=[];for(let i=days-1;i>=0;i--)dates.push(shiftYmd(today,-i));
+  const subs=realSubs(src.subs||[]).filter(s=>{const d=subDate(s);return d>=start&&d<=today;});
+  const byDate={};subs.forEach(s=>{const d=subDate(s);(byDate[d]=byDate[d]||[]).push(s);});
+  const MO={'เช้า':1,'กลางวัน':2,'ว่าง':3,'เย็น':4};
+  const hl=src.healthLogs||{},wcBy={};
+  (src.weeklyChecks||[]).forEach(w=>{const d=w.date||w.id;if(d)wcBy[d]=w;});
+  const starts=new Set(cycleStartsClean(src.cycle&&src.cycle.starts));
+  const rows=dates.map(d=>{
+    const L=byDate[d]||[];let k=0,c=0,p=0,f=0,a=0;
+    L.forEach(s=>{const m=getSubMacros(s);k+=+m.kcal||0;c+=+m.c||0;p+=+m.p||0;f+=+m.f||0;a+=+m.a||0;});
+    const h=hl[d]||null,w=wcBy[d]||null;
+    const mg=h?(Array.isArray(h.muscleGroups)?h.muscleGroups:(h.muscleGroup&&h.muscleGroup!=='none'?[h.muscleGroup]:[])).filter(x=>x&&x!=='none'):[];
+    return {d,n:L.length,kcal:L.length?Math.round(k):null,c:L.length?c:null,p:L.length?p:null,f:L.length?f:null,a:a>0?a:0,
+      sleep:h&&typeof h.sleep==='number'?h.sleep:null,stress:h&&typeof h.stress==='number'?h.stress:null,
+      steps:h&&typeof h.steps==='number'?h.steps:null,cardio:h&&typeof h.cardio==='number'?h.cardio:null,
+      weightMin:h&&mg.length&&+h.weightMin>0?+h.weightMin:(h&&typeof h.sleep==='number'&&!mg.length?0:null),mg,
+      water:h&&+h.water>0?+h.water:null,
+      kg:w&&w.weight_kg!=null?w.weight_kg:null,waist:w&&w.waist_cm!=null?w.waist_cm:null,
+      period:starts.has(d)||!!(h&&h.periodStart)};
+  });
+  const meals=subs.slice().sort((x,y)=>subDate(x)<subDate(y)?-1:subDate(x)>subDate(y)?1:(MO[x.meal]||9)-(MO[y.meal]||9));
+  // ★ บอกตรงๆ ถ้ามื้อในเครื่องไม่ครอบคลุมช่วงที่เลือก (ไม่ให้ AI คิดว่าวันว่าง = ไม่ได้กิน)
+  const all=src.subs||[];
+  const oldest=all.length?all.reduce((m,s)=>{const d=subDate(s);return d<m?d:m;},'9999'):null;
+  const truncated=!!(src.truncated&&oldest&&oldest>start);
+  return {days,today,start,dates,rows,meals,truncated,oldest,anyAlc:rows.some(r=>r.a>0)};
+}
+function exText(B,o){
+  o=o||{};const inc=o.inc||_ex.inc,t=o.targets||{},pf=o.profile||null;
+  const out=[];
+  out.push(`# DO IT FIT Meal Log — ข้อมูล ${B.days} วัน (${formatDateTH(B.start)} – ${formatDateTH(B.today)})`);
+  if(t.kcal)out.push(`# เป้าหมายต่อวัน: ${t.kcal} kcal · คาร์บ ${t.c} g · โปรตีน ${t.p} g · ไขมัน ${t.f} g`);
+  if(inc.profile&&pf){
+    const age=pf.birthDate&&typeof calcAge==='function'?calcAge(pf.birthDate):null;
+    const bits=[pf.gender==='f'?'หญิง':pf.gender==='m'?'ชาย':'',age!=null?'อายุ '+age+' ปี':'',pf.heightCm?'สูง '+pf.heightCm+' ซม.':''].filter(Boolean);
+    if(bits.length)out.push('# ข้อมูลพื้นฐาน: '+bits.join(' · '));
+  }
+  out.push('# วันละ 1 แถว เรียงเก่า→ใหม่ · ช่องว่าง = ไม่ได้จด (ไม่ใช่ศูนย์) · มื้อที่โค้ชแก้แล้วใช้ค่าหลังแก้');
+  if(B.truncated)out.push(`# ⚠️ มื้ออาหารก่อน ${formatDateTH(B.oldest)} ไม่ได้อยู่ในชุดนี้ (ดึงไม่ครบ) — วันก่อนหน้านั้นที่ว่าง = ไม่มีข้อมูล`);
+  const H=['วันที่','kcal','คาร์บ_g','โปรตีน_g','ไขมัน_g'];if(B.anyAlc)H.push('แอลกอฮอล์_g');H.push('จำนวนมื้อ');
+  if(inc.health)H.push('นอน_ชม','เครียด_1-5','ก้าว','คาร์ดิโอ_นาที','เวท_นาที','ส่วนที่เล่น');
+  if(inc.water)H.push('น้ำ_ml');
+  if(inc.body)H.push('น้ำหนัก_kg','รอบเอว_cm');
+  if(inc.period)H.push('ประจำเดือนวันแรก');
+  out.push(H.join(','));
+  B.rows.forEach(r=>{
+    const v=[r.d,r.kcal,_exNum(r.c,0),_exNum(r.p,0),_exNum(r.f,0)];
+    if(r.n===0){v[2]=v[3]=v[4]='';}
+    if(B.anyAlc)v.push(r.a>0?_exNum(r.a,1):(r.n?'0':''));
+    v.push(r.n||'');
+    if(inc.health)v.push(r.sleep,r.stress,r.steps,r.cardio,r.weightMin,(r.mg||[]).length?mgLabels(r.mg):'');
+    if(inc.water)v.push(r.water);
+    if(inc.body)v.push(r.kg,r.waist);
+    if(inc.period)v.push(r.period?'ใช่':'');
+    out.push(v.map(_exCsv).join(','));
+  });
+  if(inc.meals&&B.meals.length){
+    out.push('','# รายการอาหาร (kcal · คาร์บ/โปรตีน/ไขมัน กรัม)');
+    B.meals.forEach(s=>{const m=getSubMacros(s);
+      out.push(`${subDate(s)} ${s.meal||''}: ${_exMealName(s)} — ${m.kcal} kcal · C${_exNum(m.c,0)} P${_exNum(m.p,0)} F${_exNum(m.f,0)}${+m.a>0?' 🍷'+_exNum(m.a,1):''}${s.correction?' (โค้ชแก้)':''}`);});
+  }
+  return out.join('\n');
+}
+function exCsvFile(B,o){ // ไฟล์สำหรับนอก LINE — ตารางรายวันอย่างเดียว
+  const t=exText(B,Object.assign({},o,{inc:Object.assign({},(o&&o.inc)||_ex.inc,{meals:false})}));
+  return '﻿'+t.split('\n').filter(l=>l&&l[0]!=='#').join('\r\n');
+}
+// ----- UI -----
+function _exSrc(){
+  const base=(typeof dashCache!=='undefined'&&dashCache)||null;
+  let subs=(typeof studentSubsCache!=='undefined'&&studentSubsCache)||(base&&base[0])||[];
+  const truncated=subs.length>=_STU_LIMIT;
+  // v136: รวมตาม id — ชุดในเครื่องชนะ (สดกว่า: มื้อใหม่หลังดึง / มื้อค้างคิว / ค่าที่โค้ชเพิ่งแก้)
+  if(_ex.extra&&_ex.extraFor===(user&&user.userId)){const seen=new Set(subs.map(x=>x.id));subs=subs.concat(_ex.extra.filter(x=>!seen.has(x.id)));}
+  return {subs,truncated:truncated&&!(_ex.extra&&_ex.extra.length<EX_EXTRA_LIMIT),
+    healthLogs:base?base[3]:(_hlCache||{}),weeklyChecks:base?base[4]:[],cycle:studentCycle,
+    targets:base?base[1]:{kcal:TARGETS.kcal,c:TARGETS.c,p:TARGETS.p,f:TARGETS.f},partial:!base};
+}
+async function _exMaybeFetch(){
+  const src=_exSrc(),start=shiftYmd(todayStr(),-(_ex.days-1));
+  if(!src.truncated||!user||!user.userId)return;
+  const oldest=src.subs.reduce((m,s)=>{const d=subDate(s);return d<m?d:m;},'9999');
+  if(oldest<=start||_ex.extraFor===user.userId||_ex.loading)return; // v136: กันกดรัวยิงซ้อน
+  _ex.loading=true;_exRender();
+  try{
+    const q=db.collection('submissions').where('userId','==',user.userId).orderBy('createdAt','desc').limit(EX_EXTRA_LIMIT);
+    const snap=await Promise.race([q.get(),new Promise(r=>setTimeout(()=>r(null),10000))]);
+    if(snap&&snap.docs){_ex.extra=snap.docs.map(d=>({id:d.id,...d.data()}));_ex.extraFor=user.userId;}
+  }catch(e){console.log('[ex] extra fetch',e&&e.message);}
+  finally{_ex.loading=false;_exRender();}
+}
+function openExportSheet(){
+  let el=document.getElementById('ex-sheet');
+  if(!el){el=document.createElement('div');el.id='ex-sheet';document.body.appendChild(el);}
+  el.style.display='block';_exRender();_exMaybeFetch();
+}
+function closeExportSheet(){const el=document.getElementById('ex-sheet');if(el)el.style.display='none';}
+function exSetDays(n){_ex.days=n;_exRender();_exMaybeFetch();}
+function exToggle(k){_ex.inc[k]=!_ex.inc[k];_exRender();}
+function _exCurrent(){const src=_exSrc();const B=exBuild(src,{days:_ex.days});return {src,B,text:exText(B,{inc:_ex.inc,targets:src.targets,profile:studentProfile})};}
+function _exRender(){
+  const el=document.getElementById('ex-sheet');if(!el||el.style.display==='none')return;
+  const {src,B,text}=_exCurrent();
+  const chips=EX_RANGES.map(n=>`<button class="ex-chip${_ex.days===n?' on':''}" onclick="exSetDays(${n})">${n} วัน</button>`).join('');
+  const T=[['meals','🍽️ รายการอาหาร'],['health','😴 นอน/ก้าว/ออกกำลัง'],['water','💧 น้ำ'],['body','⚖️ น้ำหนัก/เอว'],['profile','👤 ข้อมูลพื้นฐาน'],['period','🩸 ประจำเดือน']];
+  const inc=T.map(([k,l])=>`<button class="ex-inc${_ex.inc[k]?'':' off'}" onclick="exToggle('${k}')">${l}</button>`).join('');
+  const inLine=typeof liff!=='undefined'&&liff.isInClient&&liff.isInClient();
+  const warn=(_ex.loading?'<div class="ex-warn">⏳ กำลังดึงมื้อเก่าเพิ่มให้ครบช่วง...</div>':'')
+    +(B.truncated&&!_ex.loading?`<div class="ex-warn">⚠️ มื้อก่อน ${formatDateTH(B.oldest)} ดึงไม่ครบ — ในข้อความมีหมายเหตุบอก AI ไว้แล้ว</div>`:'')
+    +(src.partial?'<div class="ex-warn">⚠️ ข้อมูลสุขภาพ/น้ำหนักยังโหลดไม่ครบ — รอ Dashboard โหลดเสร็จแล้วเปิดใหม่จะครบกว่า</div>':'');
+  el.innerHTML=`<div class="ex-scrim" onclick="closeExportSheet()"></div>
+  <div class="ex-panel" role="dialog" aria-label="ส่งออกข้อมูลให้ AI">
+    <div class="ex-grab"></div>
+    <div style="display:flex;align-items:center"><div class="ex-t">📋 ส่งออกข้อมูลให้ AI</div><button class="ex-x" onclick="closeExportSheet()" aria-label="ปิด">✕</button></div>
+    <div class="ex-s">คัดลอกแล้วไปวางใน ChatGPT / Gemini คู่กับข้อมูลจาก Smartwatch ได้เลย</div>
+    <div class="ex-chips">${chips}</div>
+    <div class="ex-incs">${inc}</div>
+    ${warn}
+    <textarea id="ex-text" class="ex-pre" readonly>${escHtml(text)}</textarea>
+    <button class="ex-primary" onclick="exCopy(false)">📋 คัดลอกข้อมูล ${_ex.days} วัน</button>
+    <div class="ex-second"><button onclick="exCopy(true)">💬 คัดลอกพร้อมคำสั่งให้ AI</button>${inLine?'':'<button onclick="exDownloadCsv()">⬇️ ไฟล์ CSV</button>'}</div>
+    <div id="ex-msg" class="ex-hint">ข้อมูลเป็นของคุณเอง ไม่ถูกส่งไปไหนจนกว่าคุณจะวางเอง · ${B.meals.length} มื้อ · ${text.length.toLocaleString()} ตัวอักษร</div>
+  </div>`;
+}
+async function _exCopyText(text){
+  try{if(navigator.clipboard&&navigator.clipboard.writeText&&window.isSecureContext){await navigator.clipboard.writeText(text);return true;}}catch(_){}
+  try{ // ทางสำรอง (เบราว์เซอร์ใน LINE บางรุ่นไม่ให้ใช้ clipboard API)
+    const ta=document.createElement('textarea');ta.value=text;ta.setAttribute('readonly','');
+    ta.style.cssText='position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;font-size:16px';
+    document.body.appendChild(ta);ta.focus();ta.select();try{ta.setSelectionRange(0,text.length);}catch(_){}
+    const ok=document.execCommand&&document.execCommand('copy');document.body.removeChild(ta);if(ok)return true;
+  }catch(_){}
+  return false;
+}
+async function exCopy(withPrompt){
+  const {text}=_exCurrent();
+  const full=(withPrompt?EX_PROMPT.replace('{N}',_ex.days):'')+text;
+  const ok=await _exCopyText(full);
+  const msg=document.getElementById('ex-msg');
+  if(ok){showToast('✅ คัดลอกแล้ว — ไปวางในแอป AI ได้เลย',2600);if(msg)msg.textContent='✅ คัดลอกแล้ว '+full.length.toLocaleString()+' ตัวอักษร — เปิดแอป AI แล้วกดค้างที่ช่องพิมพ์ → วาง';}
+  else{ // คัดลอกอัตโนมัติไม่ได้ → ให้เลือกเองในกล่อง
+    const ta=document.getElementById('ex-text');if(ta){ta.value=full;ta.focus();ta.select();try{ta.setSelectionRange(0,full.length);}catch(_){}}
+    if(msg)msg.innerHTML='<b style="color:#B45309">คัดลอกอัตโนมัติไม่ได้ในเครื่องนี้</b> — กดค้างในกล่องข้อความ → เลือกทั้งหมด → คัดลอก';
+  }
+  try{if(typeof _reportError==='function'&&!ok)_reportError('export-copy-fail',navigator.userAgent.slice(0,120),'','exCopy');}catch(_){}
+}
+function exDownloadCsv(){
+  const {src,B}=_exCurrent();
+  const csv=exCsvFile(B,{inc:_ex.inc,targets:src.targets,profile:studentProfile});
+  try{const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+    const a=document.createElement('a');a.href=url;a.download='meallog_'+B.start+'_'+B.today+'.csv';document.body.appendChild(a);a.click();
+    setTimeout(()=>{try{document.body.removeChild(a);URL.revokeObjectURL(url);}catch(_){}},1500);}
+  catch(e){showToast('⚠️ สร้างไฟล์ไม่ได้: '+(e&&e.message||''),3000);}
+}
+// 📷 รูป Dashboard: โชว์เต็มจอ ให้กดค้างบันทึก (ไม่พึ่งการดาวน์โหลดไฟล์ที่ไม่แน่นอนใน LINE)
+function _dashShowImage(canvas,fname){
+  let url='';
+  try{url=canvas.toDataURL('image/jpeg',0.9);}catch(_){url=canvas.toDataURL('image/png');}
+  let el=document.getElementById('dash-img-view');
+  if(!el){el=document.createElement('div');el.id='dash-img-view';document.body.appendChild(el);}
+  const canShare=!!(navigator.canShare&&navigator.share);
+  el.innerHTML=`<div class="dv-bar"><div style="flex:1"><b>📷 กดค้างที่รูป → บันทึกรูปภาพ</b><div style="font-size:11px;opacity:.85">หรือกดค้าง → แชร์ ส่งให้เพื่อน/ลงโซเชียลได้</div></div><button class="dv-x" onclick="closeDashImage()" aria-label="ปิด">✕</button></div>
+    <div class="dv-scroll"><img id="dash-img" src="${url}" alt="Dashboard ของฉัน"></div>
+    <div class="dv-btns">${canShare?'<button id="dv-share" onclick="dashShareImage()">📤 แชร์รูป</button>':''}<button onclick="dashSaveImage()">⬇️ ดาวน์โหลด</button></div>`;
+  el.dataset.fname=fname;el.style.display='flex';
+}
+function closeDashImage(){const el=document.getElementById('dash-img-view');if(el){el.style.display='none';el.innerHTML='';}}
+async function dashShareImage(){
+  try{const img=document.getElementById('dash-img');const fname=(document.getElementById('dash-img-view').dataset.fname||'dashboard')+'.jpg';
+    const blob=await (await fetch(img.src)).blob();const file=new File([blob],fname,{type:blob.type||'image/jpeg'});
+    if(navigator.canShare&&navigator.canShare({files:[file]}))await navigator.share({files:[file],title:'Dashboard ของฉัน'});
+    else showToast('เครื่องนี้แชร์ไฟล์ไม่ได้ — กดค้างที่รูปแทนนะคะ',3000);
+  }catch(e){if(!(e&&e.name==='AbortError'))showToast('แชร์ไม่สำเร็จ — กดค้างที่รูปแทนนะคะ',3000);}
+}
+function dashSaveImage(){
+  const img=document.getElementById('dash-img');if(!img)return;
+  const a=document.createElement('a');a.download=(document.getElementById('dash-img-view').dataset.fname||'dashboard')+'.jpg';a.href=img.src;
+  document.body.appendChild(a);a.click();setTimeout(()=>{try{document.body.removeChild(a);}catch(_){}},200);
+  showToast('ถ้าไม่มีไฟล์ขึ้น ให้กดค้างที่รูปแทนนะคะ',3000);
+}
+
 async function downloadDashboard(elId, name, type){
   const el=document.getElementById(elId);
   if(!el){showToast('ไม่พบข้อมูล');return;}
@@ -10722,7 +10961,7 @@ async function downloadDashboard(elId, name, type){
     flexDirection:'column',gap:'12px',
     fontFamily:"'Prompt',sans-serif",fontSize:'15px',color:'#374151',
   });
-  overlay.innerHTML=`<div style="font-size:36px">📊</div><div>${type==='pdf'?'กำลังสร้าง PDF...':'กำลังบันทึกรูป...'}</div>`;
+  overlay.innerHTML=`<div style="font-size:36px">📊</div><div>${type==='pdf'?'กำลังสร้าง PDF...':type==='view'?'กำลังสร้างรูป...':'กำลังบันทึกรูป...'}</div>`; // v135
   document.body.appendChild(overlay);
 
   // ดึง overflow ออกจาก parent ทั้งหมด (รวม student-detail ที่เป็น fixed+overflow-y:auto)
@@ -10779,6 +11018,8 @@ async function downloadDashboard(elId, name, type){
       const pdf=new jsPDF({orientation:'portrait',unit:'px',format:[imgW,imgH]});
       pdf.addImage(canvas.toDataURL('image/png'),'PNG',0,0,imgW,imgH);
       pdf.save(fname+'.pdf');
+    }else if(type==='view'){
+      _dashShowImage(canvas,fname); // v135: นักเรียน — โชว์เต็มจอให้กดค้างบันทึก
     }else{
       const a=document.createElement('a');
       a.download=fname+'.png';
@@ -10787,7 +11028,7 @@ async function downloadDashboard(elId, name, type){
       a.click();
       setTimeout(()=>{try{document.body.removeChild(a);}catch(_){}},200);
     }
-    showToast(type==='pdf'?'✅ บันทึก PDF แล้ว':'✅ บันทึกรูปแล้ว');
+    if(type!=='view')showToast(type==='pdf'?'✅ บันทึก PDF แล้ว':'✅ บันทึกรูปแล้ว'); // v135
   }catch(e){showToast('❌ '+e.message);}
   finally{
     saved.forEach(({el,ov,ovy,ovx,h,mh,b})=>{
