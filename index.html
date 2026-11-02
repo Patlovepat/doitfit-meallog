@@ -484,6 +484,37 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
 .dv-scroll img{display:block;width:100%;height:auto;border-radius:8px;-webkit-touch-callout:default;user-select:auto}
 .dv-btns{display:flex;gap:8px;padding:10px 14px calc(12px + env(safe-area-inset-bottom))}
 .dv-btns button{flex:1;padding:11px;border:none;border-radius:10px;background:rgba(255,255,255,.14);color:#fff;font-size:13px;font-weight:600;font-family:'Prompt',sans-serif;cursor:pointer}
+/* v137: มื้ออาหารในหน้านักเรียน + สรุปรายคน */
+.sdm-chips{display:flex;gap:5px;overflow-x:auto;margin:8px 0;-webkit-overflow-scrolling:touch}
+.sdm-chip{flex:1 0 auto;min-width:52px;padding:6px 8px;border:1.5px solid #E5E7EB;border-radius:999px;background:#fff;font-size:11px;font-family:'Prompt',sans-serif;color:var(--text);cursor:pointer;white-space:nowrap}
+.sdm-chip.on{background:var(--light);border-color:var(--primary);color:var(--primary-dark);font-weight:700}
+.sdm-hd{font-size:11px;color:var(--gray);margin:0 0 8px}
+.sdm-hint{font-size:10.5px;color:var(--gray);margin:8px 0 4px;text-align:center}
+.sdm-warn{font-size:11px;background:#FFFBEB;border:1px solid #FDE68A;color:#92400E;border-radius:8px;padding:6px 9px;margin-bottom:8px}
+.sdm-st{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid #E5E7EB;border-radius:12px;padding:10px 11px;margin-bottom:7px;cursor:pointer}
+.sdm-st:active{background:var(--light)}.sdm-st.dim{opacity:.5}
+.sdm-av{width:36px;height:36px;border-radius:50%;background:var(--light);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;overflow:hidden}
+.sdm-av img{width:100%;height:100%;object-fit:cover}
+.sdm-nm{font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sdm-mt{font-size:11px;color:var(--gray);margin-top:2px}
+.sdm-kc{text-align:right;font-size:11px;color:var(--gray);flex-shrink:0}.sdm-kc b{display:block;font-size:14px;color:var(--text)}
+.sdm-bar{height:5px;width:84px;background:#F3F4F6;border-radius:3px;overflow:hidden;margin-top:4px;margin-left:auto}.sdm-bar i{display:block;height:100%}
+.sdm-c{font-size:10px;padding:1px 6px;border-radius:999px;font-weight:600;white-space:nowrap}
+.sdm-c.wait{background:#FEF3C7;color:#92400E}.sdm-c.ok{background:#DCFCE7;color:#166534}.sdm-c.fix{background:#EDE9FE;color:#5B21B6}.sdm-c.none{background:#F3F4F6;color:#6B7280}
+.sdm{border:1.5px solid var(--border)!important}
+.sdm-t{font-size:14px;font-weight:700;display:flex;align-items:center}.sdm-t span{margin-left:auto;font-size:11px;color:var(--gray);font-weight:500}
+.sdm-tot{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin:4px 0 6px}
+.sdm-tot div{background:#F9FAFB;border:1px solid #F3F4F6;border-radius:8px;padding:5px 2px;text-align:center;font-size:10px;color:var(--gray)}
+.sdm-tot b{display:block;font-size:13px;color:var(--text)}.sdm-tot .over b{color:#DC2626}
+.sdm-row{display:flex;gap:9px;align-items:center;padding:9px 2px;border-top:1px solid #F3F4F6;cursor:pointer}
+.sdm-row.open{background:#FFFBEB;border-radius:10px 10px 0 0;padding-left:6px;padding-right:6px}
+.sdm-ic{width:36px;height:36px;border-radius:9px;background:var(--light);display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
+.sdm-mn{font-size:12.5px;font-weight:600;line-height:1.4;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.sdm-mm{font-size:10.5px;color:var(--gray);margin-top:2px}
+.sdm-r{text-align:right;font-size:12px;font-weight:700;flex-shrink:0;line-height:1.5}
+.sdm-card{background:#FFFBEB;border-radius:0 0 10px 10px;padding:4px 4px 6px;margin-bottom:4px}
+.sdm-card .card{margin:0}
+.sdm-empty{font-size:12px;color:var(--gray);text-align:center;padding:14px 0}
 /* HEALTH LOG */
 #panel-health{padding:12px;display:none}
 .hl-card{background:white;border-radius:14px;border:1px solid #E5E7EB;padding:14px;margin-bottom:10px}
@@ -1077,7 +1108,7 @@ body{font-family:'Prompt',sans-serif;background:#f9fafb;color:var(--text);min-he
     <div class="coach-tab active" data-tab="pending" onclick="selCoachTab(this)">
       รออนุมัติ <span class="badge-count" id="pending-count" style="display:none">0</span>
     </div>
-    <div class="coach-tab" data-tab="done" onclick="selCoachTab(this)">อนุมัติแล้ว</div>
+    <div class="coach-tab" data-tab="done" onclick="selCoachTab(this)">🍽️ กินอะไร</div>
     <div class="coach-tab" data-tab="students" onclick="selCoachTab(this)">นักเรียน</div>
     <div class="coach-tab" data-tab="mylog" onclick="selCoachTab(this)">✍️ บันทึก</div>
   </div>
@@ -1172,7 +1203,7 @@ function _slowMsg(okText){
 //   (loadSavedMenus ดึงมา .limit(40) อยู่แล้ว 20 จึงยังอยู่ใต้เพดานการอ่าน)
 //   ประกาศไว้บนสุด เพราะถูกใช้ทั้งใน loadStudentData / loadSavedMenus / saveCurrentMenu
 const MENU_CAP=20;
-const APP_VERSION='v136-2026-10-27'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
+const APP_VERSION='v138-2026-11-02'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
 const _errLogged=new Set();let _errCount=0;
 // ═════ v120: บันทึกเหตุการณ์คิวมื้ออาหาร ═════
 // ★ แยกโควตาจาก _reportError โดยตั้งใจ — idb-known/photo-fail ยิงถี่จนกินเพดาน 10 หมด
@@ -1604,6 +1635,7 @@ const _PHOTO_KEEP=10;
 const _PH_MARGIN='800px 0px'; // เผื่อไว้กว้างพอไม่ให้กะพริบตอนเลื่อนเร็ว
 let _phObs=null;
 function _mountCardPhotos(){
+  try{if(typeof _sdmHook==='function')_sdmHook();}catch(_){} // v137: กันการ์ดซ้ำ + อัปเดตมื้อในหน้านักเรียน
   const box=document.getElementById('cards-container');
   if(!box)return;
   const imgs=box.querySelectorAll('img[data-src]');
@@ -6356,11 +6388,11 @@ async function loadStudentsRegistry(force){
         if(_isCoachId(d.id))return;                  // v78: ตัวโค้ชเอง + โค้ชคนอื่น (รวมที่เพิ่มผ่าน coaches)
         const x=d.data()||{};
         m[d.id]={displayName:x.displayName||'',pictureUrl:x.pictureUrl||'',tz:x.tz||null,
-          lastSeenAt:x.lastSeenAt||null,programStart:x.programStart||'',isPaused:!!x.isPaused,cycle:x.cycle||null}; // v134: ไว้ทำป้าย Stage
+          lastSeenAt:x.lastSeenAt||null,programStart:x.programStart||'',isPaused:!!x.isPaused,cycle:x.cycle||null,targets:x.targets||null}; // v134: ไว้ทำป้าย Stage · v137: เป้า kcal สำหรับแท็บสรุปรายคน
       });
       _stuReg=m;_stuRegAt=Date.now();
       // วาดใหม่รอบเดียวตอนทะเบียนมาถึง (รอบถัดไปจะติด cache 5 นาที ไม่วนซ้ำ)
-      if(Object.keys(m).length!==_before&&coachTab==='students'&&typeof renderCoach==='function')renderCoach();
+      if(Object.keys(m).length!==_before&&(coachTab==='students'||coachTab==='done')&&typeof renderCoach==='function')renderCoach(); // v137: แท็บสรุปรายคนใช้ทะเบียนด้วย
     }else{_stuRegFailAt=Date.now();} // v78: timeout/พัง → จำไว้ แล้วพักก่อนลองใหม่
   }catch(_){_stuRegFailAt=Date.now();}
   finally{_stuRegLoading=false;}
@@ -6638,6 +6670,8 @@ function renderCoach(){
     return;
   }
   if(filterBar)filterBar.style.display='none'; // F-G2: ซ่อนแถบ filter — ซ้ำซ้อนกับ tab รออนุมัติ/อนุมัติแล้ว
+  // v137: แท็บที่ 2 = สรุปรายคนของวันที่เลือก (เดิมเป็นการ์ดของทุกคนปนกัน) — ใช้ allSubs + ทะเบียนที่มีอยู่แล้ว
+  if(coachTab==='done'&&coachFilter!=='pending'){loadStudentsRegistry();container.innerHTML=buildDaySummary();_mountCardPhotos();return;}
   // determine list based on tab + filter
   let list;
   if(coachFilter==='pending') list=pending;
@@ -6964,6 +6998,11 @@ async function _prefetchRun(userId){
 }
 async function openStudentDetail(userId){
   const overlay=document.getElementById('student-detail');
+  // v137: เปิดจากแท็บสรุปรายคน = ไปวันที่เลือกไว้ · เปิดจากที่อื่น = วันนี้ · คนใหม่ = ปิดการ์ดที่กางค้าง
+  const _sdSame=overlay.style.display==='block'&&!!currentStudentData&&currentStudentData.userId===userId; // v138: เปิดซ้ำคนเดิม = รีเฟรช
+  if(!_sdx._fromSum&&!_sdSame)_sdx.day[userId]=0;_sdx._fromSum=false;
+  if(!_sdSame&&_sdx.uid!==userId)_sdx.open=null;
+  if(_sdx._openAfter){_sdx.open=_sdx._openAfter;_sdx._openAfter=null;} // v138 ③
   overlay.style.display='block';
   overlay.scrollTop=0;
   // v77: หาจากทะเบียนด้วย — เดิมหาจาก allSubs อย่างเดียว กดการ์ดคนที่ยังไม่เคยส่งแล้วจอปิดทันที
@@ -7076,6 +7115,9 @@ async function openStudentDetail(userId){
 function closeStudentDetail(){
   document.getElementById('student-detail').style.display='none';
   currentStudentData=null;
+  // v137: ถอดการ์ดที่กางไว้ออกจากหน้านักเรียน (หน้าแค่ถูกซ่อน DOM ยังอยู่ → id ซ้ำกับรายการหลักได้) แล้วคืนการ์ดให้รายการหลัก
+  _sdx.open=null;document.querySelectorAll('#sd-meals .sdm-card').forEach(e=>e.remove());document.querySelectorAll('#sd-meals .sdm-row.open').forEach(e=>e.classList.remove('open'));
+  if(_sdx.stole){_sdx.stole=false;renderCoach();}
 }
 
 async function loadMoreStudentHistory(userId){
@@ -8171,7 +8213,136 @@ function renderStudentDetail(u, targets, healthLogs, weeklySummaries={}, weeklyC
     📅 ดูย้อนหลังเพิ่มเติม
   </button>`:'';
   const baHtml=_baSectionHtml(uid,targets); // v130
-  document.getElementById('sd-content').innerHTML=profileHtml+onboardHtml+planSectionHtml+progHtml+baHtml+cycleHtml+notesHtml+targHtml+macro7Html+`<div id="sd-progress-${uid}">${progressHtml}</div>`+zigzagHtml+`<div id="sd-lifestyle-${uid}">${lifestyleHtml}</div>`+`<div id="sd-weekly-${uid}">${weeklyHtml}</div>`+loadMoreBtn;
+  document.getElementById('sd-content').innerHTML=buildStudentMealsSection(uid,targets)+profileHtml+onboardHtml+planSectionHtml+progHtml+baHtml+cycleHtml+notesHtml+targHtml+macro7Html+`<div id="sd-progress-${uid}">${progressHtml}</div>`+zigzagHtml+`<div id="sd-lifestyle-${uid}">${lifestyleHtml}</div>`+`<div id="sd-weekly-${uid}">${weeklyHtml}</div>`+loadMoreBtn;
+  _sdx.sig=_sdmSig(uid);_sdx.uid=uid;_sdmPhotos();_sdmDedup();_sdmRestore(); // v137 · v138
+}
+
+// ===== v137: 🍽️ มื้ออาหารอยู่ในหน้านักเรียน + แท็บ "🍽️ กินอะไร" (สรุปรายคน) =====
+// คุณน้ำ: "จบวันอยากดูว่านักเรียนคนนั้นกินเมนูอะไรบ้าง เพราะตรวจแต่เช้าแล้วลืม"
+//   เดิม: หน้านักเรียนไม่มีรายการมื้อ · แท็บอนุมัติแล้ว = การ์ดของทุกคนปนกันยาว
+// ★ คอขวด: ใช้ allSubs ที่ดึงมาอยู่แล้ว (เพดาน 800) + ทะเบียน students ที่อ่านอยู่แล้ว (เพิ่มฟิลด์ targets) → ไม่มีคำขอใหม่
+// ★ การ์ดซ้ำ: ฟังก์ชันเดิมหาการ์ดด้วย id (card-xxx, cc-carb-xxx ...) — ถ้ามื้อเดียวกันโผล่ทั้งในรายการรออนุมัติ (ใต้หน้าต่าง)
+//   และในหน้านักเรียน getElementById จะหยิบผิดใบ → ระหว่างกางการ์ดในหน้านักเรียน ให้ถอดใบในรายการออกชั่วคราว
+//   ปิดหน้านักเรียนแล้วค่อยวาดรายการคืน
+const SDM_DAYS=7;
+let _sdx={day:{},open:null,stole:false,sig:'',uid:null,sumDay:0};
+const _SDM_MO={'เช้า':1,'กลางวัน':2,'ว่าง':3,'เย็น':4};
+function _sdmDayLabel(k){return k===0?'วันนี้':k===1?'เมื่อวาน':formatDateShort(shiftYmd(todayStr(),-k));}
+function _sdmTZ(u){return subsTZ(u&&u.subs)||(u&&u._reg&&u._reg.tz)||null;}
+function _sdmDate(u,k){return shiftYmd(todayStrTZ(_sdmTZ(u)),-k);}
+function _sdmDaySubs(u,d){
+  return realSubs((u&&u.subs)||[]).filter(s=>subDate(s)===d)
+    .sort((a,b)=>((_SDM_MO[a.meal]||9)-(_SDM_MO[b.meal]||9))||(((a.createdAt&&a.createdAt.seconds)||0)-((b.createdAt&&b.createdAt.seconds)||0)));
+}
+function _sdmTot(list){let k=0,c=0,p=0,f=0;list.forEach(s=>{const m=getSubMacros(s);k+=+m.kcal||0;c+=+m.c||0;p+=+m.p||0;f+=+m.f||0;});return {k:Math.round(k),c:Math.round(c),p:Math.round(p),f:Math.round(f)};}
+function _sdmState(s){
+  if(s.status==='pending')return {k:'wait',t:'⏳ รอ'};
+  if(s.status==='rejected')return {k:'none',t:'✗ ขอส่งใหม่'};
+  if(s.correction)return {k:'fix',t:'✏️ แก้'};
+  return {k:'ok',t:'✅'};
+}
+// สีแถบ: เทียบ kcal กับเป้า — ห่างเกิน 10% ขึ้นไป = เกิน (แดง) · ต่ำกว่า 70% = ต่ำมาก (ส้ม) · นอกนั้น = ใกล้เป้า (เขียว)
+function _sdmBarColor(k,t){if(!t)return '#9CA3AF';const r=k/t;return r>1.1?'#EF4444':r<0.7?'#F59E0B':'#22C55E';}
+function _sdmChips(cur,fn){let h='';for(let k=0;k<SDM_DAYS;k++)h+=`<button class="sdm-chip${k===cur?' on':''}" onclick="${fn}(${k})">${_sdmDayLabel(k)}</button>`;return `<div class="sdm-chips">${h}</div>`;}
+function _sdmTrunc(d){ // วันที่เลือกเก่ากว่ามื้อที่ดึงมาได้ → บอกตรงๆ ว่าอาจไม่ครบ
+  if(!_subsTruncated||!allSubs.length)return '';
+  const oldest=allSubs.reduce((m,s)=>{const x=subDate(s);return x<m?x:m;},'9999');
+  return d<=oldest?`<div class="sdm-warn">⚠️ แอปโค้ชดึงได้ 800 มื้อล่าสุด — มื้อของวันนี้ (${formatDateShort(d)}) อาจไม่ครบ</div>`:'';
+}
+
+// ── แท็บ "🍽️ วันนี้กินอะไร" ──
+function buildDaySummary(){
+  const k=_sdx.sumDay||0;
+  const users=Object.values(_coachUserMap());
+  const rows=users.map(u=>{
+    const d=_sdmDate(u,k),L=_sdmDaySubs(u,d),T=_sdmTot(L);
+    const wait=L.filter(s=>s.status==='pending').length,fix=L.filter(s=>s.status!=='pending'&&s.correction).length;
+    const last=L.reduce((m,s)=>Math.max(m,(s.createdAt&&s.createdAt.seconds)||0),0);
+    return {u,d,L,T,wait,fix,last,tgt:+(u._reg&&u._reg.targets&&u._reg.targets.kcal)||0,paused:!!(u._reg&&u._reg.isPaused)};
+  });
+  rows.sort((a,b)=>(b.wait>0)-(a.wait>0)||b.wait-a.wait||(b.L.length>0)-(a.L.length>0)||b.last-a.last||String(a.u.displayName||'').localeCompare(String(b.u.displayName||''),'th'));
+  const sent=rows.filter(r=>r.L.length).length;
+  const html=rows.map(r=>{
+    const u=r.u,uid=safeUidArg(u.userId);
+    const av=u.pictureUrl?`<img src="${safeImg(u.pictureUrl)}" alt="" onerror="this.style.display='none'">`:'👤';
+    if(!r.L.length)return `<div class="sdm-st dim" onclick="openMealsFor('${uid}',${k})"><div class="sdm-av">${av}</div><div style="flex:1;min-width:0"><div class="sdm-nm">${escHtml(u.displayName||'นักเรียน')}</div><div class="sdm-mt"><span class="sdm-c none">${k===0?'ยังไม่ส่งวันนี้':'ไม่ได้ส่งวันนั้น'}</span>${r.paused?' · พักคอร์ส':''}</div></div><div class="sdm-kc">—</div></div>`;
+    const chip=r.wait?`<span class="sdm-c wait">⏳ รอ ${r.wait}</span>`:r.fix?`<span class="sdm-c fix">✏️ แก้ ${r.fix}</span>`:`<span class="sdm-c ok">✅ ตรวจครบ</span>`;
+    const pct=r.tgt?Math.min(100,Math.round(r.T.k/r.tgt*100)):0,col=_sdmBarColor(r.T.k,r.tgt);
+    return `<div class="sdm-st" onclick="openMealsFor('${uid}',${k})"><div class="sdm-av">${av}</div><div style="flex:1;min-width:0"><div class="sdm-nm">${escHtml(u.displayName||'นักเรียน')}</div><div class="sdm-mt">${r.L.length} มื้อ · ${chip}${r.paused?' · พักคอร์ส':''}</div></div>
+      <div class="sdm-kc"><b style="color:${r.tgt&&r.T.k>r.tgt*1.1?'#DC2626':'inherit'}">${r.T.k.toLocaleString()}</b>${r.tgt?`/ ${r.tgt.toLocaleString()} kcal<div class="sdm-bar"><i style="width:${pct}%;background:${col}"></i></div>`:'kcal'}</div></div>`;
+  }).join('');
+  const today=todayStr(),dRef=shiftYmd(today,-k);
+  return `${_sdmChips(k,'sumSetDay')}<div class="sdm-hd">${sent} คนส่งแล้ว · ${rows.length-sent} คนยังไม่ส่ง · คนที่ยังมีมื้อรอตรวจขึ้นก่อน</div>${_sdmTrunc(dRef)}
+    ${html||'<div class="empty-state"><div class="es-icon">👤</div><p>ยังไม่มีนักเรียนค่ะ</p></div>'}
+    <div class="sdm-hint">แตะชื่อ → เปิดหน้านักเรียนที่มื้อของวันนั้น · แถบ: 🟢 ใกล้เป้า 🟠 ต่ำกว่า 70% 🔴 เกินเป้าเกิน 10%</div>`;
+}
+function sumSetDay(k){_sdx.sumDay=k;renderCoach();}
+function openMealsFor(uid,k){if(!uid)return;_sdx.day[uid]=k;_sdx.open=null;_sdx._fromSum=true;openStudentDetail(uid);}
+
+// ── ส่วน "🍽️ มื้ออาหาร" บนหน้านักเรียน ──
+function buildStudentMealsSection(uid,targets){
+  const u=_coachUser(uid)||{userId:uid,subs:[]};
+  const k=_sdx.day[uid]||0,d=_sdmDate(u,k),L=_sdmDaySubs(u,d),T=_sdmTot(L);
+  if(_sdx.open&&!L.some(s=>s.id===_sdx.open))_sdx.open=null; // v138 ②: มื้อที่กางถูกย้ายวัน/ลบ → ยุบ
+  const tg=targets||{};
+  const box=(lbl,v,t)=>`<div class="${t&&v>t*1.1?'over':''}">${lbl}<b>${v.toLocaleString()}</b>${t?'/'+t:''}</div>`;
+  const ICON={hand:'👊',label:'🏷️',weigh:'✨'};
+  const rows=L.map(s=>{
+    const m=getSubMacros(s),st=_sdmState(s),open=_sdx.open===s.id;
+    const tm=s.createdAt&&s.createdAt.toDate?formatTime(s.createdAt.toDate()):'';
+    const row=`<div class="sdm-row${open?' open':''}" onclick="sdMealToggle('${s.id}')"><div class="sdm-ic">${ICON[s.mode]||'🍽️'}</div>
+      <div style="flex:1;min-width:0"><div class="sdm-mn">${escHtml(_exMealName(s))}</div><div class="sdm-mm">${escHtml(s.meal||'')}${tm?' '+tm:''} · C${Math.round(+m.c||0)} P${Math.round(+m.p||0)} F${Math.round(+m.f||0)}</div></div>
+      <div class="sdm-r">${m.kcal}<br><span class="sdm-c ${st.k}">${st.t}</span></div></div>`;
+    return row+(open?`<div class="sdm-card">${buildCard(s)}</div>`:'');
+  }).join('');
+  return `<div class="sd-section sdm" id="sd-meals"><div class="sdm-t">🍽️ มื้ออาหาร<span>${L.length?L.length+' มื้อ':''}</span></div>
+    ${_sdmChips(k,'sdSetDay')}${_sdmTrunc(d)}
+    ${L.length?`<div class="sdm-tot">${box('kcal',T.k,+tg.kcal||0)}${box('C',T.c,+tg.c||0)}${box('P',T.p,+tg.p||0)}${box('F',T.f,+tg.f||0)}</div>${rows}
+    <div class="sdm-hint">แตะมื้อเพื่อดูรูป/รายการ/อนุมัติ/แก้ค่า</div>`:`<div class="sdm-empty">${k===0?'วันนี้ยังไม่ได้ส่งมื้อ':'วันนั้นไม่ได้ส่งมื้อ'}</div>`}</div>`;
+}
+function _sdmSig(uid){
+  const u=_coachUser(uid);if(!u)return '';
+  const d=_sdmDate(u,_sdx.day[uid]||0);
+  return d+'|'+_sdmDaySubs(u,d).map(s=>s.id+':'+s.status+':'+JSON.stringify(s.correction||0)+':'+(s.mealDate||'')).join(',');
+}
+function _sdmTargets(uid){const c=_sdCache&&_sdCache[uid];return (c&&c.targets)||(()=>{const u=_coachUser(uid);return u&&u._reg&&u._reg.targets;})()||{};}
+function _sdmRender(uid){
+  const el=document.getElementById('sd-meals');if(!el||!uid)return;
+  if(_sdx.open&&!(allSubs||[]).some(s=>s.id===_sdx.open))_sdx.open=null; // มื้อถูกลบ/ย้ายวันไปแล้ว
+  el.outerHTML=buildStudentMealsSection(uid,_sdmTargets(uid));
+  _sdx.sig=_sdmSig(uid);_sdx.uid=uid;
+  _sdmPhotos();_sdmRestore();
+}
+// v138 ②: ไม่ได้กางการ์ดไหนแล้ว แต่ยังยืมใบในรายการหลักอยู่ → คืนทันที (ไม่ต้องรอปิดหน้า)
+function _sdmRestore(){if(!_sdx.open&&_sdx.stole){_sdx.stole=false;setTimeout(()=>{try{renderCoach();}catch(_){}},0);}}
+function _sdmBadge(){const b=document.getElementById('pending-count');if(!b)return;const n=(allSubs||[]).filter(x=>x.status==='pending').length;b.style.display=n?'inline-block':'none';b.textContent=n;}
+function _sdmPhotos(){ // การ์ดในหน้านักเรียนกางทีละใบ → ใส่รูปได้เลย (ไม่ผ่าน observer ของรายการหลัก)
+  document.querySelectorAll('#sd-meals img[data-src]').forEach(i=>{if(!i.getAttribute('src'))i.setAttribute('src',i.dataset.src);});
+}
+function sdSetDay(k){const uid=currentStudentData&&currentStudentData.userId;if(!uid)return;_sdx.day[uid]=k;_sdx.open=null;_sdmRender(uid);}
+function sdMealToggle(id){
+  const uid=currentStudentData&&currentStudentData.userId;if(!uid)return;
+  _sdx.open=_sdx.open===id?null:id;
+  _sdmDedup();_sdmRender(uid);
+}
+function _sdmOpenNow(){const el=document.getElementById('student-detail');return !!(el&&el.style.display!=='none'&&currentStudentData);}
+// ถอดการ์ดใบเดียวกันออกจากรายการหลัก (ใต้หน้าต่าง) ระหว่างที่กางอยู่ในหน้านักเรียน
+function _sdmDedup(){
+  if(!_sdx.open||!_sdmOpenNow())return;
+  const box=document.getElementById('cards-container');if(!box)return;
+  const dup=Array.from(box.querySelectorAll('.card')).find(c=>c.id==='card-'+_sdx.open);
+  if(dup){dup.remove();_sdx.stole=true;}
+}
+function _sdmOwns(id){const el=document.getElementById('card-'+id);return !!(el&&el.closest&&el.closest('#sd-meals'));}
+// เรียกทุกครั้งที่รายการหลักวาดใหม่ (_mountCardPhotos) — กันการ์ดซ้ำ + อัปเดตหน้านักเรียนเมื่อข้อมูลเปลี่ยน (snapshot)
+function _sdmHook(){
+  if(!_sdmOpenNow())return;
+  _sdmDedup();
+  const uid=currentStudentData.userId;
+  if(!document.getElementById('sd-meals'))return;
+  const sig=_sdmSig(uid);if(sig===_sdx.sig&&_sdx.uid===uid)return;
+  const ae=document.activeElement;if(ae&&ae.closest&&ae.closest('#sd-meals')&&/INPUT|TEXTAREA|SELECT/.test(ae.tagName))return; // กำลังพิมพ์ในแผงแก้ → ไว้รอบหน้า
+  _sdmRender(uid);
 }
 
 // ===== LIFESTYLE 7 วัน (bar charts) =====
@@ -8373,7 +8544,7 @@ function buildCard(s){
   // อนุมัติแล้ว → 10 รายการล่าสุดมีปุ่มกดดู · เก่ากว่านั้นไม่ต้องแสดงอะไร
   const _photoDone=s.status!=='pending';
   const photoHtml=_photos.length===0?''
-    :(_photoDone&&!_photoOkIds.has(s.id))?''
+    :(_photoDone&&!_photoOkIds.has(s.id)&&_sdx.open!==s.id)?'' // v137: กางในหน้านักเรียน = ดูรูปได้เสมอ
     :_photoDone
     ?`<div id="ph-${s.id}" style="padding:6px 12px 0"><button onclick="showCardPhotos('${s.id}')" style="background:var(--light);border:1px solid var(--border);border-radius:8px;padding:5px 12px;font-size:11.5px;font-family:'Prompt',sans-serif;color:var(--gray);cursor:pointer">📷 ดูรูป${_photos.length>1?' ('+_photos.length+')':''}</button></div>`
     :_photos.length===1
@@ -8640,6 +8811,7 @@ function _cardBelongs(s){
   return (coachFilter==='pending'||coachTab==='pending')?isPending:!isPending;
 }
 function _syncCard(id){
+  if(_sdmOwns(id)){_sdmRender(currentStudentData.userId);if(coachTab!=='students')renderCoach();else _sdmBadge();return;} // v137 · v138 ④: แท็บนักเรียนไม่ต้องวาดรายชื่อใหม่: การ์ดอยู่ในหน้านักเรียน → วาดส่วนมื้อใหม่ + รายการหลัก (hook ถอดใบซ้ำให้)
   if(coachTab==='students')return;
   const s=allSubs.find(x=>x.id===id);
   const el=document.getElementById('card-'+id);
@@ -8675,7 +8847,9 @@ function _pruneCoachView(){
   if(!box.querySelector('.card'))renderCoach(); // หมดแล้ว → ให้ renderCoach วาดหน้าว่าง/หน้าถัดไป
   else _mountCardPhotos();
 }
-function _updateCard(id){const s=allSubs.find(x=>x.id===id);const el=document.getElementById('card-'+id);
+function _updateCard(id){
+  if(_sdmOwns(id)){const s0=allSubs.find(x=>x.id===id),e0=document.getElementById('card-'+id);if(s0){e0.outerHTML=buildCard(s0);_sdmPhotos();}else _sdmRender(currentStudentData.userId);return;} // v137
+  const s=allSubs.find(x=>x.id===id);const el=document.getElementById('card-'+id);
   // v95c: ต้อง mount รูปทุกครั้งที่วาดการ์ดใหม่ — buildCard คืน <img data-src> ที่ยังไม่มี src
   //   ถ้าไม่เรียก รูปจะเป็นกล่องเทา และ node เก่ายังค้างอยู่ใน observer
   if(s&&el){el.outerHTML=buildCard(s);_mountCardPhotos();}else{renderCoach();}}
@@ -8717,6 +8891,11 @@ function _corrDraftNotify(){
   setTimeout(()=>{
     const el=document.getElementById('card-'+id);
     if(el)el.scrollIntoView({behavior:'smooth',block:'center'});
+    else if(isCoach&&typeof openMealsFor==='function'){ // v138 ③: การ์ดไม่อยู่ในหน้าหลัก (เช่นมื้ออนุมัติแล้ว) → เปิดในหน้านักเรียน
+      const s=(allSubs||[]).find(x=>x.id===id),u=s&&_coachUser(s.userId);
+      const k=u?daysBetweenYmd(subDate(s),todayStrTZ(_sdmTZ(u))):-1;
+      if(u&&k>=0&&k<SDM_DAYS){_sdx._openAfter=id;openMealsFor(s.userId,k);}
+    }
     showToast('↩️ กู้ค่าที่แก้ค้างไว้กลับมาให้แล้วค่ะ — เช็คแล้วกดบันทึกได้เลย',5000);
   },350);
 }
