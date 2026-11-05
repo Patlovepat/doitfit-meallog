@@ -1203,7 +1203,7 @@ function _slowMsg(okText){
 //   (loadSavedMenus ดึงมา .limit(40) อยู่แล้ว 20 จึงยังอยู่ใต้เพดานการอ่าน)
 //   ประกาศไว้บนสุด เพราะถูกใช้ทั้งใน loadStudentData / loadSavedMenus / saveCurrentMenu
 const MENU_CAP=20;
-const APP_VERSION='v138-2026-11-02'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
+const APP_VERSION='v139-2026-11-04'; // ⚠️ bump ทุกครั้งที่ push เพื่อรู้ว่า error มาจาก version ไหน
 const _errLogged=new Set();let _errCount=0;
 // ═════ v120: บันทึกเหตุการณ์คิวมื้ออาหาร ═════
 // ★ แยกโควตาจาก _reportError โดยตั้งใจ — idb-known/photo-fail ยิงถี่จนกินเพดาน 10 หมด
@@ -7116,6 +7116,7 @@ function closeStudentDetail(){
   document.getElementById('student-detail').style.display='none';
   currentStudentData=null;
   // v137: ถอดการ์ดที่กางไว้ออกจากหน้านักเรียน (หน้าแค่ถูกซ่อน DOM ยังอยู่ → id ซ้ำกับรายการหลักได้) แล้วคืนการ์ดให้รายการหลัก
+  if(_sdx.open&&cState[_sdx.open]){delete cState[_sdx.open].open;delete cState[_sdx.open].approveOpen;delete cState[_sdx.open]._sub;} // v139 ④: ปิดแผง แต่ "ไม่ลบ" ค่าที่พิมพ์ไว้ (ร่าง v91 ยังกู้ได้)
   _sdx.open=null;document.querySelectorAll('#sd-meals .sdm-card').forEach(e=>e.remove());document.querySelectorAll('#sd-meals .sdm-row.open').forEach(e=>e.classList.remove('open'));
   if(_sdx.stole){_sdx.stole=false;renderCoach();}
 }
@@ -8311,7 +8312,7 @@ function _sdmRender(uid){
   if(_sdx.open&&!(allSubs||[]).some(s=>s.id===_sdx.open))_sdx.open=null; // มื้อถูกลบ/ย้ายวันไปแล้ว
   el.outerHTML=buildStudentMealsSection(uid,_sdmTargets(uid));
   _sdx.sig=_sdmSig(uid);_sdx.uid=uid;
-  _sdmPhotos();_sdmRestore();
+  _sdmDedup();_sdmPhotos();_sdmRestore(); // v139: กันสำเนาทุกครั้งที่วาด
 }
 // v138 ②: ไม่ได้กางการ์ดไหนแล้ว แต่ยังยืมใบในรายการหลักอยู่ → คืนทันที (ไม่ต้องรอปิดหน้า)
 function _sdmRestore(){if(!_sdx.open&&_sdx.stole){_sdx.stole=false;setTimeout(()=>{try{renderCoach();}catch(_){}},0);}}
@@ -8329,11 +8330,32 @@ function _sdmOpenNow(){const el=document.getElementById('student-detail');return
 // ถอดการ์ดใบเดียวกันออกจากรายการหลัก (ใต้หน้าต่าง) ระหว่างที่กางอยู่ในหน้านักเรียน
 function _sdmDedup(){
   if(!_sdx.open||!_sdmOpenNow())return;
-  const box=document.getElementById('cards-container');if(!box)return;
-  const dup=Array.from(box.querySelectorAll('.card')).find(c=>c.id==='card-'+_sdx.open);
-  if(dup){dup.remove();_sdx.stole=true;}
+  // v139 ②: ถอดสำเนา "ทุกใบ" ที่อยู่นอกหน้านักเรียน — เดิมดูแค่ในรายการหลัก
+  const all=document.querySelectorAll('[id="card-'+_sdx.open+'"]');
+  for(const c of all){
+    if(c.closest&&c.closest('#sd-meals'))continue;
+    if(c.closest&&c.closest('#cards-container'))_sdx.stole=true;
+    else _sdmDupReport(c);
+    c.remove();
+  }
 }
-function _sdmOwns(id){const el=document.getElementById('card-'+id);return !!(el&&el.closest&&el.closest('#sd-meals'));}
+let _sdmDupLogged=false;
+function _sdmDupReport(c){ // v139 ③: บอกว่าสำเนาอยู่ตรงไหน — ไล่ id ของกล่องที่ครอบ
+  if(_sdmDupLogged)return;_sdmDupLogged=true;
+  try{const path=[];let a=c.parentElement;while(a&&path.length<4){if(a.id)path.push('#'+a.id);a=a.parentElement;}
+    if(typeof _reportError==='function')_reportError('sd-dup','card copy outside list: '+(path.join(' < ')||'(no id parent)')+' · tab='+coachTab,'','_sdmDedup');}catch(_){}
+}
+function _sdmEl(id){return document.querySelector('#sd-meals [id="card-'+id+'"]');} // v139 ①
+// v139: เปิดแผงแก้แล้วจอไม่มีแผง = อาการที่คุณน้ำเจอ → ลง errorLogs พร้อมรายละเอียด (ครั้งเดียวต่อ session)
+let _sdmCorrLogged=false;
+function _sdmCorrCheck(id){
+  try{if(_sdmCorrLogged||!(cState[id]&&cState[id].open))return;
+    const e=_sdmEl(id);if(e&&e.querySelector('.correction-panel'))return;
+    _sdmCorrLogged=true;
+    _reportError('sd-corr-miss','id='+id+' inSd='+!!e+' copies='+document.querySelectorAll('[id="card-'+id+'"]').length+' tab='+coachTab,'','_updateCard');
+  }catch(_){}
+}
+function _sdmOwns(id){return !!_sdmEl(id);}
 // เรียกทุกครั้งที่รายการหลักวาดใหม่ (_mountCardPhotos) — กันการ์ดซ้ำ + อัปเดตหน้านักเรียนเมื่อข้อมูลเปลี่ยน (snapshot)
 function _sdmHook(){
   if(!_sdmOpenNow())return;
@@ -8848,7 +8870,7 @@ function _pruneCoachView(){
   else _mountCardPhotos();
 }
 function _updateCard(id){
-  if(_sdmOwns(id)){const s0=allSubs.find(x=>x.id===id),e0=document.getElementById('card-'+id);if(s0){e0.outerHTML=buildCard(s0);_sdmPhotos();}else _sdmRender(currentStudentData.userId);return;} // v137
+  if(_sdmOwns(id)){_sdmDedup();const s0=allSubs.find(x=>x.id===id),e0=_sdmEl(id);if(s0&&e0){e0.outerHTML=buildCard(s0);_sdmPhotos();_sdmCorrCheck(id);}else _sdmRender(currentStudentData.userId);return;} // v137 · v139: ใบในหน้านักเรียนเสมอ
   const s=allSubs.find(x=>x.id===id);const el=document.getElementById('card-'+id);
   // v95c: ต้อง mount รูปทุกครั้งที่วาดการ์ดใหม่ — buildCard คืน <img data-src> ที่ยังไม่มี src
   //   ถ้าไม่เรียก รูปจะเป็นกล่องเทา และ node เก่ายังค้างอยู่ใน observer
